@@ -6,6 +6,13 @@ Every challenge is its own labyrinth. Clew takes its name from the ball of threa
 
 But the thread is not the hero. You are. Clew helps you see a way forward; it doesn’t walk the path for you. The choices, the effort, and the discoveries remain yours.
 
+## Architecture decisions
+
+[Architecture Decision Records](docs/adr/README.md) capture significant decisions,
+their rationale, alternatives, and consequences. Start with the
+[ADR template](docs/adr/template.md); proposed decisions require explicit human
+approval before acceptance.
+
 ## Agent skills
 
 This repository uses [Microsoft APM](https://github.com/microsoft/apm) to manage
@@ -21,6 +28,7 @@ apm install --frozen
 | --- | --- |
 | [Anthropic](https://github.com/anthropics/skills) | `skill-creator` |
 | [Kepano's Obsidian skills](https://github.com/kepano/obsidian-skills) | `defuddle`, `json-canvas`, `obsidian-bases`, `obsidian-cli`, `obsidian-markdown` |
+| [GitHub Awesome Copilot](https://github.com/github/awesome-copilot) | `create-architectural-decision-record` |
 
 `apm.yml` pins upstream commits; `apm.lock.yaml` records the resolved dependencies
 and deployed file hashes. Skills and their bundled resources live in
@@ -34,3 +42,6 @@ To change a dependency version, update its commit reference in `apm.yml` and run
 dependency or its version rather than modifying generated skill files directly.
 The skills provide agent instructions; external tools they use, such as Obsidian
 or the Defuddle CLI, must be installed separately when needed.
+
+When updating the ADR skill, compare its embedded template with
+`docs/adr/template.md` and review the process guidance for compatibility.
