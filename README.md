@@ -45,3 +45,18 @@ or the Defuddle CLI, must be installed separately when needed.
 
 When updating the ADR skill, compare its embedded template with
 `docs/adr/template.md` and review the process guidance for compatibility.
+
+### First-party skills
+
+[`learner-model`](.agents/skills/learner-model/SKILL.md) guides agents operating on
+Clew's local learner records: recording evidence, maintaining concepts,
+misconceptions, preferences and goals, scheduling reviews, resolving adaptation
+decisions, and honoring inspection, correction and deletion requests. It follows
+[`docs/LEARNER_MODEL.md`](docs/LEARNER_MODEL.md) and asks for clarification when
+an unspecified storage or inference rule blocks a write. Private model data
+requires local processing; a hosted agent must not read it through local tools.
+
+This skill is maintained here, not generated from an APM dependency. Its
+`evals/evals.json` contains three synthetic dry-run scenarios that do not access
+real learner data. The skill provides operational instructions, not a model
+storage engine or structural enforcement of the specification.
