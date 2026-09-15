@@ -1,0 +1,20 @@
+name: clew
+version: 1.0.0
+description: Agent skills for developing Clew, a personalized learning assistant.
+author: Dominique Broeglin
+# Which agent platforms to deploy to.
+# Resolution order: --target flag > this field > auto-detect from filesystem.
+# Accepted values: agent-skills, antigravity, claude, codex, copilot, cursor, gemini, grok-build, kiro, opencode, windsurf
+targets:
+  - copilot
+dependencies:
+  apm:
+    - anthropics/skills/skills/skill-creator#34040c9c568585f6929bedeaad110ad08f079624
+    - kepano/obsidian-skills/skills/defuddle#8ccef29ae8624eccc734e77ced4a6e54baf5d83a
+    - kepano/obsidian-skills/skills/json-canvas#8ccef29ae8624eccc734e77ced4a6e54baf5d83a
+    - kepano/obsidian-skills/skills/obsidian-bases#8ccef29ae8624eccc734e77ced4a6e54baf5d83a
+    - kepano/obsidian-skills/skills/obsidian-cli#8ccef29ae8624eccc734e77ced4a6e54baf5d83a
+    - kepano/obsidian-skills/skills/obsidian-markdown#8ccef29ae8624eccc734e77ced4a6e54baf5d83a
+  mcp: []
+includes: auto
+scripts: {}
