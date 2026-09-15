@@ -1,5 +1,5 @@
 lockfile_version: '1'
-generated_at: '2026-09-15T07:20:23.485574+00:00'
+generated_at: '2026-09-15T07:45:56.388277+00:00'
 apm_version: 0.28.0
 dependencies:
 - repo_url: anthropics/skills
@@ -51,6 +51,21 @@ dependencies:
     .agents/skills/skill-creator/scripts/run_loop.py: sha256:7bd6f674203168520517eec94c55f493c0d154339b061b4d7c0f0dad187d0f21
     .agents/skills/skill-creator/scripts/utils.py: sha256:3af8ae62c40c73ab712207436a0d9a981e845f25c5a7040229eb189cc8e45bb1
   content_hash: sha256:b2bfe91d69ca99994c0566baede889e7d2b9bb8791c6b6106c5d387392f717f6
+- repo_url: github/awesome-copilot
+  name: create-architectural-decision-record
+  host: github.com
+  resolved_commit: fb4eb04fcbd30de50052b1155d81167393dfb5aa
+  resolved_ref: fb4eb04fcbd30de50052b1155d81167393dfb5aa
+  version: unknown
+  virtual_path: skills/create-architectural-decision-record
+  is_virtual: true
+  package_type: claude_skill
+  deployed_files:
+  - .agents/skills/create-architectural-decision-record
+  - .agents/skills/create-architectural-decision-record/SKILL.md
+  deployed_file_hashes:
+    .agents/skills/create-architectural-decision-record/SKILL.md: sha256:c11af0c34fa034e36e622ad97f1194824c3cbbe675a8b17cdc0bedc91b188a72
+  content_hash: sha256:5c99e32293271aef0270c279c2af8b62301e29257bf85f2ebf7e810c740b4404
 - repo_url: kepano/obsidian-skills
   name: defuddle
   host: github.com
@@ -137,6 +152,24 @@ dependencies:
     .agents/skills/obsidian-markdown/references/PROPERTIES.md: sha256:392953b5838c3ab3df135b5a914f100ae7b95e4501b6a2e5c8dc63da3ac7558b
   content_hash: sha256:622c48fb0c4642ef3725e782e96a37e645832d674df67f1a9383f3b592c354fe
 deployments:
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/create-architectural-decision-record
+  runtime: null
+  scope: project
+  owners:
+  - github/awesome-copilot/skills/create-architectural-decision-record
+  active_owner: github/awesome-copilot/skills/create-architectural-decision-record
+  content_hash: null
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/create-architectural-decision-record/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - github/awesome-copilot/skills/create-architectural-decision-record
+  active_owner: github/awesome-copilot/skills/create-architectural-decision-record
+  content_hash: sha256:c11af0c34fa034e36e622ad97f1194824c3cbbe675a8b17cdc0bedc91b188a72
 - kind: project-relative
   target: copilot
   value: .agents/skills/defuddle
