@@ -1,4 +1,4 @@
-Third-party agent skills
+Third-party agent skills and extension dependencies
 
 Clew course-content skill
 Source: https://github.com/francesco-kruk/clew-skills
@@ -68,3 +68,31 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+Course reader runtime and development dependencies
+
+Package sources are not vendored. npm restores the exact dependency graph in
+.github/extensions/clew-course-reader/package-lock.json, retaining the license
+files delivered by each package, including transitive dependencies.
+The extension does not redistribute the host-provided Copilot SDK.
+
+markdown-it 15.0.2
+Source: https://github.com/markdown-it/markdown-it
+License: MIT; installed package node_modules/markdown-it/LICENSE.
+
+yaml 2.9.1
+Source: https://github.com/eemeli/yaml
+License: ISC; installed package node_modules/yaml/LICENSE.
+
+@mdit/plugin-katex 1.1.1
+Source: https://github.com/mdit-plugins/mdit-plugins
+License: MIT; installed package node_modules/@mdit/plugin-katex/LICENSE.
+
+KaTeX 0.18.7
+Source: https://github.com/KaTeX/KaTeX
+License: MIT; installed package node_modules/katex/LICENSE.
+Its bundled font notices are retained with the installed package.
+
+Playwright 1.63.0 (development checks only)
+Source: https://github.com/microsoft/playwright
+License: Apache-2.0; installed package node_modules/playwright/LICENSE.

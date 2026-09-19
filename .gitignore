@@ -2,5 +2,8 @@
 # APM dependencies
 apm_modules/
 
+# Extension runtime dependencies
+node_modules/
+
 # Local Clew vault configuration
 .clew.local.json
