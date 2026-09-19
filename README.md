@@ -13,6 +13,23 @@ their rationale, alternatives, and consequences. Start with the
 [ADR template](docs/adr/template.md); proposed decisions require explicit human
 approval before acceptance.
 
+## Course reader extension
+
+The first Clew UX surface is a
+[GitHub Copilot App course-reader extension](.github/extensions/clew-course-reader/README.md).
+It displays Markdown and KaTeX mathematics, follows top-level `previous` and
+`next` frontmatter links, and lets selected passages be staged as chat-composer
+attachments without automatically sending them. Its contents list shows the
+current page's headings and can be collapsed. The session can open, navigate,
+and refresh the reader. It is read-only and scoped to a chosen course within a vault;
+it does not read or update private learner records.
+
+Restore its pinned runtime dependencies with
+`npm --prefix .github\extensions\clew-course-reader ci --ignore-scripts`, then
+reload extensions in the App. The extension README covers opening a course,
+the session action contract, and the included
+[synthetic reader tour](examples/reader-vault/courses/reader-tour/hub.md).
+
 ## Agent skills
 
 This repository uses [Microsoft APM](https://github.com/microsoft/apm) to manage

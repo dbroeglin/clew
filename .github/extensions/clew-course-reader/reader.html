@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <script nonce="__CSP_NONCE__">
+      (() => {
+        const param = new URLSearchParams(window.location.search).get("scoutTheme");
+        const theme =
+          param || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+        document.documentElement.setAttribute("data-theme", theme);
+      })();
+    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="referrer" content="no-referrer">
+    <title>Course reader · Clew</title>
+    <link rel="stylesheet" href="katex/katex.min.css">
+    <link rel="stylesheet" href="reader.css">
+    <script type="module" src="reader-client.js"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#page-content">Skip to course text</a>
+    <div class="reader-shell">
+      <header class="reader-header">
+        <p id="course-name" class="course-name">Course</p>
+      </header>
+
+      <nav class="page-navigation" aria-label="Course pages">
+        <div class="page-step">
+          <button id="previous-button" class="button step-button" type="button" aria-label="Previous" aria-describedby="previous-detail" disabled>
+            <span class="step-arrow" aria-hidden="true">←</span>
+            <span>Previous</span>
+          </button>
+          <p id="previous-detail" class="step-detail" hidden></p>
+        </div>
+        <div class="page-step">
+          <button id="next-button" class="button step-button" type="button" aria-label="Next" aria-describedby="next-detail" disabled>
+            <span>Next</span>
+            <span class="step-arrow" aria-hidden="true">→</span>
+          </button>
+          <p id="next-detail" class="step-detail" hidden></p>
+        </div>
+      </nav>
+
+      <p id="connection-error" class="message message-error" role="status" aria-live="polite" hidden></p>
+      <p id="error-message" class="message message-error" role="alert" hidden></p>
+      <p id="notice" class="message message-notice" role="status" aria-live="polite" hidden></p>
+
+      <main id="reading-surface" class="reading-surface" aria-busy="true">
+        <div id="initial-message" class="empty-state" role="status">
+          <h1>Opening your course…</h1>
+        </div>
+        <div class="reading-column">
+          <details id="page-outline" class="page-outline" hidden>
+            <summary>Contents</summary>
+            <nav aria-label="Page headings">
+              <ol id="outline-list"></ol>
+            </nav>
+          </details>
+          <h1 id="page-title" class="page-title" hidden></h1>
+          <article id="page-content" class="markdown-body" tabindex="-1" hidden></article>
+          <button id="ask-button" class="button button-primary selection-action" type="button" hidden disabled>Ask in chat</button>
+        </div>
+      </main>
+    </div>
+
+    <noscript><p class="message message-error">JavaScript is needed to open the course reader. No course files will be changed.</p></noscript>
+  </body>
+</html>

@@ -1,0 +1,24 @@
+{
+  "name": "clew-course-reader",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A read-only course canvas for GitHub Copilot App.",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "test": "node --test",
+    "test:browser": "node --test browser-tests/reader.browser.mjs",
+    "check": "node --check extension.mjs && node --check reader.mjs && node --check server.mjs && node --check renderer.mjs && node --check reader-client.js"
+  },
+  "dependencies": {
+    "@mdit/plugin-katex": "1.1.1",
+    "katex": "0.18.7",
+    "markdown-it": "15.0.2",
+    "yaml": "2.9.1"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}
