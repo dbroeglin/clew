@@ -3,7 +3,7 @@
 A read-only GitHub Copilot App canvas for a chosen course inside the current
 vault. The learner can navigate and stage selected passages in chat; the session can
 open pages, navigate, inspect the current excerpt, and refresh the reader.
-[ADR-0001](../../../docs/adr/adr-0001-copilot-app-extension-ux.md) describes the
+[ADR-0002](../../../docs/adr/adr-0002-copilot-app-extension-ux.md) describes the
 architecture and remains **Proposed**.
 
 ## Install

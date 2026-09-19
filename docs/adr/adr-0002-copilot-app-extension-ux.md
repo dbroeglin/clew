@@ -1,5 +1,5 @@
 ---
-title: "ADR-0001: Copilot App extensions for a bidirectional learner UX"
+title: "ADR-0002: Copilot App extensions for a bidirectional learner UX"
 status: "Proposed"
 date: "2026-09-19"
 authors: "Clew maintainers"
@@ -8,7 +8,7 @@ supersedes: ""
 superseded_by: ""
 ---
 
-# ADR-0001: Copilot App extensions for a bidirectional learner UX
+# ADR-0002: Copilot App extensions for a bidirectional learner UX
 
 ## Status
 
@@ -199,8 +199,7 @@ before choosing implementation constraints or adding dependencies.
 - **REF-001**: [Clew's purpose and shared canvas](../../README.md).
 - **REF-002**: [Learner model specification](../LEARNER_MODEL.md), especially
   sections 2, 4, 8, 9, and 10.
-- **REF-003**: [ADR process](README.md). This is the first record; it supersedes
-  no earlier ADR.
+- **REF-003**: [ADR process](README.md). This record supersedes no earlier ADR.
 - **REF-004**: [Current prototype usage and contract](../../.github/extensions/clew-course-reader/README.md);
   this describes the implementation, not approval of its UX.
 - **REF-005**: The installed Copilot SDK's `docs/extensions.md`,
@@ -209,3 +208,5 @@ before choosing implementation constraints or adding dependencies.
   runtime APIs used here; consult the SDK bundled with the running App.
 - **REF-006**: [KaTeX options and trust boundary](https://katex.org/docs/options).
 - **REF-007**: [Collaboration and approval instructions](../../AGENTS.md#discuss-before-implementing).
+- **REF-008**: [ADR-0001: Unified Clew content structure](adr-0001-unified-clew-content-structure.md),
+  the related course-content proposal.

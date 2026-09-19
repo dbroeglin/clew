@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Clew verification report v1",
+  "type": "object", "additionalProperties": false,
+  "required": ["schema", "course_id", "source_map_sha256", "sections", "pages"],
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[a-z0-9]+(?:[.-][a-z0-9]+)*$"},
+    "text": {"type": "string", "pattern": "\\S"},
+    "texts": {"type": "array", "items": {"$ref": "#/$defs/text"}},
+    "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "section": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "markdown_sha256", "fidelity", "checks", "limitations"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "markdown_sha256": {"$ref": "#/$defs/hash"},
+        "fidelity": {"enum": ["needs-review", "partial", "verified"]},
+        "checks": {"$ref": "#/$defs/texts"},
+        "limitations": {"$ref": "#/$defs/texts"}
+      },
+      "if": {"properties": {"fidelity": {"const": "verified"}}},
+      "then": {"properties": {"checks": {"minItems": 1}, "limitations": {"maxItems": 0}}},
+      "else": {"properties": {"limitations": {"minItems": 1}}}
+    },
+    "page": {
+      "type": "object", "additionalProperties": false,
+      "required": ["source_id", "page", "status", "section_ids", "reason"],
+      "properties": {
+        "source_id": {"$ref": "#/$defs/id"},
+        "page": {"type": "integer", "minimum": 1},
+        "status": {"enum": ["mapped", "excluded", "unresolved"]},
+        "section_ids": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/id"}},
+        "reason": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/text"}]}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"status": {"const": "mapped"}}},
+          "then": {"properties": {"section_ids": {"minItems": 1}}},
+          "else": {"properties": {"reason": {"$ref": "#/$defs/text"}}}
+        },
+        {
+          "if": {"properties": {"status": {"const": "excluded"}}},
+          "then": {"properties": {"section_ids": {"maxItems": 0}}}
+        }
+      ]
+    }
+  },
+  "properties": {
+    "schema": {"const": "clew-verification/v1"},
+    "course_id": {"$ref": "#/$defs/id"},
+    "source_map_sha256": {"$ref": "#/$defs/hash"},
+    "sections": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/section"}},
+    "pages": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/page"}}
+  }
+}

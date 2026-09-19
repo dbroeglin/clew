@@ -75,10 +75,11 @@ decision and rationale.
 
 | ID | Title | Status | Date |
 | --- | --- | --- | --- |
-| ADR-0001 | [Copilot App extensions for a bidirectional learner UX](adr-0001-copilot-app-extension-ux.md) | Proposed | 2026-09-19 |
+| ADR-0001 | [Unified Clew content structure](adr-0001-unified-clew-content-structure.md) | Proposed | 2026-09-19 |
+| ADR-0002 | [Copilot App extensions for a bidirectional learner UX](adr-0002-copilot-app-extension-ux.md) | Proposed | 2026-09-19 |
 
-Add a row with the title linked to its record for each new ADR.
-Maintain the index manually alongside record changes; no generator is required.
+Add a row with the title linked to its record for each new ADR. Maintain the
+index manually alongside record changes; no generator is required.
 
 ## Skill management and references
 

@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Clew source map v1",
+  "type": "object", "additionalProperties": false,
+  "required": ["schema", "course_id", "sources", "sections"],
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[a-z0-9]+(?:[.-][a-z0-9]+)*$"},
+    "text": {"type": "string", "pattern": "\\S"},
+    "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "span": {
+      "type": "object", "additionalProperties": false,
+      "required": ["source_id", "page_start", "page_end"],
+      "properties": {
+        "source_id": {"$ref": "#/$defs/id"},
+        "page_start": {"type": "integer", "minimum": 1},
+        "page_end": {"type": "integer", "minimum": 1},
+        "printed_pages": {
+          "type": "object", "propertyNames": {"pattern": "^[1-9][0-9]*$"},
+          "additionalProperties": {"$ref": "#/$defs/text"}
+        },
+        "rect": {
+          "type": "array", "minItems": 4, "maxItems": 4,
+          "items": {"type": "number", "minimum": 0}
+        }
+      }
+    },
+    "spans": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/span"}},
+    "source": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "filename", "path", "sha256", "page_count", "citation", "edition", "omission_reason"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "filename": {"type": "string", "pattern": "^[^/\\\\]+\\.[pP][dD][fF]$"},
+        "path": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/text"}]},
+        "sha256": {"$ref": "#/$defs/hash"},
+        "page_count": {"type": "integer", "minimum": 1},
+        "citation": {"$ref": "#/$defs/text"},
+        "edition": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/text"}]},
+        "omission_reason": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/text"}]}
+      }
+    },
+    "section": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "path", "spans"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "path": {"$ref": "#/$defs/text"},
+        "spans": {"$ref": "#/$defs/spans"},
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["anchor", "spans"],
+            "properties": {
+              "anchor": {"$ref": "#/$defs/text"},
+              "spans": {"$ref": "#/$defs/spans"},
+              "asset_path": {"$ref": "#/$defs/text"}
+            }
+          }
+        },
+        "alternatives": {
+          "type": "array",
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["spans", "equivalence_evidence"],
+            "properties": {
+              "spans": {"$ref": "#/$defs/spans"},
+              "equivalence_evidence": {"$ref": "#/$defs/text"}
+            }
+          }
+        }
+      }
+    }
+  },
+  "properties": {
+    "schema": {"const": "clew-source-map/v1"},
+    "course_id": {"$ref": "#/$defs/id"},
+    "sources": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/source"}},
+    "sections": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/section"}}
+  }
+}

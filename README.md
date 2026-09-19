@@ -33,9 +33,10 @@ the session action contract, and the included
 ## Agent skills
 
 This repository uses [Microsoft APM](https://github.com/microsoft/apm) to manage
-project-local agent skills, targeting GitHub Copilot. Install APM (this setup was
-generated with version 0.28.0), then restore the pinned dependencies from the
-repository root:
+project-local agent skills, targeting GitHub Copilot. The `agent-skills` target
+is also enabled to honor `course-content`'s declared target; both use the shared
+`.agents/skills/` directory. Install APM (this setup was generated with version
+0.28.0), then restore the pinned dependencies from the repository root:
 
 ```sh
 apm install --frozen
@@ -46,6 +47,7 @@ apm install --frozen
 | [Anthropic](https://github.com/anthropics/skills) | `skill-creator` |
 | [Kepano's Obsidian skills](https://github.com/kepano/obsidian-skills) | `defuddle`, `json-canvas`, `obsidian-bases`, `obsidian-cli`, `obsidian-markdown` |
 | [GitHub Awesome Copilot](https://github.com/github/awesome-copilot) | `create-architectural-decision-record` |
+| [Clew skills](https://github.com/francesco-kruk/clew-skills) | `course-content` |
 
 `apm.yml` pins upstream commits; `apm.lock.yaml` records the resolved dependencies
 and deployed file hashes. Skills and their bundled resources live in
@@ -62,6 +64,26 @@ or the Defuddle CLI, must be installed separately when needed.
 
 When updating the ADR skill, compare its embedded template with
 `docs/adr/template.md` and review the process guidance for compatibility.
+
+### Course content
+
+[`course-content`](.agents/skills/course-content/SKILL.md) 3.0.0 describes one
+`clew/v1` course structure: course/chapter indexes, complete semantic Markdown
+sections, original PDFs with provenance, and shared canonical concept notes.
+[Proposed ADR-0001](docs/adr/adr-0001-unified-clew-content-structure.md) records
+the rationale, alternatives and integration boundaries. Installing the skill
+does not constitute acceptance of the ADR.
+
+Reading requires an explicitly authorized external Obsidian vault and selected
+course/note, not the repository itself. The gitignored `.clew.local.json`
+declares `version: 1` and an absolute `vault` path. Ordinary course reads need
+neither a running Obsidian app nor Python and must not access learner records.
+
+Python helpers require Python 3.11 or newer through the consuming project's uv
+environment. This repository does not yet have `pyproject.toml` or `uv.lock`;
+APM installation alone does not configure that runtime. Project uv setup,
+alignment of PDF producers such as `digest`, and updates to the learner
+specification's older course-hub references remain separate integration work.
 
 ### First-party skills
 
