@@ -1,3 +1,6 @@
 
 # APM dependencies
 apm_modules/
+
+# Local Clew vault configuration
+.clew.local.json
