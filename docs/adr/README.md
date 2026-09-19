@@ -73,15 +73,12 @@ decision and rationale.
 
 ## Decision index
 
-No decisions have been recorded yet. This initial setup establishes the process
-only; it does not retrospectively approve the existing design.
-
 | ID | Title | Status | Date |
 | --- | --- | --- | --- |
+| ADR-0001 | [Unified Clew content structure](adr-0001-unified-clew-content-structure.md) | Proposed | 2026-09-19 |
 
-Add a row with the title linked to its record for each new ADR. Remove the
-"No decisions have been recorded yet" paragraph when adding the first record.
-Maintain the index manually alongside record changes; no generator is required.
+Add a row with the title linked to its record for each new ADR. Maintain the
+index manually alongside record changes; no generator is required.
 
 ## Skill management and references
 

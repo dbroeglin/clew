@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Clew note frontmatter v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "id", "kind", "title", "summary"],
+  "$defs": {
+    "text": {"type": "string", "pattern": "\\S"},
+    "texts": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/text"}},
+    "link": {"type": "string", "pattern": "^\\[\\[[^\\[\\]\\n\\r|#!]+\\]\\]$"},
+    "evidence": {"type": "string", "pattern": "^\\[\\[[^\\[\\]\\n\\r|!]+\\]\\]$"},
+    "links": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/link"}}
+  },
+  "properties": {
+    "schema": {"const": "clew/v1"},
+    "id": {"type": "string", "pattern": "^[a-z0-9]+(?:[.-][a-z0-9]+)*$"},
+    "kind": {"enum": ["course", "chapter", "section", "concept"]},
+    "title": {"$ref": "#/$defs/text"},
+    "summary": {"$ref": "#/$defs/text"},
+    "aliases": {"$ref": "#/$defs/texts"},
+    "tags": {"$ref": "#/$defs/texts"},
+    "cssclasses": {"$ref": "#/$defs/texts"},
+    "primary_domains": {"$ref": "#/$defs/texts"},
+    "prerequisite_domains": {"$ref": "#/$defs/texts"},
+    "domains": {"$ref": "#/$defs/texts"},
+    "course": {"$ref": "#/$defs/link"},
+    "parent": {"$ref": "#/$defs/link"},
+    "children": {"$ref": "#/$defs/links", "minItems": 1},
+    "previous": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/link"}]},
+    "next": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/link"}]},
+    "teaches": {"$ref": "#/$defs/links"},
+    "prerequisites": {"$ref": "#/$defs/links"},
+    "similar": {"$ref": "#/$defs/links"},
+    "related": {"$ref": "#/$defs/links"},
+    "evidence": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": {"$ref": "#/$defs/evidence"}
+    },
+    "source_refs": {
+      "type": "array", "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^\\[\\[courses/[^\\[\\]\\n\\r|#]+\\.[pP][dD][fF]#page=[1-9][0-9]*\\]\\]$"}
+    },
+    "fidelity": {"enum": ["needs-review", "partial", "verified"]}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"kind": {"const": "course"}}},
+      "then": {
+        "required": ["children", "source_refs"],
+        "properties": {
+          "course": false, "parent": false, "previous": false, "next": false,
+          "teaches": false, "prerequisites": false, "similar": false, "related": false,
+          "evidence": false, "fidelity": false, "domains": false
+        }
+      }
+    },
+    {
+      "if": {"properties": {"kind": {"const": "chapter"}}},
+      "then": {
+        "required": ["course", "parent", "children", "source_refs"],
+        "properties": {
+          "previous": false, "next": false, "teaches": false, "prerequisites": false,
+          "similar": false, "related": false, "evidence": false, "fidelity": false,
+          "domains": false, "primary_domains": false, "prerequisite_domains": false
+        }
+      }
+    },
+    {
+      "if": {"properties": {"kind": {"const": "section"}}},
+      "then": {
+        "required": ["course", "parent", "previous", "next", "source_refs", "fidelity"],
+        "properties": {
+          "children": false, "similar": false, "evidence": false,
+          "primary_domains": false, "prerequisite_domains": false
+        }
+      }
+    },
+    {
+      "if": {"properties": {"kind": {"const": "concept"}}},
+      "then": {
+        "required": ["evidence"],
+        "properties": {
+          "course": false, "parent": false, "children": false, "previous": false,
+          "next": false, "teaches": false, "source_refs": false, "fidelity": false,
+          "primary_domains": false, "prerequisite_domains": false
+        }
+      }
+    }
+  ]
+}

@@ -7,6 +7,7 @@ author: Dominique Broeglin
 # Accepted values: agent-skills, antigravity, claude, codex, copilot, cursor, gemini, grok-build, kiro, opencode, windsurf
 targets:
   - copilot
+  - agent-skills
 dependencies:
   apm:
     - anthropics/skills/skills/skill-creator#34040c9c568585f6929bedeaad110ad08f079624
@@ -16,6 +17,7 @@ dependencies:
     - kepano/obsidian-skills/skills/obsidian-cli#8ccef29ae8624eccc734e77ced4a6e54baf5d83a
     - kepano/obsidian-skills/skills/obsidian-markdown#8ccef29ae8624eccc734e77ced4a6e54baf5d83a
     - github/awesome-copilot/skills/create-architectural-decision-record#fb4eb04fcbd30de50052b1155d81167393dfb5aa
+    - francesco-kruk/clew-skills/skills/course-content#d4e0880642b0870857749978417cb9561487626a
   mcp: []
 includes: auto
 scripts: {}
