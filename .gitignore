@@ -7,3 +7,15 @@ node_modules/
 
 # Local Clew vault configuration
 .clew.local.json
+
+# Python and local ingestion configuration
+.venv/
+__pycache__/
+*.py[cod]
+.env
+.env.*
+!.env.example
+
+# Generated PDF digests may contain private or copyrighted source material
+digest/
+digests/

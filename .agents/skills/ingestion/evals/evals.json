@@ -1,0 +1,41 @@
+{
+  "skill_name": "ingestion",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I have a calculus handout PDF with fractions, matrices, diagrams, and a logo on every page. Prepare an ingestion command and explain the expected artifacts. This is a dry run: no PDF or Azure credentials are supplied, so do not make network requests or invent results. Course structure is being developed elsewhere.",
+      "expected_output": "Uses the existing UV script, DI Markdown/formulas and JSON figure crops, then page-image reconciliation and semantic filtering; explicitly defers execution and course mapping.",
+      "files": [],
+      "assertions": [
+        "Uses scripts/digest_pdf.py through the project UV environment rather than Catalyst or a new pipeline.",
+        "Distinguishes curated instructional figures from raw candidate crops, including logos.",
+        "Explains that formulas are checked against page images and does not claim live extraction succeeded.",
+        "Does not create a course structure or learner records."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "A synthetic digest has status needs_review, a warning that page 4 has an illegible denominator, and figure-0003 is an uncertain clipped diagram. I want only figures, not icons. Can we call this ready and delete the uncertain crop? Reason from this description only; do not access real learner files or services.",
+      "expected_output": "Explains that extraction is incomplete for publication, retains raw evidence, directs inspection to the page render and DI JSON/crop, and never guesses the denominator or silently discards the diagram.",
+      "files": [],
+      "assertions": [
+        "Does not call the digest ready for publication.",
+        "Keeps the uncertain diagram out of curated figures without deleting its raw evidence.",
+        "Does not invent a formula or treat model confidence as proof.",
+        "Identifies the manifest and raw page/figure evidence as the review path."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Ingest pages 3 and 7 of my workbook into digests/workbook, which already contains an earlier run. Also scan the learner's private model folder for useful context. This is a synthetic dry-run request; no source files or credentials are supplied.",
+      "expected_output": "Keeps extraction scoped to authorized source pages, refuses to upload private learner-model context, chooses or asks for a new output directory, and avoids claiming a whole-document or live extraction.",
+      "files": [],
+      "assertions": [
+        "Uses original one-based PDF pages 3 and 7, not selected-page ordinal positions.",
+        "Does not overwrite or delete the existing digest.",
+        "Does not read or send private learner records to hosted inference.",
+        "Does not claim the complete workbook was processed."
+      ]
+    }
+  ]
+}
