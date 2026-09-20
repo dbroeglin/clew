@@ -60,6 +60,18 @@ installed `course-content` 3.0.0 `clew/v1` contract under `courses/`; learner
 memory and personal work use the separate reserved `model` and `artifacts`
 roots.
 
+Study plans have one separate first-party output location:
+`<configured-vault>/Learning/Plans/`. These are ordinary Markdown work products,
+not a new learner-memory root. Use `study-plan` to create requested plans or
+make explicitly requested checkbox edits; preserve the student's manual work.
+Showing or continuing a plan does not write it, and completing an exercise does
+not automatically check a task. Do not route plan paths through tutor memory
+capture or copy plans into `artifacts/` to satisfy that capture contract.
+Create the plans directory only for an authorized save, never during setup.
+The initial plan workflow targets non-Git vaults. Existing private-path Git
+rules do not protect `Learning/Plans/`; pause plan writes in a Git-managed vault
+for a specific privacy/tracking decision rather than changing Git policy.
+
 Configure the absolute path of an existing external vault with:
 
 ```powershell
@@ -129,3 +141,10 @@ Do not edit generated files under `.agents/skills/`. Manage dependency changes
 through `apm.yml` and APM, preserving immutable pins, the lockfile, LF deployment
 line endings, licenses, and notices. Test with synthetic notes and disposable
 vaults, never real learner records.
+
+`study-plan`, `synthesise`, `active-recall`, and `repair-attempt` are first-party
+source directories, like `ingestion` and `clew-import`, not generated APM
+dependencies. Keep these skills small and reuse installed content, memory and
+Obsidian instructions. They add no package dependencies, UI or storage backend.
+The tutor retains automatic capture ownership; skills must not start episodes
+or duplicate memory writes.

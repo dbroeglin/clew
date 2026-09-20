@@ -81,6 +81,7 @@ decision and rationale.
 | ADR-0004 | [Compact learner memory and hosted processing](adr-0004-compact-learner-memory-and-hosted-processing.md) | Proposed | 2026-09-19 |
 | ADR-0005 | [Explicit tutor sessions and local evidence capture](adr-0005-explicit-tutor-sessions-and-local-evidence-capture.md) | Accepted | 2026-09-19 |
 | ADR-0006 | [Git-based course distribution and import](adr-0006-course-distribution-and-import.md) | Proposed | 2026-09-20 |
+| ADR-0007 | [Student learning skills and Markdown study plans](adr-0007-student-learning-skills-and-plans.md) | Proposed | 2026-09-20 |
 
 Add a row with the title linked to its record for each new ADR. Maintain the
 index manually alongside record changes; no generator is required.
