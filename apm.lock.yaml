@@ -1,5 +1,5 @@
 lockfile_version: '1'
-generated_at: '2026-09-19T13:54:29.966680+00:00'
+generated_at: '2026-09-20T10:10:26.256935+00:00'
 apm_version: 0.28.0
 dependencies:
 - repo_url: anthropics/skills
@@ -90,6 +90,30 @@ dependencies:
     .agents/skills/course-content/scripts/validate_clew.py: sha256:a87408a61ebea420fb51dea1cb4736f50d4e11a45ac52918cc178dd26aa2038c
     .agents/skills/course-content/tests/test_validate_clew.py: sha256:a6f7206f02223a72639dd6e9459a2dd3ca6ac4d10bf9cde53daef77fde0f67f9
   content_hash: sha256:b8cd7397cc1d1c4a372b4cfe527e9054744e536f60ba38ced5afd1a8f53dab84
+  declared_license: MIT
+- repo_url: francesco-kruk/clew-skills
+  name: learner-model
+  host: github.com
+  resolved_commit: d4e0880642b0870857749978417cb9561487626a
+  resolved_ref: d4e0880642b0870857749978417cb9561487626a
+  version: 3.0.0
+  virtual_path: skills/learner-model
+  is_virtual: true
+  package_type: hybrid
+  deployed_files:
+  - .agents/skills/learner-model
+  - .agents/skills/learner-model/LICENSE
+  - .agents/skills/learner-model/SKILL.md
+  - .agents/skills/learner-model/apm.yml
+  - .agents/skills/learner-model/references/clarification-gates.md
+  - .agents/skills/learner-model/references/learner-model-spec.md
+  deployed_file_hashes:
+    .agents/skills/learner-model/LICENSE: sha256:b7a717ad2f8f7e75f44a020b52c4b9199f9d7dd99e2e75f533dd28f3e975ac5a
+    .agents/skills/learner-model/SKILL.md: sha256:2a50aa2ff4f6201ec29b3fe4becb1638448b48abdbded75a7a9f5854c5123780
+    .agents/skills/learner-model/apm.yml: sha256:8f3c3e0c3cddc0cc6e2600b5581bd8e615ac2d1d5f0824c828ab1be8fd30e6ec
+    .agents/skills/learner-model/references/clarification-gates.md: sha256:1871218d83f38473165172f4c2ac41b2843d093c0a5667a9cee83db78cd10742
+    .agents/skills/learner-model/references/learner-model-spec.md: sha256:8c223b69a3e7b8612d4002cba277f140a6b61292bd117c2ddba4d75d1a33c8b5
+  content_hash: sha256:a73213f8b3b85fa3c6ebdf556b38aa3b7f39180fa491786d2ecd8240d19310b0
   declared_license: MIT
 - repo_url: github/awesome-copilot
   name: create-architectural-decision-record
@@ -381,6 +405,60 @@ deployments:
   - kepano/obsidian-skills/skills/json-canvas
   active_owner: kepano/obsidian-skills/skills/json-canvas
   content_hash: sha256:f5ce15a4b74643122396265e8c37c828874a4005794de2aee7030662968768eb
+- kind: project-relative
+  target: agent-skills
+  value: .agents/skills/learner-model
+  runtime: null
+  scope: project
+  owners:
+  - francesco-kruk/clew-skills/skills/learner-model
+  active_owner: francesco-kruk/clew-skills/skills/learner-model
+  content_hash: null
+- kind: project-relative
+  target: agent-skills
+  value: .agents/skills/learner-model/LICENSE
+  runtime: null
+  scope: project
+  owners:
+  - francesco-kruk/clew-skills/skills/learner-model
+  active_owner: francesco-kruk/clew-skills/skills/learner-model
+  content_hash: sha256:b7a717ad2f8f7e75f44a020b52c4b9199f9d7dd99e2e75f533dd28f3e975ac5a
+- kind: project-relative
+  target: agent-skills
+  value: .agents/skills/learner-model/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - francesco-kruk/clew-skills/skills/learner-model
+  active_owner: francesco-kruk/clew-skills/skills/learner-model
+  content_hash: sha256:2a50aa2ff4f6201ec29b3fe4becb1638448b48abdbded75a7a9f5854c5123780
+- kind: project-relative
+  target: agent-skills
+  value: .agents/skills/learner-model/apm.yml
+  runtime: null
+  scope: project
+  owners:
+  - francesco-kruk/clew-skills/skills/learner-model
+  active_owner: francesco-kruk/clew-skills/skills/learner-model
+  content_hash: sha256:8f3c3e0c3cddc0cc6e2600b5581bd8e615ac2d1d5f0824c828ab1be8fd30e6ec
+- kind: project-relative
+  target: agent-skills
+  value: .agents/skills/learner-model/references/clarification-gates.md
+  runtime: null
+  scope: project
+  owners:
+  - francesco-kruk/clew-skills/skills/learner-model
+  active_owner: francesco-kruk/clew-skills/skills/learner-model
+  content_hash: sha256:1871218d83f38473165172f4c2ac41b2843d093c0a5667a9cee83db78cd10742
+- kind: project-relative
+  target: agent-skills
+  value: .agents/skills/learner-model/references/learner-model-spec.md
+  runtime: null
+  scope: project
+  owners:
+  - francesco-kruk/clew-skills/skills/learner-model
+  active_owner: francesco-kruk/clew-skills/skills/learner-model
+  content_hash: sha256:8c223b69a3e7b8612d4002cba277f140a6b61292bd117c2ddba4d75d1a33c8b5
 - kind: project-relative
   target: agent-skills
   value: .agents/skills/obsidian-bases

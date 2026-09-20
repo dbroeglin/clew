@@ -13,6 +13,24 @@ their rationale, alternatives, and consequences. Start with the
 [ADR template](docs/adr/template.md); proposed decisions require explicit human
 approval before acceptance.
 
+## Learner vault
+
+Learner records and personal artifacts live in an explicitly selected external
+vault, never in this repository clone. Configure the absolute path of an
+existing vault with:
+
+```powershell
+python -m src.vault.cli configure --vault "C:\Users\Student\Documents\My Learning Vault"
+python -m src.vault.cli status
+```
+
+The ignored `.clew.local.json` stores configuration version 1 and the canonical
+path. Configuration does not create a vault, course, learner record, or
+artifact. It checks Git tracking metadata and reports reserved `model` and
+`artifacts` names without claiming ownership. Configure adds private-path
+ignore rules additively; status is read-only. Ignore rules do not untrack,
+erase, or encrypt existing content.
+
 ## Course reader extension
 
 The first Clew UX surface is a
@@ -47,7 +65,7 @@ apm install --frozen
 | [Anthropic](https://github.com/anthropics/skills) | `skill-creator` |
 | [Kepano's Obsidian skills](https://github.com/kepano/obsidian-skills) | `defuddle`, `json-canvas`, `obsidian-bases`, `obsidian-cli`, `obsidian-markdown` |
 | [GitHub Awesome Copilot](https://github.com/github/awesome-copilot) | `create-architectural-decision-record` |
-| [Clew skills](https://github.com/francesco-kruk/clew-skills) | `course-content` |
+| [Clew skills](https://github.com/francesco-kruk/clew-skills) | `course-content`, `learner-model` |
 
 `apm.yml` pins upstream commits; `apm.lock.yaml` records the resolved dependencies
 and deployed file hashes. Skills and their bundled resources live in
@@ -85,23 +103,24 @@ runtime; APM installation alone does not install Python packages. Additional
 course-validator requirements remain declared in the
 [installed skill](.agents/skills/course-content/requirements.txt) and are not
 added by the ingestion setup. Packaging the intermediate PDF digest as `clew/v1`
-course sections and updating the learner specification's older course-hub
-references remain separate integration work.
+course sections remains separate integration work.
 
 ### First-party skills
 
-[`learner-model`](.agents/skills/learner-model/SKILL.md) guides agents operating on
-Clew's local learner records: recording evidence, maintaining concepts,
-misconceptions, preferences and goals, scheduling reviews, resolving adaptation
-decisions, and honoring inspection, correction and deletion requests. It follows
-[`docs/LEARNER_MODEL.md`](docs/LEARNER_MODEL.md) and asks for clarification when
-an unspecified storage or inference rule blocks a write. Private model data
-requires local processing; a hosted agent must not read it through local tools.
+[`learner-model`](.agents/skills/learner-model/SKILL.md) 3.0.0 keeps compact,
+evidence-grounded continuity in `model/learner.md`, meaningful dated session
+notes, and optional artifacts. Bare continuation and inspection are read-only.
+It does not create typed learner graphs, numerical mastery scores, automatic
+schedules, or a tombstone engine. Unknown earlier formats require an explicit
+migration decision. See the
+[learner-model contract](docs/LEARNER_MODEL.md) and
+[Proposed ADR-0004](docs/adr/adr-0004-compact-learner-memory-and-hosted-processing.md).
 
-This skill is maintained here, not generated from an APM dependency. Its
-`evals/evals.json` contains three synthetic dry-run scenarios that do not access
-real learner data. The skill provides operational instructions, not a model
-storage engine or structural enforcement of the specification.
+Learner files remain local and portable, but bounded task-relevant contents can
+enter hosted GitHub Copilot/model processing. Local storage is not local-only
+inference, and local correction or deletion cannot erase context already sent
+to a host. Never bulk-upload learner memory or promise provider retention,
+training, deletion, encryption, or complete network auditing.
 
 [`ingestion`](.agents/skills/ingestion/SKILL.md) guides standalone PDF digestion:
 Document Intelligence Markdown and JSON, OpenAI page-image verification of text

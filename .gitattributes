@@ -1,0 +1,4 @@
+# APM deployments are byte-hashed; Windows checkouts must retain their LF bytes.
+/.agents/** text=auto eol=lf
+apm.lock.yaml text eol=lf
+apm.yml text eol=lf
