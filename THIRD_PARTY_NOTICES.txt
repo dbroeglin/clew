@@ -8,11 +8,16 @@ License: MIT; see each skill's bundled LICENSE file.
 Copyright (c) 2026 Alexandra Pletea, Alexia Rossell I Dorca,
 Charlotte Model, Dominique Broeglin, Francesco Kruk
 
-Anthropic skill-creator
-Source: https://github.com/anthropics/skills
-Commit: 34040c9c568585f6929bedeaad110ad08f079624
+Effective Engineering Skills: Copilot adaptation of Anthropic skill-creator
+Source: https://github.com/dbroeglin/effective-engineering-skills
+Commit: 574ee19f500b9490f24e70b415d53316720bfadf
 Files: .agents/skills/skill-creator/
 License: Apache License 2.0; see .agents/skills/skill-creator/LICENSE.txt.
+Upstream: https://github.com/anthropics/skills
+Upstream imported revision: 41bbe19d1a1a7eaab5e7bb9050a417e5c6cffc8f
+Copyright 2026 Anthropic, PBC.
+Copilot adaptation provenance and modification notices:
+.agents/skills/skill-creator/NOTICE.
 
 Kepano's Obsidian skills
 Source: https://github.com/kepano/obsidian-skills
