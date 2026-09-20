@@ -1,0 +1,45 @@
+{
+  "schema": "clew-verification/v1",
+  "course_id": "course.proportional-reasoning",
+  "source_map_sha256": "d366b2b51e56d2601e429dc35ade49b9cf7ac0352b19723d75baeaefe3f58cbe",
+  "sections": [
+    {
+      "id": "course.proportional-reasoning.reading-a-ratio",
+      "markdown_sha256": "73af594efdb6dbe4197b4db696a858ee954739858732caf1caaaa1df78a76bae",
+      "fidelity": "verified",
+      "checks": [
+        "Page 1 of proportional-reasoning-notes was rendered from this section's own prose by examples/make_reader_vault_sources.py, so every sentence, figure and formula on the page is the section's text with Markdown and KaTeX markup removed."
+      ],
+      "limitations": []
+    },
+    {
+      "id": "course.proportional-reasoning.scaling-a-recipe",
+      "markdown_sha256": "85f50864fccd3ce0022eee1dc1c3f721215c96acc4020960a5a1fcb12110aa15",
+      "fidelity": "verified",
+      "checks": [
+        "Page 2 of proportional-reasoning-notes was rendered from this section's own prose by examples/make_reader_vault_sources.py, so every sentence, figure and formula on the page is the section's text with Markdown and KaTeX markup removed."
+      ],
+      "limitations": []
+    }
+  ],
+  "pages": [
+    {
+      "source_id": "proportional-reasoning-notes",
+      "page": 1,
+      "status": "mapped",
+      "section_ids": [
+        "course.proportional-reasoning.reading-a-ratio"
+      ],
+      "reason": null
+    },
+    {
+      "source_id": "proportional-reasoning-notes",
+      "page": 2,
+      "status": "mapped",
+      "section_ids": [
+        "course.proportional-reasoning.scaling-a-recipe"
+      ],
+      "reason": null
+    }
+  ]
+}
