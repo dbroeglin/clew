@@ -2,6 +2,7 @@ import { correlate } from "./correlation.mjs";
 import { reconcile } from "./completion.mjs";
 import { createEpisode } from "./episode.mjs";
 import { classify } from "./gating.mjs";
+import { createRecordingRequests, createRecordingResultTracker } from "./recording.mjs";
 import { preflight } from "./vault.mjs";
 
 // The App capture layer. It orchestrates activation, gates and correlates learner activity,
@@ -10,6 +11,7 @@ import { preflight } from "./vault.mjs";
 export function createCaptureLayer() {
     const episode = createEpisode();
     const admitted = [];
+    const resultTracker = createRecordingResultTracker();
 
     function admit(rawEvent) {
         const classification = classify(rawEvent);
@@ -24,6 +26,14 @@ export function createCaptureLayer() {
         return correlate(admitted);
     }
 
+    function requests() {
+        return createRecordingRequests(candidates());
+    }
+
+    function reportRecording(requestKey, result) {
+        return resultTracker.report(new Map(requests().map((request) => [request.key, request])), requestKey, result);
+    }
+
     // The ownership/migration gate for the bound vault; capture writes wait on it.
     async function checkPreflight() {
         if (!episode.vault) {
@@ -34,8 +44,18 @@ export function createCaptureLayer() {
 
     // Best-effort read of which candidates appear recorded versus still unrecorded.
     async function completion() {
-        if (!episode.vault) return { recorded: [], unrecorded: [] };
-        return reconcile(episode.vault, candidates());
+        if (!episode.vault) return { recorded: [], unrecorded: [], reported: [] };
+        const gate = await preflight(episode.vault);
+        if (!gate.allowCaptureWrites) {
+            return {
+                recorded: [],
+                unrecorded: candidates(),
+                reported: resultTracker.list(),
+                blocked: gate.reason,
+            };
+        }
+        const observed = await reconcile(episode.vault, candidates());
+        return { ...observed, reported: resultTracker.list() };
     }
 
     return {
@@ -47,10 +67,14 @@ export function createCaptureLayer() {
         resume: () => episode.resume(),
         end: () => {
             admitted.length = 0;
+            resultTracker.clear();
             return episode.end();
         },
         admit,
         candidates,
+        requests,
+        reportRecording,
+        recordingResults: () => resultTracker.list(),
         preflight: checkPreflight,
         completion,
     };

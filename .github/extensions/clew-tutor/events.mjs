@@ -20,6 +20,7 @@ export const READ_ONLY_KINDS = new Set([
 ]);
 
 const ISO_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
+const MAX_TEXT_LENGTH = 8192;
 
 // Normalize a raw host event into the closed shape the capture layer reasons over.
 // A malformed event is rejected rather than guessed, so an unknown surface cannot
@@ -43,6 +44,9 @@ export function normalizeEvent(raw) {
     }
     if (typeof raw.at !== "string" || !ISO_TIMESTAMP.test(raw.at)) {
         throw new CaptureError("invalid_event", "A valid ISO-8601 `at` timestamp is required.");
+    }
+    if (typeof raw.text === "string" && raw.text.length > MAX_TEXT_LENGTH) {
+        throw new CaptureError("invalid_event", `Event text exceeds ${MAX_TEXT_LENGTH} characters.`);
     }
     return {
         interactionId,

@@ -77,8 +77,12 @@ It defines explicit Clew Tutor sessions and shared local chat/canvas capture
 that record compact learner memory through the pinned learner-model skill's
 conservative Markdown edits, within the hosted-processing boundary of ADR-0004.
 The capture layer adds no learner-memory writer and does not change the pinned
-contract. Implementation has begun with a synthetic-data spike only; capture
-from a real vault is not yet enabled.
+contract. Plan P1-P6 are implemented and validated with synthetic vaults: the
+extension emits semantic recording requests, supports automatic chat
+disposition, headless attempt actions, completion reporting and prepare-only
+learner controls. The production App still delegates every memory edit to the
+tutor agent following the installed skill. Capture from a real learner vault
+and a visible practice canvas remain separately authorized rollout work.
 
 ## Course reader extension
 

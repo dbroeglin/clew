@@ -253,8 +253,23 @@ it does not add a new memory format, storage schema or writer.
   introduces no observation types, identifiers, scores or command catalogue. All
   memory is written by the tutor agent following the installed skill's
   conservative instructions; the App layer contributes activation, correlation
-  and best-effort completion tracking, not a writer. This proposal installs
-  nothing and creates no scripts.
+  and best-effort completion tracking, not a writer. The implementation adds no
+  runtime or development dependency and no production writer.
+- **IMP-008**: The P2-P6 implementation emits structured semantic recording
+  requests and accepts explicit completion reports; it does not add a production
+  file writer. A dependency-free reference recorder exists under the extension's
+  test directory only, to prove the request contract against disposable
+  synthetic compact-memory fixtures.
+- **IMP-009**: The first canvas integration is intentionally headless and
+  agent-callable. Attempt, hint, proposal-response and revision actions require
+  an explicit learner-origin assertion plus source and attempt identities;
+  agent invocation alone remains insufficient evidence. A learner-facing
+  exercise iframe is deferred rather than silently approximated.
+- **IMP-010**: Learner-control tools provide bounded inspection and prepare exact
+  correction, stop-use and deletion scopes. Correction and stop-use are applied
+  by the tutor agent through the installed skill. Deletion remains prepare-only
+  until a separate explicit user confirmation authorizes a destructive action;
+  the extension exposes no delete operation.
 
 ## References
 

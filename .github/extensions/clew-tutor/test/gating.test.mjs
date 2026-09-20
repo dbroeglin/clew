@@ -33,6 +33,7 @@ test("malformed events are rejected rather than guessed", () => {
     assert.throws(() => classify(event({ kind: "unknown_kind" })), { code: "invalid_event" });
     assert.throws(() => classify(event({ origin: "robot" })), { code: "invalid_event" });
     assert.throws(() => classify(event({ at: "not-a-date" })), { code: "invalid_event" });
+    assert.throws(() => classify(event({ kind: "goal", text: "   " })), { code: "invalid_event" });
     assert.throws(() => classify({ source: "chat", kind: "goal", origin: "learner", at: "2026-09-20T10:00:00Z" }), { code: "invalid_event" });
 });
 

@@ -14,7 +14,7 @@ export function event(overrides = {}) {
         kind: overrides.kind ?? "goal",
         origin: overrides.origin ?? "learner",
         at: overrides.at ?? "2026-09-20T10:00:00.000Z",
-        text: overrides.text ?? "",
+        text: overrides.text ?? "synthetic learner input",
         futureScope: overrides.futureScope,
         ref: overrides.ref,
     };

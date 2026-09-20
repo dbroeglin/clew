@@ -3,7 +3,12 @@
 // plus category groups same-topic activity; otherwise each interaction stands alone.
 export function correlationKey(classification) {
     const ref = classification.event.ref ?? {};
-    if (ref.attemptId) return `attempt:${ref.attemptId}`;
+    if (ref.attemptId) {
+        const semanticTarget = classification.target === "summary"
+            ? `summary:${classification.category}`
+            : classification.target;
+        return `attempt:${ref.attemptId}:${semanticTarget}`;
+    }
     if (ref.itemId) return `item:${ref.itemId}:${classification.category}`;
     return `interaction:${classification.event.interactionId}`;
 }

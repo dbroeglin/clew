@@ -1,4 +1,5 @@
 import { MEANINGFUL_KINDS, normalizeEvent } from "./events.mjs";
+import { CaptureError } from "./errors.mjs";
 
 // Maps a meaningful, learner-authored kind to the compact-memory location it would
 // update and a category label. These are the only targets the contract supports:
@@ -26,6 +27,12 @@ export function classify(rawEvent) {
     }
     if (!MEANINGFUL_KINDS.has(event.kind)) {
         return decision(event, false, null, null, `read-only kind (${event.kind})`);
+    }
+    if (event.text.trim().length === 0) {
+        throw new CaptureError(
+            "invalid_event",
+            `Meaningful learner activity (${event.kind}) requires learner text.`,
+        );
     }
     if (event.kind === "preference" && !event.futureScope) {
         return decision(event, false, null, null, "current-only request without explicit future scope");

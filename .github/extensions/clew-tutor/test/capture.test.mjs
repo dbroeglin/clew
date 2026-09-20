@@ -33,6 +33,10 @@ test("the ownership/migration preflight blocks writes to an unrecognized model",
     const preflight = await capture.preflight();
     assert.equal(preflight.allowCaptureWrites, false);
     assert.equal(preflight.state, "needs_migration");
+    capture.admit(event({ kind: "goal", text: "blocked goal" }));
+    const completion = await capture.completion();
+    assert.match(completion.blocked, /profile\.md/);
+    assert.equal(completion.unrecorded.length, 1);
 });
 
 test("completion surfaces an unrecorded candidate and clears once the agent records it", async () => {

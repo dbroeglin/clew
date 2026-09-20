@@ -1,52 +1,104 @@
-# Clew Tutor capture — synthetic-data spike (ADR-0005, plan P1)
+# Clew Tutor capture (ADR-0005, plan P1-P6)
 
-This is the plan **P1** synthetic-data spike for the App integration described in
+This project extension implements the local orchestration side of
 [ADR-0005](../../../docs/adr/adr-0005-explicit-tutor-sessions-and-local-evidence-capture.md)
-and its [implementation plan](../../../docs/plans/learner-evidence-capture.md). It
-proves the capture contract's logic on synthetic vaults and stakes out the SDK
-adapter. It is **not** wired to a real vault and processes no real learner data.
+and its [implementation plan](../../../docs/plans/learner-evidence-capture.md).
+It has been exercised with synthetic vaults only. A real learner vault remains
+a separate authorization and rollout decision.
 
-## What this establishes (validated with `node --test`)
+## Boundary
 
-The pure-logic capture core, exercised over synthetic events and throwaway temp
-vaults:
+The shipped extension never writes learner memory. It:
 
-- **Episode lifecycle** (`episode.mjs`): capture begins only on an explicit human
-  activation with a known learner and vault; pause/resume/end behave; a reload
-  starts inactive and never auto-resumes from process lifetime.
-- **Meaningful-write gating** (`gating.mjs`): only genuine learner activity is a
-  write; assistant, agent, system and injected input, and recall/inspection/
-  configuration, are read-only; a preference needs explicit future scope.
-- **Cross-surface correlation** (`correlation.mjs`): the same work seen in chat
-  and canvas becomes one candidate, distinct attempts stay distinct, and
-  re-delivery is idempotent — best effort, not an enforced guarantee.
-- **Ownership/migration preflight** (`vault.mjs`, read-only): an existing model
-  without the recognized compact summary blocks capture writes until resolved;
-  course reading is never gated.
-- **Completion observation** (`completion.mjs`): an unrecorded candidate is
-  surfaced and clears once the agent records it. No durable backlog is kept, so
-  exactly-once recovery across a crash or reload is not guaranteed.
+- binds an explicitly selected Clew Tutor session to one learner and vault;
+- adds a bounded prompt-disposition obligation to each active learner turn;
+- gates meaningful activity, correlates chat and canvas references, and emits
+  semantic recording requests;
+- receives honest `recorded`, `partial` or `failed` reports after the tutor
+  agent applies the pinned learner-model skill;
+- reads bounded memory files for inspection and prepares exact correction,
+  stop-use and deletion scopes.
 
-Run: `node --test` (or `node --check ...` via `npm run check`). No dependencies
-beyond Node's built-ins.
+The tutor agent remains the writer. `test/reference-recorder.mjs` is a
+test-only reference implementation that materializes requests in disposable
+synthetic vaults; it is never registered with the App and is not a production
+writer.
 
-## Boundary invariants held by this spike
+## Runtime flow
 
-- The App layer **orchestrates and observes**; it never writes learner memory.
-  The tutor agent performs edits through the pinned learner-model skill. Every
-  vault touch here is read-only, plus temp-dir writes in tests.
-- No new runtime or development dependencies (Node built-ins only).
-- The deployed, APM-pinned skills are not edited.
+1. The learner selects the **Clew Tutor** custom agent. Model-driven invocation
+   is disabled.
+2. The agent calls `clew_tutor_bind_session` with the explicit learner and
+   configured external vault.
+3. While capture is active, `onUserPromptSubmitted` allocates a bounded,
+   in-memory prompt ID but stores no prompt text. Before stopping, the agent
+   classifies that prompt with `clew_tutor_dispose_prompt`.
+4. Read-only activity produces no request. Meaningful activity produces one
+   semantic request targeting the summary, a dated session or an artifact.
+5. The agent applies the request through the learner-model skill, then calls
+   `clew_tutor_report_recording` with the exact persisted paths or an honest
+   partial/failed result.
+6. `clew_tutor_capture_status` combines request/result state with a best-effort
+   read of the compact memory.
 
-## What still needs the live App (honest limits, ADR-0005 NEG-004)
+Switching away pauses admission. Reload or explicit end starts inactive, clears
+all pending state and requires the learner to reselect Clew Tutor before binding
+again: there is deliberately no durable inbox or exactly-once guarantee.
 
-The SDK is host-provided and not runnable here, so `extension.mjs` is
-syntax-checked only and documents assumptions to validate against the live App:
+## Headless canvas actions
 
-- Activation via the selected root agent: `session.rpc.agent.getCurrent()`, an
-  `isRoot`/root-scope signal, and `subagent.selected` / `subagent.deselected`
-  delivery and subscription.
-- How the learner and explicit vault path are supplied to the extension.
-- The learner-facing canvas UI action path (submissions, hints) distinct from
-  agent-callable actions, and the reliable delivery/replay of chat events.
-- Whether the agent profile's tool grant can be narrowed to the capture actions.
+`clew-tutor-capture` registers agent-callable actions for:
+
+- `submit_attempt`
+- `request_hint`
+- `respond_to_proposal`
+- `revise_attempt`
+
+There is no learner-facing exercise iframe in this phase. Every action requires
+an explicit source interaction, attempt identity and `learnerOrigin: true`.
+Agent invocation alone is not accepted as proof of learner origin. Chat and
+canvas events sharing an attempt ID become one recording request where
+best-effort correlation succeeds.
+
+## Learner controls
+
+- `clew_tutor_memory_inspect` reads one `model/` or `artifacts/` file, capped at
+  16 KiB.
+- `clew_tutor_prepare_memory_change` resolves one exact correction or stop-use
+  replacement without writing it.
+- `clew_tutor_prepare_deletion` reports an exact file or passage and affected
+  compact-memory references. It performs no deletion and requires separate
+  explicit confirmation before any destructive action.
+
+These tools do not create a tombstone engine, overlay or alternate memory
+format.
+
+## Validation
+
+Run from this directory:
+
+```powershell
+npm test
+npm run check
+```
+
+The dependency-free Node suite covers summary/session/artifact requests,
+read-only gating, partial failures, automatic prompt disposition, origin-gated
+canvas capture, cross-surface correlation, bounded inspection, prepare-only
+deletion, reload gaps, prompt bounds and concurrent-session isolation.
+
+The project extension also reloads successfully against the host-provided SDK;
+its eight tools and nine headless canvas actions are discoverable. Live
+selection/binding against a real learner vault has not been authorized or
+tested.
+
+## Remaining limits
+
+- The custom-agent profile and prompt discipline are not a filesystem sandbox;
+  generic agent tools cannot be proven unable to bypass this orchestration.
+- Completion inspection is intentionally heuristic and best effort.
+- Prompt and request state is memory-only and is lost on process termination,
+  reload or session replacement.
+- The canvas API and agent-selection RPC are experimental host surfaces.
+- No visible learner practice UI, real-vault rollout, remote store, passive
+  telemetry, backup or cross-device sync is included.

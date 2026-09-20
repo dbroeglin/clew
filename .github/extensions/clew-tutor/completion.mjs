@@ -1,4 +1,4 @@
-import { readSessions, readSummary } from "./vault.mjs";
+import { readArtifacts, readSessionEntries, readSummary } from "./vault.mjs";
 
 // Best-effort observation of whether each candidate appears recorded in the compact memory.
 // It only reads memory; it never writes. Because the tutor agent's edits are not atomic and
@@ -6,13 +6,16 @@ import { readSessions, readSummary } from "./vault.mjs";
 // reload - an unrecorded candidate is surfaced for the learner to complete, not auto-written.
 export async function reconcile(vaultPath, candidates) {
     const summary = (await readSummary(vaultPath)) ?? "";
-    const sessions = await readSessions(vaultPath);
+    const sessions = await readSessionEntries(vaultPath);
+    const artifacts = await readArtifacts(vaultPath);
     const recorded = [];
     const unrecorded = [];
     for (const candidate of candidates) {
         const seen = candidate.target === "summary"
             ? appearsInSummary(summary, candidate)
-            : appearsInSessions(sessions, candidate);
+            : candidate.target === "artifact"
+                ? appearsInArtifacts(artifacts, candidate)
+                : appearsInSessions(sessions, candidate);
         (seen ? recorded : unrecorded).push(candidate);
     }
     return { recorded, unrecorded };
@@ -36,5 +39,18 @@ function appearsInSummary(summary, candidate) {
 // candidate's day. Topic and answer detail are left to the agent's note.
 function appearsInSessions(sessions, candidate) {
     const days = new Set(candidate.events.map((event) => event.at.slice(0, 10)));
-    return sessions.some((name) => [...days].some((day) => name.startsWith(day)));
+    return sessions.some((session) =>
+        [...days].some((day) => session.name.startsWith(day))
+        && candidate.events.some((event) => {
+            const words = leadingWords(event.text);
+            const haystack = session.content.toLowerCase();
+            return words.length > 0 && words.every((word) => haystack.includes(word));
+        })
+    );
+}
+
+function appearsInArtifacts(artifacts, candidate) {
+    return artifacts.some((artifact) =>
+        candidate.events.some((event) => event.text.length > 0 && artifact.content.includes(event.text))
+    );
 }

@@ -1,14 +1,15 @@
 # Learner evidence capture implementation plan
 
-**Status:** Architecture accepted (ADR-0005, 2026-09-20); implementation in progress - P1 synthetic-data spike complete, P2-P6 pending.
+**Status:** Architecture accepted (ADR-0005, 2026-09-20); P1-P6 implemented and validated with synthetic vaults and live host registration. Real-vault rollout and visible practice UI remain unapproved.
 **Human stakeholder:** Dominique Broeglin.
 **Architecture:** [Accepted ADR-0005](../adr/adr-0005-explicit-tutor-sessions-and-local-evidence-capture.md).
 
-ADR-0005 is accepted and implementation has begun with the synthetic-data
-spike (P1). Building the runnable feature beyond that spike, and permission to
-use a particular learner vault, remain separate decisions. The work so far
-changes neither the pinned learner-model contract nor any private learner
-records, and the spike processes synthetic data only.
+ADR-0005 is accepted. P1-P6 now provide the runnable, write-free App
+orchestration, dependency-free synthetic reference recorder, automatic chat
+disposition, headless canvas actions, learner-control preparation and fault
+coverage. Permission to use a particular learner vault remains a separate
+decision. The implementation changes neither the pinned learner-model contract
+nor any private learner records, and validation processes synthetic data only.
 
 This plan builds on the compact learner-model 3.0.0 contract merged in PR #4 and
 proposed in
@@ -56,8 +57,8 @@ transactional guarantee.
 ## Current baseline
 
 - The repository contains the compact learner-model and course-content skills,
-  pinned from `clew-skills` through APM, plus a read-only course-reader
-  extension. It has no App capture layer.
+  pinned from `clew-skills` through APM, a read-only course-reader extension,
+  and the Clew Tutor capture extension described below.
 - The learner-model 3.0.0 contract is delivered as the installed
   [specification](../../.agents/skills/learner-model/references/learner-model-spec.md),
   [clarification gates](../../.agents/skills/learner-model/references/clarification-gates.md)
@@ -72,8 +73,9 @@ transactional guarantee.
   vault's location and protects reserved `model`/`artifacts` paths; it never
   reads or creates learner memory.
 - The installed SDK exposes agent selection state/events, extension tools,
-  session events and canvas provider APIs. App behavior, version support and
-  reliable replay have not been demonstrated.
+  session hooks and canvas provider APIs. The extension reloads against the
+  host-provided SDK and registers eight tools plus nine headless canvas actions.
+  Reliable replay is not provided; reload deliberately starts inactive.
 - ADR-0001 is still Proposed. Installing its skill is not architectural
   acceptance.
 - [ADR-0002](../adr/adr-0002-copilot-app-extension-ux.md) is also Proposed.
@@ -81,6 +83,17 @@ transactional guarantee.
   Selecting a passage and staging an Ask in chat attachment are not learner
   input or permission to write memory. This plan does not add recording controls
   to the course reader.
+
+### Implemented delivery status
+
+| Phase | Implemented result |
+| --- | --- |
+| P1 | Explicit in-memory episode state, meaningful-write gating, correlation, migration preflight and completion observation over synthetic fixtures. |
+| P2 | Semantic summary/session/artifact recording requests, explicit recorded/partial/failed results and a test-only reference recorder. |
+| P3 | Clew Tutor profile, explicit bind tool, prompt hook, one required per-turn disposition, stop-time completion reminder and pause/resume/end controls. |
+| P4 | Headless attempt, hint, proposal-response and revision actions with mandatory learner-origin and attempt identities; visible practice UI deferred by agreement. |
+| P5 | Bounded inspection, exact correction/stop-use preparation and prepare-only deletion scope with linked consequences. |
+| P6 | Synthetic fault, reload, bounds, isolation and partial-write coverage; successful live extension reload and tool/canvas discovery. |
 
 ## Contract and approval gates
 
@@ -235,8 +248,10 @@ completion, with no private-data readiness claim.
 **Dependencies:** P1; resolved G1, G2 and G4.
 
 - Implement meaningful-write gating, cross-surface correlation and completion
-  tracking that record compact memory through the installed skill's file
-  operations. Add no writer, scripts or second rule set.
+  tracking that emit semantic requests for the tutor agent to apply through the
+  installed skill's file operations. Add no production writer or second rule
+  set. A test-only reference recorder may materialize those requests in
+  disposable synthetic vaults.
 - Ensure the same work seen through chat and canvas is written once, in one
   authoritative location, and linked elsewhere; keep distinct attempts distinct.
 - Return a clear result distinguishing what was recorded, what was read-only, and
@@ -273,23 +288,26 @@ memory, ignores non-learner input, and, within an active session, surfaces an
 unrecorded meaningful interaction for completion rather than dropping it
 silently.
 
-### P4 - Connect one end-to-end learning canvas
+### P4 - Connect the headless learning-canvas capture contract
 
 **Dependencies:** P3; agreed canvas capture contract.
 
-- Instrument one tutor-owned canvas so explicit submissions, hints, proposal
-  responses and intentional revisions are captured with attempt identity, while
-  agent-driven actions and passive activity are not.
+- Register agent-callable tutor-canvas actions so explicit submissions, hints,
+  proposal responses and intentional revisions are captured with source and
+  attempt identity. Require an explicit learner-origin assertion; agent-driven
+  invocation and passive activity are not evidence by themselves.
 - Preserve correlation when the learner discusses a canvas answer in chat: the
   discussion can add a takeaway or a correction without creating a second
   recording of the same attempt.
-- Show pending, recorded and failed states in the canvas. A model timeout,
-  closed window or repeated click must not produce a false success or a duplicate
-  session note.
+- Return pending, recorded and failed state through action/status results. A
+  model timeout, closed panel or repeated invocation must not produce a false
+  success or duplicate session note. A visible learner exercise iframe is
+  deliberately deferred rather than included implicitly.
 
-**Exit:** One exercise moves between canvas and chat and is recorded in a single
-dated session (with an optional artifact); genuine revisions remain
-distinguishable, and pause and retry match the chat path.
+**Exit:** One attempt can move between the headless canvas action contract and
+chat and becomes one dated-session request (with an optional artifact);
+genuine revisions remain distinguishable, and pause and retry match the chat
+path. This proves capture plumbing, not a visible learner exercise experience.
 
 ### P5 - Expose learner control over the memory
 
@@ -297,17 +315,20 @@ distinguishable, and pause and retry match the chat path.
 
 - Provide inspection from a summary item to its supporting session and back,
   including why something was or was not recorded, in the learner's language.
-- Implement correction, stop-use and scoped local deletion as the contract
-  defines them: direct dated edits to the summary or note, marking a preference
-  inactive, and deleting only a confirmed local scope while repairing affected
-  links. Use the installed skill's conservative edits; add no tombstone engine,
-  suppression file or overlay.
+- Implement correction and stop-use preparation as exact direct edits for the
+  tutor agent to apply through the installed skill. Prepare scoped local
+  deletion by resolving the exact file or passage and affected links, but expose
+  no destructive action: deletion requires a separate explicit confirmation.
+  Add no tombstone engine, suppression file or overlay.
 - State the scope of forgetting honestly: a dated stop-use instruction is
   honored on later recall and not re-inferred, but neither local edits nor
   deletion can erase context already processed by a host.
 
-**Exit:** The learner can inspect, correct, stop-use and delete within the
-compact contract, and unsupported requests are explained rather than faked.
+**Exit:** The learner can inspect and prepare exact correction, stop-use and
+deletion operations within the compact contract; corrections and stop-use flow
+through the installed skill, while deletion stops at a reviewable scope pending
+separate explicit confirmation, and unsupported requests are explained rather
+than faked.
 
 ### P6 - Harden and prepare an explicitly authorized rollout
 
@@ -319,7 +340,7 @@ compact contract, and unsupported requests are explained rather than faked.
 - Confirm parity between the chat and canvas paths and the installed skill's
   direct operations against the same fixtures.
 - Verify that context sent for hosted interpretation contains only bounded
-  approved data, and that capture status, unrecorded backlog and failures are
+  approved data, and that capture status, in-session pending work and failures are
   visible without becoming a full transcript archive.
 - Keep real-vault authorization a separate, explicit gate; synthetic validation
   is not permission to process real learner records.
@@ -345,7 +366,7 @@ separately authorized real-vault rollout.
 | Bare recall, continuation or inspection | No writes to `model/` or `artifacts/`, no new session and no timestamp change. |
 | Configuration, status or a path-only exchange | No memory read or creation; the learner is asked for their goal. |
 | Correction or stop-use request | A direct dated edit to the affected summary item or note; later recall honors it and does not re-infer the old value. |
-| Scoped local deletion | Only the confirmed local files or passages are deleted and affected links repaired; unrelated and shared work is preserved; hosted copies are acknowledged, not claimed erased. |
+| Scoped local deletion | The extension prepares the exact local file or passage and affected links, deletes nothing, and requires a separate explicit confirmation before any destructive action; hosted copies are acknowledged, not claimed erased. |
 | Hosted-processing context | Only bounded relevant context is sent, never the whole vault, disclosed once; no zero-retention claim. |
 | Editing or forking the deployed skill | Not done; capture uses the installed operations, and contract changes go through `clew-skills` and APM. |
 | Missing configuration, consent or SDK capability | Explicitly blocked operation, not a guessed policy or a silent always-on fallback. |
@@ -356,8 +377,8 @@ separately authorized real-vault rollout.
 | --- | --- | --- |
 | M1 | Approved capture contracts and synthetic host capability evidence. | P0-P1; no private-data readiness claim. |
 | M2 | An App capture layer recording inspectable compact memory through the installed skill, with omissions and partial writes surfaced. | P2; no claim of a completed tutoring experience. |
-| M3 | Tutor chat and one canvas sharing the capture path and recording shared work once. | P3-P4; non-learner input is ignored and nothing is silently lost. |
-| M4 | Learner inspection, correction and stop-use, plus rollout guidance. | P5-P6; explicit real-vault authorization is still required. |
+| M3 | Tutor chat and the headless canvas action contract sharing the capture path and recording shared work once. | P3-P4; non-learner input is ignored; visible learner practice UI remains deferred. |
+| M4 | Learner inspection, correction/stop-use preparation, deletion-scope preparation and rollout guidance. | P5-P6; explicit real-vault authorization and deletion confirmation are still required. |
 
 ## References
 

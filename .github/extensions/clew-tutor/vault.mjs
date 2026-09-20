@@ -67,3 +67,25 @@ export async function readSessions(vaultPath) {
     if (!entries) return [];
     return entries.filter((entry) => entry.isFile() && entry.name.endsWith(".md")).map((entry) => entry.name);
 }
+
+export async function readSessionEntries(vaultPath) {
+    const names = await readSessions(vaultPath);
+    const sessions = [];
+    for (const name of names.slice(0, 100)) {
+        const content = await readFile(path.join(vaultPath, "model", "sessions", name), "utf8");
+        sessions.push({ name, content: content.slice(0, 16 * 1024) });
+    }
+    return sessions;
+}
+
+export async function readArtifacts(vaultPath) {
+    const entries = await listing(path.join(vaultPath, "artifacts"));
+    if (!entries) return [];
+    const artifacts = [];
+    for (const entry of entries.slice(0, 100)) {
+        if (!entry.isFile() || !entry.name.endsWith(".md")) continue;
+        const content = await readFile(path.join(vaultPath, "artifacts", entry.name), "utf8");
+        artifacts.push({ name: entry.name, content: content.slice(0, 16 * 1024) });
+    }
+    return artifacts;
+}

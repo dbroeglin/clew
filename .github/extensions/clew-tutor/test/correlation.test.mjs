@@ -11,7 +11,7 @@ function candidates(...raws) {
 test("the same work across chat and canvas correlates into one candidate", () => {
     const result = candidates(
         event({ kind: "attempt", source: "canvas", ref: { attemptId: "a1" }, text: "x = 3" }),
-        event({ kind: "takeaway", source: "chat", ref: { attemptId: "a1" }, text: "I see why x = 3" }),
+        event({ kind: "revision", source: "chat", ref: { attemptId: "a1" }, text: "I revised x to 4" }),
     );
     assert.equal(result.length, 1);
     assert.deepEqual([...result[0].sources].sort(), ["canvas", "chat"]);
