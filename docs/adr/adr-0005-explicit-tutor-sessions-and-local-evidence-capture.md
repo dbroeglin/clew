@@ -276,7 +276,7 @@ it does not add a new memory format, storage schema or writer.
 - **REF-001**: [Clew ADR process](README.md) and
   [ADR template](template.md). No earlier numbered ADR is superseded.
 - **REF-002**: [ADR-0004: Compact learner memory and hosted processing](adr-0004-compact-learner-memory-and-hosted-processing.md),
-  the [learner-model contract pointer](../LEARNER_MODEL.md), the installed
+  the [illustrated learner-model guide](../LEARNER_MODEL.md), the installed
   [learner-model 3.0.0 specification](../../.agents/skills/learner-model/references/learner-model-spec.md)
   and its
   [clarification gates](../../.agents/skills/learner-model/references/clarification-gates.md).

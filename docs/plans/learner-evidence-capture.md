@@ -65,9 +65,9 @@ transactional guarantee.
   and [operational skill](../../.agents/skills/learner-model/SKILL.md). It is a
   set of agent instructions over conservative file tools, not a transactional
   storage, access-control or network-audit backend.
-- [docs/LEARNER_MODEL.md](../LEARNER_MODEL.md) is now a pointer to that pinned
-  contract; the earlier advanced, evidence-first specification and its numbered
-  sections no longer apply.
+- [docs/LEARNER_MODEL.md](../LEARNER_MODEL.md) is the illustrated human-readable
+  guide anchored to that pinned contract; the earlier advanced, evidence-first
+  specification no longer applies.
 - A vault configuration tool exists at `src/vault` (`python -m src.vault.cli
   configure --vault PATH` and `status`). It only remembers an existing external
   vault's location and protects reserved `model`/`artifacts` paths; it never
@@ -385,7 +385,7 @@ separately authorized real-vault rollout.
 - [Accepted ADR-0005](../adr/adr-0005-explicit-tutor-sessions-and-local-evidence-capture.md)
   records the rationale and alternatives; this document records sequencing.
 - [Proposed ADR-0004](../adr/adr-0004-compact-learner-memory-and-hosted-processing.md)
-  and the [learner-model contract pointer](../LEARNER_MODEL.md) define the
+  and the [illustrated learner-model guide](../LEARNER_MODEL.md) define the
   compact memory and hosted-processing boundary this plan builds on (merged in
   PR #4; ADR-0004 remains Proposed).
 - The installed

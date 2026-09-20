@@ -166,7 +166,7 @@ notes, and optional artifacts. Bare continuation and inspection are read-only.
 It does not create typed learner graphs, numerical mastery scores, automatic
 schedules, or a tombstone engine. Unknown earlier formats require an explicit
 migration decision. See the
-[learner-model contract](docs/LEARNER_MODEL.md) and
+[illustrated learner-model guide](docs/LEARNER_MODEL.md) and
 [Proposed ADR-0004](docs/adr/adr-0004-compact-learner-memory-and-hosted-processing.md).
 
 Learner files remain local and portable, but bounded task-relevant contents can

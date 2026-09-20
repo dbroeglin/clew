@@ -6,6 +6,10 @@ and its [implementation plan](../../../docs/plans/learner-evidence-capture.md).
 It has been exercised with synthetic vaults only. A real learner vault remains
 a separate authorization and rollout decision.
 
+Start with the
+[illustrated learner-model guide](../../../docs/LEARNER_MODEL.md) for the file
+model, meaningful-write rules, recall boundaries, and end-to-end diagrams.
+
 ## Boundary
 
 The shipped extension never writes learner memory. It:
