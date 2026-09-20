@@ -1,0 +1,63 @@
+{
+  "schema": "clew-verification/v1",
+  "course_id": "course.mechanics",
+  "source_map_sha256": "5afc345c8e431b5751b6a835c75b7840b558ff865273b70c4e84a9dbbb288bc4",
+  "sections": [
+    {
+      "id": "course.mechanics.average-speed",
+      "markdown_sha256": "1aae62982a810a1f9f75a8a6e4805feec9b6234b6e729dc4f5c01b6e76586157",
+      "fidelity": "verified",
+      "checks": [
+        "Page 1 of mechanics-notes was rendered from this section's own prose by examples/make_reader_vault_sources.py, so every sentence, figure and formula on the page is the section's text with Markdown and KaTeX markup removed."
+      ],
+      "limitations": []
+    },
+    {
+      "id": "course.mechanics.speed-from-a-graph",
+      "markdown_sha256": "715697da87c52147d009b7b4771348a878aae0ff187c59e6d5962503d57541d0",
+      "fidelity": "verified",
+      "checks": [
+        "Page 2 of mechanics-notes was rendered from this section's own prose by examples/make_reader_vault_sources.py, so every sentence, figure and formula on the page is the section's text with Markdown and KaTeX markup removed."
+      ],
+      "limitations": []
+    },
+    {
+      "id": "course.mechanics.balanced-forces",
+      "markdown_sha256": "f31377c5e3365629b980e721200f1d38da9b2a922cfede1e311dce0c267c9ca0",
+      "fidelity": "verified",
+      "checks": [
+        "Page 3 of mechanics-notes was rendered from this section's own prose by examples/make_reader_vault_sources.py, so every sentence, figure and formula on the page is the section's text with Markdown and KaTeX markup removed."
+      ],
+      "limitations": []
+    }
+  ],
+  "pages": [
+    {
+      "source_id": "mechanics-notes",
+      "page": 1,
+      "status": "mapped",
+      "section_ids": [
+        "course.mechanics.average-speed"
+      ],
+      "reason": null
+    },
+    {
+      "source_id": "mechanics-notes",
+      "page": 2,
+      "status": "mapped",
+      "section_ids": [
+        "course.mechanics.speed-from-a-graph"
+      ],
+      "reason": null
+    },
+    {
+      "source_id": "mechanics-notes",
+      "page": 3,
+      "status": "mapped",
+      "section_ids": [
+        "course.mechanics.balanced-forces"
+      ],
+      "reason": null
+    }
+  ]
+}

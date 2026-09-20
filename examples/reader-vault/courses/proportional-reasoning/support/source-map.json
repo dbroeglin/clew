@@ -1,0 +1,40 @@
+{
+  "schema": "clew-source-map/v1",
+  "course_id": "course.proportional-reasoning",
+  "sources": [
+    {
+      "id": "proportional-reasoning-notes",
+      "filename": "proportional-reasoning-notes.pdf",
+      "path": "courses/proportional-reasoning/sources/proportional-reasoning-notes.pdf",
+      "sha256": "74f62202c0da5cb4829d44f6239cfe0f4850c2bd1db3938b7581e041fbf47396",
+      "page_count": 2,
+      "citation": "Clew example notes for proportional-reasoning",
+      "edition": null,
+      "omission_reason": null
+    }
+  ],
+  "sections": [
+    {
+      "id": "course.proportional-reasoning.reading-a-ratio",
+      "path": "courses/proportional-reasoning/sections/reading-a-ratio.md",
+      "spans": [
+        {
+          "source_id": "proportional-reasoning-notes",
+          "page_start": 1,
+          "page_end": 1
+        }
+      ]
+    },
+    {
+      "id": "course.proportional-reasoning.scaling-a-recipe",
+      "path": "courses/proportional-reasoning/sections/scaling-a-recipe.md",
+      "spans": [
+        {
+          "source_id": "proportional-reasoning-notes",
+          "page_start": 2,
+          "page_end": 2
+        }
+      ]
+    }
+  ]
+}

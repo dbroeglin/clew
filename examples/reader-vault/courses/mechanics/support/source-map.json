@@ -1,0 +1,51 @@
+{
+  "schema": "clew-source-map/v1",
+  "course_id": "course.mechanics",
+  "sources": [
+    {
+      "id": "mechanics-notes",
+      "filename": "mechanics-notes.pdf",
+      "path": "courses/mechanics/sources/mechanics-notes.pdf",
+      "sha256": "f4050337c570c0e26527a7e601f0f84ede8f7681a418d4a9e6f4a55695deda96",
+      "page_count": 3,
+      "citation": "Clew example notes for mechanics",
+      "edition": null,
+      "omission_reason": null
+    }
+  ],
+  "sections": [
+    {
+      "id": "course.mechanics.average-speed",
+      "path": "courses/mechanics/sections/average-speed.md",
+      "spans": [
+        {
+          "source_id": "mechanics-notes",
+          "page_start": 1,
+          "page_end": 1
+        }
+      ]
+    },
+    {
+      "id": "course.mechanics.speed-from-a-graph",
+      "path": "courses/mechanics/sections/speed-from-a-graph.md",
+      "spans": [
+        {
+          "source_id": "mechanics-notes",
+          "page_start": 2,
+          "page_end": 2
+        }
+      ]
+    },
+    {
+      "id": "course.mechanics.balanced-forces",
+      "path": "courses/mechanics/sections/balanced-forces.md",
+      "spans": [
+        {
+          "source_id": "mechanics-notes",
+          "page_start": 3,
+          "page_end": 3
+        }
+      ]
+    }
+  ]
+}

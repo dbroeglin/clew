@@ -34,7 +34,7 @@ discover or read Obsidian's configuration.
   "input": {
     "vaultPath": "C:\\path\\to\\current-vault",
     "coursePath": "courses/my-course",
-    "entry": "hub.md"
+    "entry": "course.md"
   }
 }
 ```
@@ -46,7 +46,10 @@ not the entire vault, a private `model` directory, or a hidden directory.
 
 For a synthetic demonstration, use the absolute path of
 [`examples/reader-vault`](../../../examples/reader-vault) as `vaultPath` and
-`courses/reader-tour` as `coursePath`. No real learner records are needed.
+`courses/mechanics` as `coursePath`, with `entry` set to `course.md`. The
+example is a published `clew/v1` content root, so it is also what
+[`clew-import`](../../../docs/COURSE_DISTRIBUTION.md) copies into a learner's
+vault. No real learner records are needed.
 
 ## Course format
 
@@ -67,7 +70,7 @@ Other metadata is neither shown nor sent to the session.
 
 | Reference | Resolution |
 | --- | --- |
-| `./lesson.md`, `../hub.md` | Relative to the current note, confined to the course |
+| `./lesson.md`, `../course.md` | Relative to the current note, confined to the course |
 | `[[courses/my-course/lesson]]` | Vault-relative path, if inside this course |
 | `[[chapter/lesson]]` | Course-relative qualified path |
 | `[[Lesson]]` | Unique matching basename within the course |
