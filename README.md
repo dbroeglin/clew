@@ -108,7 +108,7 @@ the ingestion and authoring pass once, publishes the finished `clew/v1` content
 to a git repository, and learners copy it into their own vaults without
 re-running any conversion.
 
-The [course-creator agent](.github/agents/course-creator.md) drives the producing
+The [Course creator agent](.github/agents/course-creator.md) drives the producing
 side: ingest, author sections, run `scripts/clew_finalize.py` to regenerate
 navigation, page references and the verification skeleton, validate, then commit.
 The [`clew-import`](.agents/skills/clew-import/SKILL.md) skill drives the reading

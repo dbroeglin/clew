@@ -90,7 +90,7 @@ around it by hand-editing the vault or passing a flag they did not approve.
 ## Staying inside this skill
 
 Import moves finished content. Producing it is the
-[course-creator](../../../.github/agents/course-creator.md) agent's job, and
+[Course Creator](../../../.github/agents/course-creator.md) agent's job, and
 digesting a PDF belongs to the [ingestion](../ingestion/SKILL.md) skill.
 Recording what the learner then does with the course belongs to the
 [learner-model](../learner-model/SKILL.md) skill. Do not record learning

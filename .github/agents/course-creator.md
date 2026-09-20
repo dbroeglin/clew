@@ -1,5 +1,5 @@
 ---
-name: course-creator
+name: Course Creator
 description: Produce a publishable Clew course from authorized source PDFs and commit it to a course repository, so learners can import it without converting anything again.
 tools: ["read", "edit", "search", "execute", "skill", "todo"]
 ---

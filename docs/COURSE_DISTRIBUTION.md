@@ -11,7 +11,7 @@ and its alternatives and remains **Proposed**.
 ```mermaid
 flowchart LR
     PDF[Source PDF] -->|ingestion skill| D[digest/document.md]
-    D -->|course-creator agent| C[clew/v1 course]
+    D -->|Course creator agent| C[clew/v1 course]
     C -->|clew_finalize.py| F[navigation, hashes, records]
     F -->|validate_clew.py --strict| G[(course git repository)]
     G -->|import_course.py| V[(learner vault)]
@@ -56,7 +56,7 @@ uv run --project <clew checkout> python \
 
 ## Publishing
 
-The [`course-creator`](../.github/agents/course-creator.md) agent owns this path.
+The [`Course creator`](../.github/agents/course-creator.md) agent owns this path.
 
 1. Confirm the right to process the source and to redistribute what the
    repository will contain. A PDF that cannot be redistributed is omitted from
