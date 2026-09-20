@@ -70,6 +70,20 @@ ownership. `configure` adds private-path ignore rules to a version-controlled
 vault; `status` is read-only. Ignore rules do not untrack, erase, or encrypt
 existing content.
 
+The learner-evidence integration direction is recorded in
+[Accepted ADR-0005](docs/adr/adr-0005-explicit-tutor-sessions-and-local-evidence-capture.md),
+with a separate [implementation plan](docs/plans/learner-evidence-capture.md).
+It defines explicit Clew Tutor sessions and shared local chat/canvas capture
+that record compact learner memory through the pinned learner-model skill's
+conservative Markdown edits, within the hosted-processing boundary of ADR-0004.
+The capture layer adds no learner-memory writer and does not change the pinned
+contract. Plan P1-P6 are implemented and validated with synthetic vaults: the
+extension emits semantic recording requests, supports automatic chat
+disposition, headless attempt actions, completion reporting and prepare-only
+learner controls. The production App still delegates every memory edit to the
+tutor agent following the installed skill. Capture from a real learner vault
+and a visible practice canvas remain separately authorized rollout work.
+
 ## Course reader extension
 
 The first Clew UX surface is a
@@ -152,7 +166,7 @@ notes, and optional artifacts. Bare continuation and inspection are read-only.
 It does not create typed learner graphs, numerical mastery scores, automatic
 schedules, or a tombstone engine. Unknown earlier formats require an explicit
 migration decision. See the
-[learner-model contract](docs/LEARNER_MODEL.md) and
+[illustrated learner-model guide](docs/LEARNER_MODEL.md) and
 [Proposed ADR-0004](docs/adr/adr-0004-compact-learner-memory-and-hosted-processing.md).
 
 Learner files remain local and portable, but bounded task-relevant contents can
