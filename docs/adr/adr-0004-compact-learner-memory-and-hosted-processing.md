@@ -144,4 +144,4 @@ remain in `clew-skills`.
 - **REF-002**: [Original local learner-storage ADR](https://github.com/francesco-kruk/clew/blob/df92d5c7acae8852fa08d926e0a12c163102e7d3/docs/adr/adr-0003-local-learner-storage-and-hosted-copilot-processing.md).
 - **REF-003**: [Original learner-continuity ADR](https://github.com/francesco-kruk/clew/blob/df92d5c7acae8852fa08d926e0a12c163102e7d3/docs/adr/adr-0005-evidence-first-learner-continuity.md).
 - **REF-004**: [Pinned learner-model source](https://github.com/francesco-kruk/clew-skills/tree/d4e0880642b0870857749978417cb9561487626a/skills/learner-model).
-- **REF-005**: [Learner-model contract](../LEARNER_MODEL.md).
+- **REF-005**: [Illustrated learner-model guide](../LEARNER_MODEL.md).
