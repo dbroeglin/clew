@@ -207,17 +207,10 @@ See [`docs/COURSE_DISTRIBUTION.md`](docs/COURSE_DISTRIBUTION.md).
 
 The standalone tools share a [UV](https://docs.astral.sh/uv/) environment.
 `pyproject.toml` declares dependencies using public PyPI, separately from the
-APM-managed agent-skill dependencies. **Portable lockfile generation is pending:**
-the implementation host can reach its configured mirror but not public PyPI's
-download host. An existing mirror-backed lockfile has been preserved rather
-than replaced locally; it is not included in this change and does not include
-the newly added parser dependencies. No portable `uv.lock` is committed here.
-The local environment has those dependencies for `uv run --no-sync`.
-On a machine with public PyPI access, regenerate and review `uv.lock` before
-committing it and using the locked commands:
+APM-managed agent-skill dependencies. `uv.lock` records the reviewed,
+portable resolution. Restore it before running the helpers:
 
 ```powershell
-uv lock
 uv sync --locked
 uv run --locked python scripts\digest_pdf.py --help
 ```
