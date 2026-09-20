@@ -1,0 +1,15 @@
+name: learner-model
+version: 3.0.0
+description: Small evidence-grounded learner summary and meaningful session notes in an external vault.
+author: Clew contributors
+license: MIT
+type: hybrid
+targets:
+  - agent-skills
+dependencies:
+  apm:
+    - git: parent
+      path: skills/course-content
+  mcp: []
+includes: auto
+scripts: {}

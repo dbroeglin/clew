@@ -6,9 +6,9 @@ rationale behind the design; they do not replace specifications or task plans.
 
 Use an ADR for decisions with meaningful trade-offs affecting system structure,
 data models, interfaces, dependencies, operations, or cross-cutting constraints.
-Routine implementation details do not need one. Learner-specific "adaptation
-decisions" in the [learner model specification](../LEARNER_MODEL.md) are runtime
-domain objects, not ADRs.
+Routine implementation details do not need one. Learner-specific observations
+and memory updates in the [learner-model contract](../LEARNER_MODEL.md) are
+runtime content, not ADRs.
 
 ## Create and review a record
 
@@ -78,6 +78,7 @@ decision and rationale.
 | ADR-0001 | [Unified Clew content structure](adr-0001-unified-clew-content-structure.md) | Proposed | 2026-09-19 |
 | ADR-0002 | [Copilot App extensions for a bidirectional learner UX](adr-0002-copilot-app-extension-ux.md) | Proposed | 2026-09-19 |
 | ADR-0003 | [Standalone Azure-assisted PDF digestion](adr-0003-pdf-digestion.md) | Proposed | 2026-09-19 |
+| ADR-0004 | [Compact learner memory and hosted processing](adr-0004-compact-learner-memory-and-hosted-processing.md) | Proposed | 2026-09-19 |
 
 Add a row with the title linked to its record for each new ADR. Maintain the
 index manually alongside record changes; no generator is required.

@@ -18,6 +18,7 @@ dependencies:
     - kepano/obsidian-skills/skills/obsidian-markdown#8ccef29ae8624eccc734e77ced4a6e54baf5d83a
     - github/awesome-copilot/skills/create-architectural-decision-record#fb4eb04fcbd30de50052b1155d81167393dfb5aa
     - francesco-kruk/clew-skills/skills/course-content#d4e0880642b0870857749978417cb9561487626a
+    - francesco-kruk/clew-skills/skills/learner-model#d4e0880642b0870857749978417cb9561487626a
   mcp: []
 includes: auto
 scripts: {}

@@ -1,10 +1,12 @@
 Third-party agent skills and extension dependencies
 
-Clew course-content skill
+Clew runtime skills
 Source: https://github.com/francesco-kruk/clew-skills
 Commit: d4e0880642b0870857749978417cb9561487626a
-Files: .agents/skills/course-content/
-License: MIT; see .agents/skills/course-content/LICENSE.
+Files: .agents/skills/course-content/, .agents/skills/learner-model/
+License: MIT; see each skill's bundled LICENSE file.
+Copyright (c) 2026 Alexandra Pletea, Alexia Rossell I Dorca,
+Charlotte Model, Dominique Broeglin, Francesco Kruk
 
 Anthropic skill-creator
 Source: https://github.com/anthropics/skills

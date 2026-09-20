@@ -45,19 +45,87 @@ or expanding the implementation while decisions are pending.
 ## Architecture decisions
 
 Before architectural changes, read the [ADR process and index](docs/adr/README.md),
-applicable records, and relevant specifications such as the
-[learner model](docs/LEARNER_MODEL.md).
+applicable records, and the [learner-model contract](docs/LEARNER_MODEL.md).
 
-For significant architectural decisions, use the APM-managed
-[create-architectural-decision-record skill](.agents/skills/create-architectural-decision-record/SKILL.md)
-and [ADR template](docs/adr/template.md). Ask for missing context, options,
-rationale, or stakeholders rather than inventing them. New records start
-Proposed; acceptance and other lifecycle changes require explicit human approval.
-Acceptance is not authorization to implement. Keep the index and supersession
-links consistent, and preserve historical records.
+For significant decisions, use the APM-managed
+[ADR skill](.agents/skills/create-architectural-decision-record/SKILL.md) and
+[template](docs/adr/template.md). New records start Proposed; lifecycle changes
+require explicit human approval. Keep the index and relationship links
+consistent, and preserve historical records.
+
+## Locate the selected vault
+
+The learner creates an external vault outside this clone. Courses follow the
+installed `course-content` 3.0.0 `clew/v1` contract under `courses/`; learner
+memory and personal work use the separate reserved `model` and `artifacts`
+roots.
+
+Configure the absolute path of an existing external vault with:
+
+```powershell
+python -m src.vault.cli configure --vault "C:\Path\To\Existing Vault"
+python -m src.vault.cli status
+```
+
+The ignored `.clew.local.json` stores `version: 1` and the canonical vault path.
+Never guess a home-directory location, create a vault, use the clone as a
+vault, or infer learning from configuration.
+
+Configuration and status do not read course or learner-file contents. They
+check Git tracking metadata and report reserved `model` and `artifacts` path
+names without determining ownership. Configure alone adds ignore rules;
+status is read-only. Never initialize or push vault Git. Ignore rules do not
+untrack or encrypt content. Ask before writing where reserved-path ownership or
+the learner-model format is uncertain.
+
+## Read, tutor, and retain genuine evidence
+
+Use `course-content` 3.0.0 for bounded reading of selected `clew/v1` courses.
+Follow relevant links, cite sources, and surface ambiguity or missing assets.
+Do not automatically rename, reorganize, or migrate notes. Teacher notes are
+read-only unless the learner explicitly requests a change.
+
+Use `learner-model` 3.0.0 for continuity grounded in actual goals, attempted
+work, feedback, outcomes, and explicitly confirmed future preferences. Keep one
+compact `model/learner.md` summary with exactly one
+`<!-- clew-learning-memory: v1 -->` marker. Meaningful dated sessions use
+`model/sessions/YYYY-MM-DD-topic.md` with collision suffixes. Store original
+attempts once and link them; artifacts are optional.
+
+Bare continuation, recall, and inspection are read-only. Only meaningful
+learning input, decisions, or results justify writes. Correct current memory
+directly, preserving actual earlier answers. Clarify ambiguous forget,
+stop-use, and explicitly scoped local deletion requests. Unknown prior formats
+require an explicit migration decision.
+
+Do not create profile/index files, typed learner graphs, evidence IDs,
+tombstone machinery, numerical scores, automatic schedules, or domain taxonomy.
+Do not infer mastery, a diagnosed misconception, a standing preference, or a
+successful outcome from insufficient evidence. Skills are instructions, not a
+storage or access-control backend.
+
+## Hosted Copilot
+
+Ordinary tasks permit bounded task-relevant reads into hosted Copilot/model
+context. Local storage does not imply local-only inference. Retrieve only enough
+source and learner context for the request; course-only lookup does not require
+learner records.
+
+Never bulk-upload the model, access unrelated learners, add passive telemetry,
+publish records, or grant institutional access. Local correction or deletion
+cannot erase previously sent hosted context. Make no provider retention,
+training, deletion, encryption, or complete network-audit promises.
+
+## Dependencies
+
+Runtime skills are `course-content` and `learner-model`, both pinned to
+`clew-skills` revision
+`d4e0880642b0870857749978417cb9561487626a`. Restore them with APM 0.28.0 and
+`apm install --frozen`, keeping both `copilot` and `agent-skills` targets.
 
 ## Skill dependencies
 
 Do not edit generated files under `.agents/skills/`. Manage dependency changes
-through `apm.yml` and APM, preserving pinned versions, the lockfile, and license
-notices. Keep Clew-specific guidance outside the generated skills.
+through `apm.yml` and APM, preserving immutable pins, the lockfile, LF deployment
+line endings, licenses, and notices. Test with synthetic notes and disposable
+vaults, never real learner records.
