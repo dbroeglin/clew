@@ -138,7 +138,7 @@ apm install --frozen
 
 | Source | Skills |
 | --- | --- |
-| [Anthropic](https://github.com/anthropics/skills) | `skill-creator` |
+| [Effective Engineering Skills](https://github.com/dbroeglin/effective-engineering-skills) | `skill-creator` (Copilot adaptation of Anthropic's skill) |
 | [Kepano's Obsidian skills](https://github.com/kepano/obsidian-skills) | `defuddle`, `json-canvas`, `obsidian-bases`, `obsidian-cli`, `obsidian-markdown` |
 | [GitHub Awesome Copilot](https://github.com/github/awesome-copilot) | `create-architectural-decision-record` |
 | [Clew skills](https://github.com/francesco-kruk/clew-skills) | `course-content`, `learner-model` |
@@ -155,6 +155,14 @@ To change a dependency version, update its commit reference in `apm.yml` and run
 dependency or its version rather than modifying generated skill files directly.
 The skills provide agent instructions; external tools they use, such as Obsidian
 or the Defuddle CLI, must be installed separately when needed.
+
+The `skill-creator` dependency selects only the Copilot adaptation, not the
+upstream repository's other skills. Its Python helpers require Python 3.10+
+and PyYAML 6.x; CLI-based evaluations also require Git and an authenticated
+Copilot CLI, with no model-provider SDK. APM does not install those tools or run
+evaluations. Upstream verified the CLI bridge on Windows with Copilot CLI
+1.0.85; other environments require capability checks before evaluation.
+See its [runtime guide](.agents/skills/skill-creator/references/copilot-runtime.md).
 
 When updating the ADR skill, compare its embedded template with
 `docs/adr/template.md` and review the process guidance for compatibility.

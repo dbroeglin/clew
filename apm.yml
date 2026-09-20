@@ -10,7 +10,7 @@ targets:
   - agent-skills
 dependencies:
   apm:
-    - anthropics/skills/skills/skill-creator#34040c9c568585f6929bedeaad110ad08f079624
+    - dbroeglin/effective-engineering-skills/.agents/skills/skill-creator#574ee19f500b9490f24e70b415d53316720bfadf
     - kepano/obsidian-skills/skills/defuddle#8ccef29ae8624eccc734e77ced4a6e54baf5d83a
     - kepano/obsidian-skills/skills/json-canvas#8ccef29ae8624eccc734e77ced4a6e54baf5d83a
     - kepano/obsidian-skills/skills/obsidian-bases#8ccef29ae8624eccc734e77ced4a6e54baf5d83a
