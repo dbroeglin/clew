@@ -17,19 +17,58 @@ approval before acceptance.
 
 Learner records and personal artifacts live in an explicitly selected external
 vault, never in this repository clone. Configure the absolute path of an
-existing vault with:
+existing vault with the CLI (recommended):
 
 ```powershell
 python -m src.vault.cli configure --vault "C:\Users\Student\Documents\My Learning Vault"
 python -m src.vault.cli status
 ```
 
-The ignored `.clew.local.json` stores configuration version 1 and the canonical
-path. Configuration does not create a vault, course, learner record, or
-artifact. It checks Git tracking metadata and reports reserved `model` and
-`artifacts` names without claiming ownership. Configure adds private-path
-ignore rules additively; status is read-only. Ignore rules do not untrack,
-erase, or encrypt existing content.
+This writes `.clew.local.json` in the repository root. Its complete schema is:
+
+```json
+{
+  "version": 1,
+  "vault": "<absolute path to an existing vault>"
+}
+```
+
+The `version` must be the number `1`. The `vault` must be an absolute path to
+an existing directory outside this repository. No additional properties are
+accepted. For example:
+
+```json
+{
+  "version": 1,
+  "vault": "C:\\Users\\Student\\Documents\\My Learning Vault"
+}
+```
+
+```json
+{
+  "version": 1,
+  "vault": "/home/student/Documents/My Learning Vault"
+}
+```
+
+On Windows, JSON requires each backslash to be escaped as `\\`.
+
+To create the file manually, copy
+[`.clew.local.example.json`](.clew.local.example.json) to `.clew.local.json`,
+replace the `REPLACE_WITH_...` placeholder with the absolute path appropriate
+for your operating system, then validate it:
+
+```powershell
+Copy-Item .clew.local.example.json .clew.local.json
+python -m src.vault.cli status
+```
+
+The local file is ignored by Git. Configuration does not create a vault,
+course, learner record, or artifact. The CLI additionally checks Git tracking
+metadata and reports reserved `model` and `artifacts` names without claiming
+ownership. `configure` adds private-path ignore rules to a version-controlled
+vault; `status` is read-only. Ignore rules do not untrack, erase, or encrypt
+existing content.
 
 ## Course reader extension
 

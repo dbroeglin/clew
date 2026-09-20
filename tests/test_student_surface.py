@@ -1,5 +1,6 @@
 """Protect the compact learner-memory deployment and student runtime boundary."""
 
+import json
 import re
 import unittest
 from pathlib import Path
@@ -40,6 +41,18 @@ class StudentSurfaceTests(unittest.TestCase):
         self.assertIn("<!-- clew-learning-memory: v1 -->", specification)
         self.assertIn("model/learner.md", specification)
         self.assertFalse((package / "evals").exists())
+
+    def test_local_configuration_example_matches_supported_schema(self):
+        example = json.loads(
+            (ROOT / ".clew.local.example.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(set(example), {"version", "vault"})
+        self.assertIs(type(example["version"]), int)
+        self.assertEqual(example["version"], 1)
+        self.assertEqual(
+            example["vault"], "REPLACE_WITH_ABSOLUTE_PATH_TO_EXISTING_VAULT"
+        )
+        self.assertIn(".clew.local.example.json", (ROOT / "README.md").read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":
