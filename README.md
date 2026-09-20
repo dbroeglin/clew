@@ -70,6 +70,16 @@ ownership. `configure` adds private-path ignore rules to a version-controlled
 vault; `status` is read-only. Ignore rules do not untrack, erase, or encrypt
 existing content.
 
+The learner-evidence integration direction is recorded in
+[Accepted ADR-0005](docs/adr/adr-0005-explicit-tutor-sessions-and-local-evidence-capture.md),
+with a separate [implementation plan](docs/plans/learner-evidence-capture.md).
+It defines explicit Clew Tutor sessions and shared local chat/canvas capture
+that record compact learner memory through the pinned learner-model skill's
+conservative Markdown edits, within the hosted-processing boundary of ADR-0004.
+The capture layer adds no learner-memory writer and does not change the pinned
+contract. Implementation has begun with a synthetic-data spike only; capture
+from a real vault is not yet enabled.
+
 ## Course reader extension
 
 The first Clew UX surface is a
