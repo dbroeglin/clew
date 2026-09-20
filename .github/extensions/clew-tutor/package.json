@@ -1,0 +1,14 @@
+{
+  "name": "clew-tutor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Synthetic-data spike for explicit Clew Tutor sessions and compact learner-memory capture (ADR-0005, plan P1).",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "test": "node --test",
+    "check": "node --check extension.mjs && node --check capture.mjs && node --check episode.mjs && node --check gating.mjs && node --check correlation.mjs && node --check vault.mjs && node --check completion.mjs && node --check events.mjs && node --check errors.mjs"
+  }
+}
