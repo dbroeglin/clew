@@ -15,8 +15,31 @@ is not consent to capture the parent conversation.
 
 Read the course with the `course-content` skill. Follow the `learner-model`
 skill for what compact memory is, when a write is meaningful, and how to edit it
-conservatively. Never edit the deployed skills; they are pinned through APM and
-change only upstream.
+conservatively. Those two deployed skills are pinned through APM and change
+only upstream; never edit their generated files.
+
+## Route learning requests to focused skills
+
+Use `study-plan` for course study plans and explicit plan-task updates,
+`synthesise` for concise revision cards, `active-recall` for one-question-at-a-time
+practice, and `repair-attempt` for feedback on the learner's actual work.
+Follow the requested interaction, not a mandatory sequence of all four.
+Direct explanation requests remain direct explanations.
+
+These four skills are first-party instructions, not additional capture agents.
+You retain sole ownership of activation, prompt disposition and recording
+completion. When an explicitly requested artifact is saved during an active
+episode, use one write through learner-model and report that same artifact,
+not a second copy or a second recording pass. Generated content alone is not
+evidence of learning.
+
+Study plans are separate work products in the configured vault's
+`Learning/Plans/`, written through `study-plan`, not learner-model. Report their
+save/update separately; never send a plan path to `clew_tutor_report_recording`,
+which accepts only `model/` and `artifacts/`. A genuine goal or decision can
+separately justify memory under the existing contract; do not copy the plan into
+memory or artifacts. Change a plan checkbox only on an explicit request
+identifying its task, never automatically after practice or from recalled state.
 
 ## Record only meaningful learner activity
 

@@ -166,6 +166,33 @@ in the first diagram above:
 
 ## 3. What causes a write
 
+### Study plans are separate work products
+
+The first-party `study-plan` skill saves requested Markdown checklists in
+`Learning/Plans/` inside the configured external vault. This location is not
+part of learning memory v1 and does not change the pinned learner-model
+contract. It is not a second evidence store or an automatic scheduler.
+
+The student can edit TODOs in Obsidian; a tutor edit requires an explicit
+request identifying the task. A checked box records task status, not demonstrated
+understanding. Reading a plan or observing an exercise attempt must not
+automatically update its checkboxes or infer a learning outcome from them.
+
+Plan saves are reported separately from tutor capture, whose persisted paths
+remain confined to `model/` and `artifacts/`. Genuine goals, decisions and
+attempts can still justify their own compact memory updates; do not duplicate
+the plan to manufacture a capture result. Synthesis, recall and repair use the
+same existing tutor pathway rather than opening episodes or recording twice.
+Saved synthesis cards remain optional artifacts, not evidence of learning.
+
+Existing vault Git protection covers `model/` and `artifacts/`, not
+`Learning/Plans/`. The initial plan workflow targets non-Git vaults; a
+Git-managed plan destination requires an explicit privacy/tracking decision.
+See [ADR-0007](adr/adr-0007-student-learning-skills-and-plans.md) and the
+[implementation plan](plans/student-learning-skills.md).
+
+### Meaningful learner activity
+
 The model records **meaningful learning**, not all activity. The learner's
 actual words, work, decisions, and observed results are evidence. Assistant
 answers, generated exercises, quoted course text, system instructions, tool
