@@ -1,5 +1,15 @@
 Third-party agent skills and extension dependencies
 
+Clew PDF converter and offline regression tests
+Source: https://github.com/dbroeglin/clew-old
+Commit: 77c1e4c4569e4e8067f20d3809edd582b1f9a257
+Files: .agents/skills/clew-import/scripts/digest_pdf.py, tests/test_digest_pdf.py
+Converter blob: d0eff2c0daa9e454360eb649db459b4c72408d42
+License: MIT; see the root LICENSE and .agents/skills/clew-import/LICENSE.
+Converter modifications: retain and verify the original PDF in the output
+bundle and reference it from the manifest. Tests adapted to the skill-local
+script location and extended for source preservation.
+
 Effective Engineering Skills: Copilot adaptation of Anthropic skill-creator
 Source: https://github.com/dbroeglin/effective-engineering-skills
 Commit: 574ee19f500b9490f24e70b415d53316720bfadf
@@ -67,4 +77,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-

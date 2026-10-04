@@ -1,6 +1,6 @@
 # ADR-0002: PDF Import skill and project-level Python runtime
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-04
 
 ## Context
@@ -21,6 +21,11 @@ should guide execution, check configuration, and interpret the result. Python
 dependencies and the UV virtual environment should belong to the project, not
 the skill.
 
+The skill must also accept a local directory, discover PDFs needing conversion,
+and propose an exact execution plan before running anything. Existing outputs
+must be inspected rather than overwritten. Failed conversions may be retried
+only after explicit approval to remove their output and rerun the command.
+
 The initial request was to copy the script exactly. During clarification, the
 user authorized one functional change: copy the original PDF into the resulting
 directory. The existing script only records the source filename and hash; it
@@ -33,8 +38,8 @@ others introduce unnecessary behavioral or environment divergence.
 
 ## Decision
 
-This record is a proposal. Do not implement it until the user has reviewed and
-accepted it.
+The user accepted this decision and its clarified directory workflow on
+2026-10-04 and authorized implementation.
 
 ### Scope and ownership
 
@@ -60,8 +65,13 @@ semantics. Any further functional change requires separate agreement.
 ### Retained source and artifact contract
 
 Each invocation requires a source PDF and an explicit, previously nonexistent
-output directory. Preserve the script's refusal to overwrite any existing output,
-including a partial run. Do not delete or reuse an output automatically.
+output directory at the script level. The skill defaults to a sibling directory
+named after the source file without its final extension: `chapter_1.pdf` becomes
+`chapter_1/` beside that PDF. Pass this resolved location explicitly through
+`--output`; do not change the script's CLI to infer it.
+
+Preserve the script's refusal to overwrite any existing output, including a
+partial run. Do not delete or reuse an output automatically.
 
 After local PDF validation and creation of the output directory, but before the
 first cloud submission, copy the complete input PDF to
@@ -91,6 +101,57 @@ source there; a bundle produced outside a vault must be preserved as a unit when
 subsequently placed in the vault. The exact vault layout and that downstream
 placement workflow remain deferred, not silently implemented by this skill.
 
+### Directory discovery and proposed execution plan
+
+Accept either an individual local PDF or a local directory. Directory mode scans
+recursively for `.pdf` files, case-insensitively, and sorts discovered source
+paths for a deterministic plan. Do not follow symbolic links or directory
+junctions out of the selected tree.
+
+Exclude recognized generated Import bundles and their entire contents, including
+their retained `source/` PDFs, from recursive discovery. Recognition must use
+consistent import metadata and artifact structure, or an output tracked as
+created by the current invocation; a directory name alone is not sufficient.
+Malformed metadata or an ambiguous candidate output is a conflict to report,
+not grounds to silently hide a directory or treat its contents as fresh inputs.
+
+For each source, determine its sibling target and classify it:
+
+- **Convert:** the target does not exist and the PDF passes local preflight.
+- **Already converted:** a valid completion manifest has status `extracted` or
+  `needs_review`, the current PDF's SHA-256 matches the manifest, and required
+  artifacts exist. These include `document.md`, the retained original with a
+  matching hash, and the page and figure artifacts referenced by the manifest.
+  Referenced paths must resolve inside the bundle.
+- **Blocked:** the target is a file, an unrelated or unverifiable directory, a
+  partial or stale import, has missing artifacts, or collides with another
+  discovered source's target. Report invalid inputs as blocked as well.
+
+Directory mode requests all pages by default. Only classify an existing import
+as already converted when its page coverage matches the requested scope; a
+selected-page digest is not a completed whole-document conversion. An explicit
+page subset must be shown in the plan and passed through unchanged. A matching
+`needs_review` bundle is skipped for conversion but its review issues are reported.
+Matching hashes alone do not prove extraction fidelity.
+
+Do not automatically replace blocked targets. Ask for the user's decision,
+identifying the exact source, target, and reason. Never infer permission to remove
+unrelated files or human edits from approval of other conversions.
+
+Produce a plan showing every candidate, its classification and reason, source
+and target paths, and all relevant commands. Include the repository working
+directory, any required setup or configuration remediation, and one fully quoted
+UV conversion command per eligible source, with its actual arguments. Plans must
+be actionable without exposing environment values or credentials. If there is
+nothing to convert, report that and any conflicts or review items.
+
+Discovery and plan preparation are read-only. Wait for user approval before
+environment setup or conversion; approval must cover the PDFs, configured cloud
+destinations, options, and potential charges. Execute approved conversions
+sequentially, rechecking target absence and source identity before each command.
+If the source or relevant configuration changes after planning, obtain approval
+for the updated plan rather than silently using the old authorization.
+
 ### Project-level UV runtime
 
 Create a repository-root `pyproject.toml` with Python `>=3.11` and
@@ -114,7 +175,7 @@ Run from the repository root, using the project interpreter and an explicit
 root environment file. The invocation contract is:
 
 ```powershell
-uv run --locked --env-file .env python .agents\skills\clew-import\scripts\digest_pdf.py "C:\path\input.pdf" --output "C:\path\new-import"
+uv run --locked --env-file .env python ".agents\skills\clew-import\scripts\digest_pdf.py" "C:\path\chapter_1.pdf" --output "C:\path\chapter_1"
 ```
 
 Use `uv sync --locked` for setup when needed. If UV is unavailable or the lockfile
@@ -140,8 +201,9 @@ Before execution, the skill must:
 - Explain that authentication uses `DefaultAzureCredential`, typically with an
   existing Azure CLI login, not an API key in `.env`. Surface authentication or
   authorization failures without automatically changing accounts or credentials.
-- Confirm the PDF and a new output path, and pass requested optional CLI arguments
-  through unchanged. Do not silently enable paid high-resolution OCR.
+- Confirm the discovered PDFs and their proposed sibling output paths, and pass
+  requested optional CLI arguments through unchanged. Do not silently enable
+  paid high-resolution OCR.
 - Make clear that PDF content is sent to the configured Azure services and may
   incur charges; obtain the user's authorization for the selected document and
   destinations before a cloud run.
@@ -152,14 +214,45 @@ provision Azure resources, change access permissions, or initiate login without
 the user's direction. No additional wrapper executable is required; this
 preflight is part of the skill's execution instructions.
 
-### Result handling and implementation acceptance
+A read-only `scripts/plan_imports.py` helper inside the skill supports deterministic
+discovery, PDF and manifest inspection, and exact command generation. It uses
+the project environment but never sets it up, submits documents, deletes outputs,
+or executes its proposed commands. If that environment is absent, present an
+initial read-only filesystem inventory and request setup approval before using
+the helper to complete the conversion plan. This is not a conversion wrapper;
+approval, execution, configuration remediation, and retries remain skill actions.
+
+### Result handling and approved retry
 
 Preserve and explain the existing exit codes: `0` means extracted, `2` means
 completed but needs review, `1` means failed, and `130` means interrupted.
 Exit `2` is not an unqualified success. Inspect the completion manifest on
-completed runs and report artifact locations and review issues. On failure,
-report available diagnostics and preserve partial artifacts; do not retry a
-paid run automatically.
+completed runs and report artifact locations and review issues. Exit `2` does not
+trigger delete-and-retry.
+
+If a conversion fails, pause the batch immediately. Report the failed command,
+error, and available diagnostics, then ask whether the user approves deleting
+that run's exact output directory and retrying. Explain that deletion discards
+partial artifacts and diagnostics, and the retry can repeat paid cloud work.
+Never delete or retry before this specific approval. Declining leaves the output
+intact; ask how to proceed with the remaining plan.
+
+Before an approved deletion, verify that the exact resolved target was absent
+before this conversion and created by it. Reject targets that are the input
+directory, source location, repository root, an ancestor of an original input, or a link
+or junction. Check for unexpected files or modifications and stop for a decision
+if ownership is uncertain. Delete only that verified target, never a wildcard,
+parent directory, or other import output. A pre-existing blocked target is not
+eligible for this failed-run cleanup procedure.
+
+After deletion, rerun the same approved conversion command, correcting a
+diagnosed configuration issue only with the user's agreement. If no output
+directory was created, explain that cleanup is unnecessary and ask permission
+to retry without deletion. Each subsequent failure needs a fresh approval;
+there is no automatic retry loop. A setup or configuration failure does not
+authorize deletion of any conversion output.
+
+### Implementation acceptance
 
 Before considering the implementation ready, verify the copied script differs
 from the pinned upstream baseline only in the agreed source-preservation change.
@@ -169,6 +262,13 @@ copy failure before cloud submission, and refusal to overwrite existing output.
 Exercise existing success, review, and failure behavior without real credentials
 or paid calls. Verify project-level execution with `uv run --locked` and CLI help.
 A live cloud smoke test requires separately authorized inputs and configuration.
+
+Also exercise the skill workflow with fixtures for nested source directories,
+recognized output exclusion, sibling naming and collisions, matching and changed
+hashes, missing artifacts, selected-page versus all-page coverage, `needs_review`
+results, and unrelated existing targets. Verify that plans contain all commands,
+no setup or conversion runs before approval, failures pause the batch, and
+cleanup and retries require fresh approval scoped to a verified failed output.
 
 ## Consequences
 
@@ -185,5 +285,9 @@ A live cloud smoke test requires separately authorized inputs and configuration.
   Preflight does not guarantee service availability or extraction fidelity.
 - Each bundle retains a complete source PDF and substantial diagnostic artifacts,
   increasing storage needs and preserving potentially sensitive source content.
+- Recursive planning avoids repeated conversion while making conflicts and
+  review work visible. Hashing sources and checking artifacts adds local I/O.
+- Explicit retry approval prevents destructive cleanup and repeated cloud charges
+  from happening silently, but batch execution may require user intervention.
 - Non-PDF formats, vault organization, artifact lifecycle policies, automatic
   retries/resume, and downstream pipeline phases remain outside this decision.
