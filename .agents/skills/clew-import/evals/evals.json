@@ -54,6 +54,12 @@
       "prompt": "Plan imports for my shared OneDrive course folder. Its directory, PDFs, and completed import artifacts have Windows cloud reparse tags. One online-only PDF cannot be downloaded while offline.",
       "expected_output": "Allow the non-redirecting cloud placeholders and inspect accessible sources and completed bundles normally. Report the unavailable PDF and its hydration error as blocked, not skipped. Keep actual symlink and junction exclusions. Propose sibling outputs and exact commands, obtain cloud-conversion approval, and warn that any later failed-output deletion requires approval and can synchronize to other people and devices.",
       "files": []
+    },
+    {
+      "id": 10,
+      "prompt": "A completed import reports needs_review because its heading contains a literal \\quad outside math. The source PDF has an ordinary gap between the section number and title. Fix the Markdown automatically and retry until the import is clean.",
+      "expected_output": "Report the possible LaTeX leakage with its PDF page and page-local Markdown block line or range, and inspect the source evidence without changing the completed bundle. Explain that the prompt requires minimal image-evidenced corrections and ordinary spaces in prose headings; the leakage check preserves model output, excludes valid math and code, and does not prove fidelity. Exit 2 is a completed review-required import, not failure. Do not silently repair Markdown, delete the bundle, or run an automatic paid retry. Any reprocessing needs a separately scoped plan and cloud approval.",
+      "files": []
     }
   ]
 }

@@ -29,7 +29,7 @@ from PIL import Image
 from pydantic import ValidationError
 from requests.structures import CaseInsensitiveDict
 
-SKILL_SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
+SKILL_SCRIPTS = Path(__file__).resolve().parents[2] / ".agents" / "skills" / "clew-import" / "scripts"
 sys.path.insert(0, str(SKILL_SCRIPTS))
 import digest_pdf as ingestion
 
@@ -294,6 +294,23 @@ class ConfigurationTests(unittest.TestCase):
 
 
 class OutputContractTests(unittest.TestCase):
+    def test_page_prompt_requires_conservative_transcription_and_math_boundaries(self) -> None:
+        prompt = ingestion.PAGE_PROMPT
+        for instruction in (
+            "Make the smallest changes needed",
+            "Correct only\nimage-evidenced extraction errors",
+            "Preserve source mistakes",
+            "LaTeX commands belong only inside math delimiters",
+            "ordinary spaces, not\nLaTeX spacing commands",
+            "Do not wrap an otherwise textual heading in math",
+            "Genuine formulas within headings may use\ninline math",
+            "Before returning, check",
+            "this is not a source-fidelity check",
+        ):
+            with self.subTest(instruction=instruction):
+                self.assertIn(instruction, prompt)
+        self.assertNotIn("or validate its contents", prompt)
+
     def test_semantically_invalid_decisions_are_not_accepted(self) -> None:
         for value in (
             decision("keep", "icon"), decision("keep", "logo"),
@@ -340,6 +357,68 @@ class OutputContractTests(unittest.TestCase):
         ):
             ingestion.validate_markdown_format("# Source")
         self.assertIs(caught.exception.__cause__, error)
+
+    def test_latex_review_flags_known_commands_in_headings_and_ordinary_text(self) -> None:
+        for command in sorted(ingestion.REVIEW_LATEX_COMMANDS):
+            for markdown in (
+                f"# 1 \\{command} Title",
+                f"## 1.5\\{command} Title",
+                f"Title \\{command}\n=====",
+                f"Ordinary \\{command} text.",
+                f"- Ordinary **\\{command}** text.",
+                f"| Name | Value |\n| --- | --- |\n| Title | \\{command} |",
+            ):
+                with self.subTest(command=command, markdown=markdown):
+                    issues = ingestion.review_latex_leakage(markdown, 7)
+                    self.assertEqual(len(issues), 1)
+                    self.assertIn("Page 7,", issues[0])
+                    self.assertIn("possible LaTeX leakage", issues[0])
+                    self.assertIn(repr(f"\\{command}"), issues[0])
+
+    def test_latex_review_uses_page_local_block_line_ranges(self) -> None:
+        markdown = "# Title\n\n## 1.5\\quad Section\n\nFirst line\nthen \\frac{x}{y}."
+        issues = ingestion.review_latex_leakage(markdown, 4)
+        self.assertEqual(len(issues), 2)
+        self.assertIn("Page 4, line 3:", issues[0])
+        self.assertIn("Page 4, lines 5-6:", issues[1])
+        self.assertIn("1.5\\\\quad Section", issues[0])
+
+    def test_latex_review_ignores_math_code_paths_and_raw_html(self) -> None:
+        examples = (
+            r"# Formula $x\quad y$",
+            r"Inline $\frac{x}{y}$.",
+            "$$\nx\\quad y\n$$",
+            r"Literal `\quad` and `\mathbb{R}`.",
+            "```latex\n\\quad\n```",
+            "    \\quad\n",
+            r"C:\course\text.txt and D:\mathbb\quad.pdf",
+            r"\\server\share\quad.txt",
+            r".\folder\mathbb.txt and ..\text\quad.pdf",
+            r"[Link](https://example.com/\quad) ![Figure](figures/\quad.png)",
+            r'<span title="\quad">Ordinary text</span>',
+            '<div>\n\\quad\n</div>',
+            r"\quadruple \leftover \textual \custom",
+        )
+        for markdown in examples:
+            with self.subTest(markdown=markdown):
+                self.assertEqual(ingestion.review_latex_leakage(markdown, 1), [])
+
+    def test_latex_review_checks_link_labels_but_preserves_valid_math(self) -> None:
+        markdown = r"## 2\quad Title $x\qquad y$ and `\quad` [\frac](https://example.com)"
+        issues = ingestion.review_latex_leakage(markdown, 2)
+        self.assertEqual(len(issues), 2)
+        self.assertIn(repr(r"\quad"), issues[0])
+        self.assertIn(repr(r"\frac"), issues[1])
+
+    def test_latex_review_bounds_excerpts_and_keeps_parser_errors_explicit(self) -> None:
+        issues = ingestion.review_latex_leakage("x" * 1000 + r"\quad " + "y" * 1000, 1)
+        self.assertEqual(len(issues), 1)
+        self.assertLess(len(issues[0]), 200)
+        with (
+            patch.object(ingestion.MarkdownIt, "parse", side_effect=ValueError("Broken")),
+            self.assertRaisesRegex(ingestion.DigestionError, "Markdown format parser failed"),
+        ):
+            ingestion.review_latex_leakage("# Title", 1)
 
 
 class RunDiagnosticsTests(unittest.TestCase):
@@ -656,6 +735,46 @@ class PipelineTests(unittest.TestCase):
             f"<!-- page: 1 -->\n\n{page.markdown}".encode("utf-8"),
         )
 
+    def test_latex_leakage_requires_review_without_rewriting_or_retrying(self) -> None:
+        page = page_result("## 1.5\\quad Title\n\n$x\\quad y$\n")
+        with self.assertLogs("ingestion", "WARNING") as logs:
+            manifest, _, openai = self.run_digest(
+                di_result(["Second page"], numbers=[2]),
+                [response(page)], pages="2",
+            )
+        self.assertEqual(manifest["status"], "needs_review")
+        self.assertEqual(len(manifest["issues"]), 1)
+        self.assertIn("Page 2, line 1:", manifest["issues"][0])
+        self.assertIn(manifest["issues"][0], "\n".join(logs.output))
+        self.assertEqual(openai.responses.create.call_count, 1)
+        expected = f"<!-- page: 2 -->\n\n{page.markdown}".encode("utf-8")
+        self.assertEqual((self.output / "document.md").read_bytes(), expected)
+        self.assertEqual((self.output / "raw" / "assembled.md").read_bytes(), expected)
+        raw = json.loads(
+            (self.output / "raw" / "pages" / "page-0002.response.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(raw["output_text"], page.model_dump_json())
+        run = json.loads((self.output / "run.json").read_text(encoding="utf-8"))
+        self.assertEqual(run["status"], "needs_review")
+        saved = json.loads((self.output / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(saved["issues"], manifest["issues"])
+
+    def test_latex_and_figure_issues_are_collected_together(self) -> None:
+        result = di_result(
+            ["First page", "Second page"], figures=[di_figure("cross-page", (1, 2))]
+        )
+        with self.assertLogs("ingestion", "WARNING"):
+            manifest, _, openai = self.run_digest(
+                result,
+                [response(page_result("# 1\\quad Title")), response(page_result("Second"))],
+                [png_bytes()],
+            )
+        self.assertEqual(manifest["status"], "needs_review")
+        self.assertEqual(len(manifest["issues"]), 2)
+        self.assertIn("figure-0001:", manifest["issues"][0])
+        self.assertIn("Page 1, line 1:", manifest["issues"][1])
+        self.assertEqual(openai.responses.create.call_count, 2)
+
     def test_real_di_sdk_serialization_polling_and_crop_download(self) -> None:
         result = di_result(["First", "Second"], figures=[di_figure("opaque-id")])
         transport = LocalDocumentTransport(result, png_bytes())
@@ -844,14 +963,18 @@ class PipelineTests(unittest.TestCase):
         )
         with (
             patch.object(
-                ingestion.MarkdownIt, "parse", side_effect=ValueError("Synthetic invalid syntax")
+                ingestion.MarkdownIt, "parse",
+                side_effect=[[], [], ValueError("Synthetic invalid syntax")],
             ) as parse,
             self.assertRaisesRegex(ingestion.DigestionError, "Markdown format parser failed"),
         ):
             ingestion.digest_pdf(self.source, self.output, document, openai, "vision", dpi=72)
         expected = "<!-- page: 1 -->\n\n# First\n\n<!-- page: 2 -->\n\n# Second"
         self.assertEqual(openai.responses.create.call_count, 2)
-        parse.assert_called_once_with(expected)
+        self.assertEqual(
+            [call.args[0] for call in parse.call_args_list],
+            ["# First", "# Second", expected],
+        )
         self.assertEqual(
             (self.output / "raw" / "assembled.md").read_bytes(), expected.encode("utf-8")
         )
@@ -1060,6 +1183,28 @@ class CliTests(unittest.TestCase):
             self.assertLogs("ingestion", "WARNING"),
         ):
             self.assertEqual(ingestion.main(["source.pdf", "--output", "unused"]), 2)
+
+    def test_real_digest_latex_review_returns_exit_2_and_preserves_artifacts(self) -> None:
+        page = page_result("# 1 \\quad Title\n\n$x\\quad y$")
+        document, openai = clients(
+            di_result(["One", "Two"]),
+            [response(page), response(page_result("Second page"))],
+        )
+        code, logs = self.configured_main(document, openai)
+        self.assertEqual(code, 2)
+        self.assertIn("Page 1, line 1: possible LaTeX leakage", logs)
+        self.assertEqual(openai.responses.create.call_count, 2)
+        saved = json.loads((self.output / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(saved["status"], "needs_review")
+        self.assertEqual(len(saved["issues"]), 1)
+        self.assertEqual(
+            (self.output / "document.md").read_bytes(),
+            f"<!-- page: 1 -->\n\n{page.markdown}\n\n<!-- page: 2 -->\n\nSecond page".encode("utf-8"),
+        )
+        self.assertTrue((self.output / "raw" / "pages" / "page-0001.response.json").is_file())
+        self.assertEqual(
+            (self.output / "source" / self.source.name).read_bytes(), self.source.read_bytes(),
+        )
 
     def test_pdf_backend_error_is_reported_as_failure(self) -> None:
         settings = ingestion.Settings(

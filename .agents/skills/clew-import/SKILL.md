@@ -177,11 +177,36 @@ and referenced artifacts form a complete bundle for the requested scope. Do
 not rewrite model output or treat a hash match as a content-fidelity guarantee.
 Inspect diagnostics if a completion check fails.
 
+The page prompt requires minimal, image-evidenced corrections, preserves correct
+source wording and notation (including source mistakes), and confines LaTeX to
+math delimiters. Literal commands discussed by the source belong in code;
+typographic gaps in prose and headings become ordinary spaces.
+
+The converter preserves model Markdown without repairing it. A non-mutating
+check reports possible LaTeX leakage in parsed ordinary text using this bounded
+command list: `\quad`, `\qquad`, `\hspace`, `\vspace`, `\enspace`, `\thinspace`,
+`\frac`, `\dfrac`, `\tfrac`, `\sqrt`, `\mathbb`, `\mathcal`, `\mathrm`, `\mathbf`,
+`\text`, `\begin`, `\end`, `\left`, and `\right`. Findings include the original
+PDF page, page-local Markdown block line or line range, and a short excerpt.
+They appear in manifest `issues`, produce status `needs_review` and exit `2`,
+and must be reported rather than automatically fixed or retried.
+
+The check excludes math, code, link destinations, image paths, raw HTML tokens,
+and recognizable Windows drive, UNC, and dot-relative paths. Link labels and
+text between inline HTML tags are still ordinary text. Unknown commands, raw
+HTML blocks, and other formula errors can escape detection; literal commands
+outside code or ambiguous relative paths can produce false positives. Neither
+the prompt, this check, nor a clean completion proves content fidelity.
+Previously completed bundles are not automatically rescanned or modified.
+
 `source/<original-filename>` contains a byte-identical copy of the entire input
 PDF, even for a selected-page import. `document.md`, `figures`, `raw`,
 `manifest.json`, and `run.json` remain together. No input PDF is moved or changed.
-If the output is outside a vault, future Ingest must preserve the bundle when
-placing it in the vault. This skill does not structure Obsidian notes.
+Later Ingest can copy a retained subset into its own output: the original PDF,
+unchanged imported Markdown, and referenced figures, with source metadata.
+Raw extraction evidence and diagnostics remain in this untouched complete bundle;
+the subset must not be presented as a complete Import bundle. This skill does
+not structure Obsidian notes or remove external bundles after ingestion.
 
 ## 4. Failure: explicit delete-and-retry gate
 
@@ -223,18 +248,22 @@ plan. Interruption does not imply permission to restart.
 `digest_pdf.py` is copied from `dbroeglin/clew-old` at commit
 `77c1e4c4569e4e8067f20d3809edd582b1f9a257`, blob
 `d0eff2c0daa9e454360eb649db459b4c72408d42`, under the repository MIT license.
-The only functional deviation is source preservation, its hash verification,
-and the relative `source.path` in the manifest. Conversion prompts, CLI,
-validation, and exit codes remain upstream behavior.
+Functional deviations are source preservation and hash verification with the
+relative `source.path` in the manifest, conservative page-transcription prompt
+instructions, and a non-mutating review check for known LaTeX commands outside
+math. The check uses the existing `needs_review` status and exit `2`; model
+Markdown and raw evidence remain unchanged. CLI options and exit-code meanings
+remain upstream behavior.
 
-Do not fetch a moving upstream revision during an import. Offline tests and
-workflow evaluations are bundled in this skill under `tests` and `evals`.
-In Clew run:
+Do not fetch a moving upstream revision during an import. Workflow evaluations
+are bundled under `evals`. Executable tests and fixtures are repository-owned,
+outside skill directories; they are not required to operate a standalone copy.
+For development in Clew run:
 
 ```powershell
-uv run --package clew-import --locked python -m unittest discover -s ".agents\skills\clew-import\tests"
+uv run --package clew-import --locked --no-sync python -B -m unittest discover -s "tests\clew_import"
 ```
 
-For a standalone copy, run the equivalent command from the skill directory
-without `--package clew-import`. Tests and evaluations must not make real cloud
-calls or remove user data.
+Standalone runtime commands above remain self-contained; development tests
+are run from the source repository. Tests and evaluations must not make real
+cloud calls or remove user data.

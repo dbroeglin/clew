@@ -1,7 +1,12 @@
 # ADR-0003: Autonomous, portable skills
 
-- Status: Accepted
+- Status: Accepted; script-test ownership partially superseded by ADR-0004
 - Date: 2026-10-04
+
+> **Supersession note:** [ADR-0004](0004-faithful-multi-bundle-ingest.md)
+> places executable script tests and fixtures outside skill directories, in
+> repository-owned suites. Workflow evaluations may remain bundled. Runtime
+> portability and the remaining rules in this record are unchanged.
 
 ## Context
 
