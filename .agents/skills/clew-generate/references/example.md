@@ -44,6 +44,13 @@ then publish. Both questions have correction controls; neither has a method or
 hint button without selected existing help. Adding a help note to `notes`
 enables its matching aids on the next run.
 
+A help note can also provide an anchored `[!explanation]` callout, with
+`question: "[[exercice#^q-1]]"` and `correction: "[[corrige#^r-1]]"` in
+frontmatter. Generate attaches it to that selected supplied answer and offers
+it in the side panel from the revealed correction. Course links inside hints
+and explanations open their precise referenced passage in the panel. These
+links live in the aid note; the chapter-only layout does not need extra mappings.
+
 The output parent must already exist. A repeated publication defaults to a new
 filename; replacing this exact derived HTML uses separately requested
 `--overwrite`. Current note edits are read directly. No hash comparison,

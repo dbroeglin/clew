@@ -15,6 +15,7 @@
       "corrections": ["corrige#^r-1"],
       "method": "aides#^methode",
       "hints": ["aides#^indice-1", "aides#^indice-2"],
+      "explanations": ["aides#^explication-1"],
       "courses": ["cours#Sous-espace vectoriel"]
     }
   }
@@ -66,11 +67,14 @@ uniquely among selected notes. Selectors:
   frontmatter. Do not split a paragraph, callout, table, code fence, or formula.
 
 `questions` maps published question addresses to optional overrides:
-`corrections`, `hints`, and `courses` arrays, plus `method` as a selector or null.
+`corrections`, `hints`, `explanations`, and `courses` arrays, plus `method` as a
+selector or null.
 Arrays preserve order. Explicit empty arrays suppress auto-selected material;
 `method: null` suppresses automatic methods. Unused overrides are errors.
 Mappings are semantic agent decisions; the script checks references, not their
-pedagogical truth.
+pedagogical truth. Explanations require a selected correction. When selecting
+an explanation from a question-addressed help note, its question and correction
+links must agree with the published question and selected supplied answer.
 
 For an exercise containing anchored `[!question]` callouts, each callout is a
 question and surrounding plain text is shared context. Otherwise the selected
@@ -101,6 +105,7 @@ A minimal additional note can contain:
 id: aide-sev
 type: help
 question: "[[exercice#^q-1]]"
+correction: "[[corrige#^r-1]]"
 ---
 
 > [!method]
@@ -117,6 +122,12 @@ question: "[[exercice#^q-1]]"
 > Examiner une combinaison lineaire.
 
 ^indice-2
+
+> [!explanation]
+> La correction applique le critere de stabilite par combinaison lineaire.
+> Voir [[cours#Sous-espace vectoriel|le critere du cours]].
+
+^explication-1
 ```
 
 Anchored `method` and `hint` callouts are selected automatically for the exact
@@ -125,8 +136,22 @@ require an explicit selection. Hints follow selected-note and in-note order,
 with no fixed count. An explicit layout can reference other preexisting
 Markdown instead. No aids are authored by Generate.
 
-This is a narrow publication convention, not an implementation or complete
-revision/provenance contract for a future Enrich skill.
+Anchored `explanation` callouts are selected automatically only when the help
+note's `correction` points to a supplied answer linked to that same question.
+The answer must be included in the selected corrections, either directly or
+inside a selected note/heading. Wrong question/answer links are errors.
+Explanations appear in the side panel from the revealed inline correction;
+they are never appended to the supplied answer's prose.
+
+Course links inside help notes register exact heading/block excerpts
+automatically. They open in the side panel, including when the course is also
+selected for reading or the reading view is suppressed. No extra layout mapping
+is necessary for those authored links. Target notes must still be in `notes`.
+
+This publication convention also consumes the first-increment `clew-enrich`
+output. Generate needs no installed Enrich skill or validation snapshot.
+Humans can author/edit the same notes; a general revision/provenance contract
+remains outside this version.
 
 ## Markdown, links, and assets
 

@@ -20,6 +20,7 @@ class Renderer:
         self.warnings: list[str] = []
         self.emitted: set[str] = set()
         self.links: set[str] = set()
+        self.course_links: dict[str, tuple[Note, str]] = {}
         self.md = parser()
         self.md.add_render_rule("math_inline", self.math_inline)
         self.md.add_render_rule("math_block", self.math_block)
@@ -79,7 +80,12 @@ class Renderer:
         note.select(fragment)
         identifier = self.anchor(note, fragment)
         self.links.add(identifier)
+        self.remember_course_link(note, fragment, env["note"])
         return f'<a href="#{identifier}">{html.escape(label or fragment.lstrip("^") or note.title)}</a>'
+
+    def remember_course_link(self, target: Note, fragment: str, origin: Note) -> None:
+        if origin.metadata.get("type") == "help" and target.metadata.get("type") in {"course", "section"}:
+            self.course_links[self.anchor(target, fragment)] = (target, fragment)
 
     def image(self, ref: str, label: str, note: Note) -> str:
         parsed = urlsplit(ref)
@@ -120,6 +126,7 @@ class Renderer:
             note.select(fragment)
             identifier = self.anchor(note, fragment)
             self.links.add(identifier)
+            self.remember_course_link(note, fragment, env["note"])
             token.attrSet("href", "#" + identifier)
         else:
             require(parsed.path.lower().endswith(".pdf") and not parsed.query,

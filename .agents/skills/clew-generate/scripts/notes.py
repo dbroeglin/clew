@@ -48,7 +48,7 @@ class Part:
     fields: str = ""
 
     def display(self) -> str:
-        if self.label and self.kind in {"note", "warning", "tip", "method", "hint"}:
+        if self.label and self.kind in {"note", "warning", "tip", "method", "hint", "explanation"}:
             return self.label + "\n\n" + self.text
         return self.text
 
@@ -140,7 +140,7 @@ def split_parts(body: str) -> list[Part]:
                 if closing:
                     break
             continue
-        callout = re.match(r"^> \[!(question|reponse|method|hint|note|warning|tip)\][+-]?(?: (.*))?$", line)
+        callout = re.match(r"^> \[!(question|reponse|method|hint|explanation|note|warning|tip)\][+-]?(?: (.*))?$", line)
         if callout:
             flush()
             quoted = []
@@ -192,7 +192,7 @@ def read_note(path: Path) -> Note:
     if match:
         metadata = yaml.safe_load(match[1]) or {}
         require(isinstance(metadata, dict), f"Frontmatter must be an object: {path}")
-        for key in ("id", "title", "type", "question"):
+        for key in ("id", "title", "type", "question", "correction"):
             if key in metadata:
                 require(isinstance(metadata[key], str) and bool(metadata[key]),
                         f"Frontmatter {key} must be a nonempty string: {path}")
@@ -376,7 +376,7 @@ class Library:
                  "type": note.metadata.get("type"), "lines": len(note.text.splitlines()),
                  "order": note.metadata.get("order"),
                  "relationships": {key: note.metadata[key]
-                                   for key in ("courses", "exercises", "corrections", "question")
+                                   for key in ("courses", "exercises", "corrections", "question", "correction")
                                    if key in note.metadata},
                  "blocks": [{"ref": f"{note.id}#^{part.block}", "kind": part.kind,
                              "label": part.label, "relationships": part.fields}

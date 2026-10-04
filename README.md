@@ -89,8 +89,9 @@ vault-root fallback. No fixed subject/level hierarchy is imposed. Missing
 containers can be proposed but need explicit creation approval.
 
 Ingest preserves supplied text, formulas, and figures. Missing exercises or
-corrections are allowed; generated material and inferred prerequisite graphs
-belong to future Enrich work. HTML Generate is a separate publication phase.
+corrections are allowed; added learning aids belong to Enrich. New exercises and
+inferred prerequisite graphs remain future work. HTML Generate is a separate
+publication phase.
 
 Each ingest creates one new directory:
 
@@ -171,6 +172,55 @@ For a standalone copied skill, run `uv sync` in its directory initially,
 `uv sync --locked` subsequently, omit `--package clew-ingest`, and use the local
 `scripts` directory. Setup is separate from routine read-only inspection.
 
+## Course-linked Enrich
+
+The [clew-enrich skill](.agents/skills/clew-enrich/SKILL.md) adds individual-question
+hints and explanations of **supplied** corrections to a selected current
+chapter. The agent authors the additions using ordinary file-editing tools;
+Python checks their structure and source preservation, not their pedagogical
+correctness. No embedded model, cloud service, or enrichment writer is needed.
+
+Ordinary numbered questions and answers receive structural callouts and stable
+anchors without rewriting the supplied text. Separate `aides/` notes use the
+[small note contract](.agents/skills/clew-enrich/references/formats.md): question
+and supplied-answer links, ordered `hint`/`explanation` callouts, and precise
+course heading/block links. Existing anchors and human-written aids are preserved.
+Missing corrections are valid; Enrich never invents answers or silently fixes
+supplied mathematics. Ambiguous matches or unsupported reasoning need a user
+decision. Each concrete editing scope is reviewed before changing user material.
+
+Before approved edits, capture current exercise/correction text and the visible
+chapter inventory in a **new local scratch file outside the chapter and repository**:
+
+```powershell
+uv run --package clew-enrich --locked --no-sync python -B ".agents\skills\clew-enrich\scripts\validate_enrich.py" "C:\vault\chapter" --capture "C:\scratch\enrich-before.json"
+```
+
+After the agent applies only the approved edits:
+
+```powershell
+uv run --package clew-enrich --locked --no-sync python -B ".agents\skills\clew-enrich\scripts\validate_enrich.py" "C:\vault\chapter" --before "C:\scratch\enrich-before.json"
+```
+
+Validation checks supplied lines, formulas, indentation, numbering and shared
+instructions after removing only documented structural additions. It checks
+unique anchors/IDs, question/answer agreement, and precise course targets.
+Courses, sources, index, ingest record, and existing aid files must stay unchanged;
+only new Markdown aid notes/directories under `aides/` are allowed.
+Failures identify the cause and never repair notes or recapture the baseline.
+The baseline contains local source text: do not commit or publish it.
+
+This is an additive first increment, not a revision-history or approval-hash
+framework. Ingest's exact-snapshot validator remains unchanged and will report
+the later structural edits/new aids as changes. Current-note Generate deliberately
+does not call that validator. See [ADR-0007](docs/adr/0007-course-linked-question-enrichment.md).
+
+The [small English synthetic chapter](tests/clew_enrich/fixtures/chapter) and
+[enriched overlay](tests/clew_enrich/fixtures/enriched) contain one short course,
+two exercises/four questions, three supplied answers, six hints, and three
+explanations. They illustrate current-note topology, not a complete retained
+Import/Ingest archive. No private teaching material is included.
+
 ## Offline HTML Generate
 
 The [clew-generate skill](.agents/skills/clew-generate/SKILL.md) publishes current
@@ -189,9 +239,14 @@ lists chapter titles for the skill to select. Retained `sources/` documents and
 hidden configuration are excluded; arbitrary explicit notes remain supported.
 
 Expandable exercises display methods, progressive hints, inline supplied
-corrections, and contextual course excerpts when those already exist.
+corrections, supplied-answer explanations, and contextual course excerpts when
+those already exist. Hints and explanations use the side panel; explanations
+are available from a revealed supplied correction. Course links inside these
+aids open the precise referenced passage in that panel, including when the
+course is also in the reading view.
 Unavailable controls are omitted; Generate never authors teaching material.
-Guided-step tabs and an Enrich implementation are outside this release.
+Guided-step tabs remain outside this release; the narrow Enrich skill above
+authors the optional aids, never Generate.
 The responsive layout uses light/dark styling; it is not a pixel-identical
 copy of the separately authored mock.
 
@@ -222,8 +277,9 @@ existing HTML is refused unless replacing that exact file was explicitly
 requested with `--overwrite`. Source notes are never changed. A standalone
 copy uses its own `uv sync` setup and local `scripts` paths, without `--package`.
 
-PDF Import, faithful Ingest, and HTML Generate are implemented. Enrich and other
-source formats remain future work.
+PDF Import, faithful Ingest, course-linked hints/correction explanations, and
+HTML Generate are implemented. Broader Enrich ambitions and other source
+formats remain future work.
 
 ## Development
 
@@ -231,11 +287,12 @@ source formats remain future work.
 uv sync --all-packages --locked
 uv run --package clew-import --locked --no-sync python -B -m unittest discover -s "tests\clew_import"
 uv run --package clew-ingest --locked --no-sync python -B -m unittest discover -s "tests\clew_ingest"
+uv run --package clew-enrich --locked --no-sync python -B -m unittest discover -s "tests\clew_enrich"
 uv run --package clew-generate --locked --no-sync python -B -m unittest discover -s "tests\clew_generate"
 ```
 
 Script tests and fixtures belong to `tests/clew_import/`, `tests/clew_ingest/`,
-and `tests/clew_generate/`,
+`tests/clew_enrich/`, and `tests/clew_generate/`,
 never inside skill directories. Tests use synthetic documents and mocked/local
 SDK transports, not live Azure. Workflow eval descriptions remain inside skills.
 Ingest tests also install an unchanged copied skill into an independent UV
@@ -247,8 +304,11 @@ removed with the test's temporary directory.
 
 Generate tests include a synthetic three-exercise/six-question chapter and an
 independent copied-skill UV environment using temporary wheels built from the
-installed locked runtime distributions (shared `tests/runtime_fixtures.py`). Optional
-browser checks use the root development dependency Playwright and installed
+installed locked runtime distributions (shared `tests/runtime_fixtures.py`).
+Enrich tests use the compact English fixture for source-preservation/reference
+checks and standalone validation. Generate also uses it to check question/answer
+and aid matching. Optional browser checks use the root development dependency
+Playwright and installed
 Microsoft Edge, opening local HTML with HTTP(S) requests blocked:
 
 ```powershell

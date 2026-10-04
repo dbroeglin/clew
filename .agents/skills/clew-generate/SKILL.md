@@ -96,14 +96,19 @@ Reuse existing question/answer and course
 links. Where links do not resolve the choice, author selectors in a version-1
 JSON layout outside input content; do not copy or author teaching prose there.
 Choose title, course reading order, exercise order, correction targets, methods,
-ordered hints, and question-level course excerpts. Keep shared instructions with
-their exercises and do not duplicate unnumbered questions as context.
+ordered hints, supplied-answer explanations, and question-level course excerpts.
+Keep shared instructions with their exercises and do not duplicate unnumbered
+questions as context.
 
 Ingest question/answer callouts and block IDs work directly. Ordinary supported
 Obsidian notes also work through explicit whole-note, heading, block, or safe
 line selectors. Optional help notes can supply existing methods/hints.
-Without help, publish faithfully and omit those buttons. Guided steps, grading,
-progress storage, free-form answers, and Enrich itself are outside this version.
+Without help, publish faithfully and omit those buttons. Explanation callouts
+in question-addressed help notes also link their specific supplied answer through
+`correction` frontmatter; reuse that mapping rather than matching prose.
+Include explanations only for selected supplied answers. Guided steps, grading,
+progress storage, and free-form answers are outside this version. Authoring aids
+belongs to the separate Enrich stage, never Generate.
 
 Check without writing:
 
@@ -143,9 +148,12 @@ It opens directly in a browser without network access. PDF source references
 remain optional external links; moving the HTML can break those paths.
 External web links are navigation, not rendering dependencies.
 
-Course content and exercises remain source text. Existing methods/hints are
-labeled added aids, distinct from supplied corrections. Corrections reveal
-inline; methods, progressive hints, and course excerpts use the side panel.
+Course content and exercises remain source text. Existing methods, hints, and
+explanations are labeled added aids, distinct from supplied corrections.
+Corrections reveal inline; methods, progressive hints, explanations, and course
+excerpts use the side panel. An explanation button is inside the revealed
+correction. Course links authored in help notes open their referenced passage
+in that panel, even if the same course is present in the reading view.
 Missing corrections/aids produce no misleading empty controls.
 
 The template uses bundled light/dark theme tokens, responsive two-column layout,
@@ -165,8 +173,8 @@ every TeX command; inspect actual browser rendering of unfamiliar notation.
 Edit repeated view markup and static labels in `assets/template.html`, styling
 in `assets/style.css`, and behavior in `assets/interaction.js`. Native HTML
 `<template>` blocks define courses, exercises, questions, course links,
-content containers, methods, hint panels/hints, and corrections. JavaScript
-clones them; do not move their markup into JavaScript strings or `createElement`.
+content containers, methods, hint panels/hints, explanation panels, and corrections.
+JavaScript clones them; do not move their markup into JavaScript strings or `createElement`.
 Keep template IDs and `data-slot`, `data-action`, and `data-help` hooks intact
 when changing layout or CSS classes. Preserve native `details`/button semantics;
 changes to required hooks or control types need coordinated behavior updates.

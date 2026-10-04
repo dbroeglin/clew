@@ -112,6 +112,15 @@
       const correction = slot(correctionView, "correction");
       const answers = slot(correctionView, "answers");
       item.corrections.forEach(markup => answers.append(content(markup)));
+      const explanations = required(correctionView, '[data-help="explanations"]');
+      if (item.explanations.length) {
+        explanations.addEventListener("click", () => {
+          const view = clone("explanations");
+          const container = slot(view, "explanations");
+          item.explanations.forEach(markup => container.append(content(markup)));
+          setPanel(explanations.textContent + " · " + item.label, view);
+        });
+      } else explanations.remove();
       courseButtons(item.courses, slot(correctionView, "courses"));
       const toggle = action(correctionView, "correction");
       toggle.addEventListener("click", () => {
@@ -164,6 +173,13 @@
   document.addEventListener("click", event => {
     const link = event.target.closest('a[href^="#"]');
     if (!link) return;
+    const courseId = data.course_links[link.hash.slice(1)];
+    if (courseId) {
+      event.preventDefault();
+      const course = courses.get(courseId);
+      setPanel(course.title, content(course.html));
+      return;
+    }
     let target = document.getElementById(link.hash.slice(1));
     if (!target) {
       const course = data.courses.find(item =>
@@ -175,10 +191,17 @@
       if (!target) {
         const marker = 'id="' + link.hash.slice(1) + '"';
         const item = data.questions.find(question =>
-          question.method.includes(marker) || question.hints.some(hint => hint.includes(marker)));
+          question.method.includes(marker) || question.hints.some(hint => hint.includes(marker)) ||
+          question.explanations.some(explanation => explanation.includes(marker)));
         if (item) {
-          const kind = item.method.includes(marker) ? "method" : "hints";
-          document.getElementById(item.id).querySelector('[data-help="' + kind + '"]').click();
+          const kind = item.method.includes(marker) ? "method" :
+            item.hints.some(hint => hint.includes(marker)) ? "hints" : "explanations";
+          const section = document.getElementById(item.id);
+          if (kind === "explanations") {
+            const correction = required(section, '[data-slot="correction"]');
+            if (correction.hidden) action(section, "correction").click();
+          }
+          section.querySelector('[data-help="' + kind + '"]').click();
           target = document.getElementById(link.hash.slice(1));
           if (target?.closest('[data-slot="hint"]')) {
             for (const hint of panel.querySelectorAll('[data-slot="hint"]')) {

@@ -9,6 +9,7 @@ resolution-markers = [
 [manifest]
 members = [
     "clew",
+    "clew-enrich",
     "clew-generate",
     "clew-import",
     "clew-ingest",
@@ -347,6 +348,23 @@ dev = [
 
 [package.metadata.requires-dev]
 dev = [{ name = "playwright", specifier = ">=1.50,<2" }]
+
+[[package]]
+name = "clew-enrich"
+version = "1.0.0"
+source = { virtual = ".agents/skills/clew-enrich" }
+dependencies = [
+    { name = "markdown-it-py" },
+    { name = "mdit-py-plugins" },
+    { name = "pyyaml" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "markdown-it-py", specifier = ">=3,<5" },
+    { name = "mdit-py-plugins", specifier = ">=0.4,<1" },
+    { name = "pyyaml", specifier = ">=6,<7" },
+]
 
 [[package]]
 name = "clew-generate"

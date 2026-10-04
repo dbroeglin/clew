@@ -54,7 +54,7 @@ def compile_layout(layout: dict, library: Library, render) -> dict:
         key = (str(note.path), fragment)
         require(key not in canonical_overrides, f"Duplicate question override: {ref}")
         require(isinstance(options, dict) and not set(options) -
-                {"corrections", "method", "hints", "courses"}, f"Invalid question options: {ref}")
+                {"corrections", "method", "hints", "explanations", "courses"}, f"Invalid question options: {ref}")
         canonical_overrides[key] = options
     consumed = set()
     question_data = []
@@ -117,8 +117,9 @@ def compile_layout(layout: dict, library: Library, render) -> dict:
             require(method is None or (isinstance(method, str) and bool(method)),
                     f"Invalid method: {address}")
             hint_refs = refs(options.get("hints", []), "hints")
+            explanation_refs = refs(options.get("explanations", []), "explanations")
             course_refs = refs(options.get("courses", note.metadata.get("courses", [])), "question courses")
-            # Separate aid notes can be authored by humans or a future Enrich.
+            # Separate aid notes are additions, never supplied corrections.
             aid_notes = []
             for aid in library.notes:
                 target = aid.metadata.get("question")
@@ -128,16 +129,50 @@ def compile_layout(layout: dict, library: Library, render) -> dict:
                         aid_notes.append(aid)
             auto_methods = []
             auto_hints = []
+            auto_explanations = []
+            selected_answers = set()
+            for ref in answer_refs:
+                target, fragment = library.resolve(ref, note)
+                selected_answers.add((str(target.path), fragment))
+                selected_answers.update((str(target.path), "^" + part.block)
+                                        for part in target.select_parts(fragment)
+                                        if part.kind == "reponse" and part.block)
+            supplied_answers = {(str(target.path), fragment) for target, fragment in
+                                (library.resolve(ref, note) for ref in auto_answers)}
             for aid in aid_notes:
                 for part in aid.parts:
-                    if part.kind in {"method", "hint"}:
+                    if part.kind in {"method", "hint", "explanation"}:
                         require(bool(part.block), f"Aid needs a block anchor: {aid.id}")
-                        (auto_methods if part.kind == "method" else auto_hints).append(
-                            f"{aid.id}#^{part.block}")
+                        ref = f"{aid.id}#^{part.block}"
+                        if part.kind == "explanation":
+                            correction = aid.metadata.get("correction")
+                            require(isinstance(correction, str),
+                                    f"Explanation needs a supplied correction: {ref}")
+                            target, fragment = library.resolve(correction, aid)
+                            answer_key = (str(target.path), fragment)
+                            require(answer_key in supplied_answers,
+                                    f"Explanation correction/question mismatch: {ref}")
+                            if answer_key in selected_answers:
+                                auto_explanations.append(ref)
+                        else:
+                            (auto_methods if part.kind == "method" else auto_hints).append(ref)
             require("method" in options or len(auto_methods) <= 1,
                     f"Multiple methods require an explicit selection: {address}")
             method = method if "method" in options else (auto_methods[0] if auto_methods else None)
             hint_refs = hint_refs if "hints" in options else auto_hints
+            explanation_refs = explanation_refs if "explanations" in options else auto_explanations
+            require(not explanation_refs or bool(answer_refs),
+                    f"Explanations require a selected supplied correction: {address}")
+            for ref in explanation_refs:
+                aid, fragment = library.resolve(ref, note)
+                if aid.metadata.get("type") == "help" and any(
+                        part.kind == "explanation" for part in aid.select_parts(fragment)):
+                    aid_question, aid_fragment = library.resolve(aid.metadata.get("question"), aid)
+                    require((str(aid_question.path), aid_fragment) == key,
+                            f"Explanation targets another question: {ref}")
+                    target, target_fragment = library.resolve(aid.metadata.get("correction"), aid)
+                    require((str(target.path), target_fragment) in selected_answers,
+                            f"Explanation targets an unselected correction: {ref}")
             identifier = f"question-{len(question_data) + 1}"
             question_ids.append(identifier)
             question_data.append({
@@ -145,6 +180,7 @@ def compile_layout(layout: dict, library: Library, render) -> dict:
                 "html": render(text, note, question_fragment),
                 "method": content(method, note) if method else "",
                 "hints": [content(ref, note) for ref in hint_refs],
+                "explanations": [content(ref, note) for ref in explanation_refs],
                 "corrections": [content(ref, note) for ref in answer_refs],
                 "courses": [course(ref, note) for ref in course_refs],
                 "address": address,
@@ -164,6 +200,11 @@ def compile_layout(layout: dict, library: Library, render) -> dict:
     require(consumed == set(canonical_overrides),
             f"Overrides refer to unpublished questions: {sorted(set(canonical_overrides) - consumed)}")
     reading = [course(ref) for ref in courses]
+    course_links = {}
+    while len(course_links) < len(render.course_links):
+        for anchor, (target, fragment) in list(render.course_links.items()):
+            if anchor not in course_links:
+                course_links[anchor] = course(target.id + ("#" + fragment if fragment else ""))
     return {"title": layout["title"], "exercises": exercise_data,
             "questions": question_data, "courses": list(excerpts.values()),
-            "reading": reading}
+            "reading": reading, "course_links": course_links}

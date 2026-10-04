@@ -3,6 +3,10 @@
 - Status: Accepted
 - Date: 2026-10-04
 
+> Later refinement: [ADR-0007](0007-course-linked-question-enrichment.md)
+> defines the first Enrich implementation and extends this publication
+> convention to supplied-answer explanations and aid-to-course panel links.
+
 ## Context
 
 ADR-0001 separates optional learning enrichment from repeatable publication.

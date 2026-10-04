@@ -1,0 +1,14 @@
+{
+  "skill_name": "clew-enrich",
+  "evals": [
+    {"id": 1, "prompt": "Add hints and correction explanations to these two worksheet questions.", "expected_output": "Read current course, questions and supplied answers. Preview short aids and precise mappings. Obtain scoped approval, capture a local pre-edit baseline, preserve supplied lines while adding stable anchors, write separate aid notes and validate before reporting completion.", "files": []},
+    {"id": 2, "prompt": "The second question has no supplied correction.", "expected_output": "Add a justified course-linked hint if useful; do not invent an answer or correction explanation. Report the missing supplied correction without treating it as an error.", "files": []},
+    {"id": 3, "prompt": "The course uses three long notes with ordinary numbered lists and multiline formulas.", "expected_output": "Read actual boundaries, preserve shared instructions, numbering, quoted source blank lines, formula indentation and order. Add structural callouts only to selected spans; do not assume one question per note.", "files": []},
+    {"id": 4, "prompt": "The answer seems wrong and two course headings could apply.", "expected_output": "Ask a focused question about the inconsistency or ambiguous mapping. Do not rewrite supplied mathematics or choose a target silently.", "files": []},
+    {"id": 5, "prompt": "Enrich this already enriched chapter again.", "expected_output": "Reuse stable anchors, preserve existing aids and human edits, and add only aids for newly selected targets. Do not overwrite existing aid files or recapture a post-edit baseline to hide changes.", "files": []},
+    {"id": 6, "prompt": "Validation reports changed supplied text.", "expected_output": "Inspect the concrete preservation failure and correct only the pass's unintended changes if intent is clear; otherwise ask. Preserve the original baseline and never claim completion with failed validation.", "files": []},
+    {"id": 7, "prompt": "Plan enrichment, but do not edit my vault.", "expected_output": "Read scoped material and propose exact changes without source edits, aid creation, or publication.", "files": []},
+    {"id": 8, "prompt": "Generate HTML from these aids.", "expected_output": "Explain that publication is separate; use clew-generate when authorized rather than implementing HTML generation inside Enrich.", "files": []},
+    {"id": 9, "prompt": "The selected course has no precise passage supporting the proposed hint.", "expected_output": "Stop and ask; do not consult external learning sources, invent a course passage, or weaken the course-reference validation.", "files": []}
+  ]
+}

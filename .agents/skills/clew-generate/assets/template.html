@@ -92,13 +92,21 @@ window.MathJax = {
 <template id="template-hint">
   <div class="hint" data-slot="hint"></div>
 </template>
+<template id="template-explanations">
+  <div>
+    <p class="aid-label">Explications ajoutées · distinctes de la correction fournie</p>
+    <div data-slot="explanations"></div>
+  </div>
+</template>
 <template id="template-correction">
   <button type="button" data-action="correction" aria-expanded="false"
     data-label-open="Afficher la correction" data-label-close="Masquer la correction">Afficher la correction</button>
   <div class="correction" data-slot="correction" hidden>
     <p class="correction-title">Correction fournie</p>
     <div data-slot="answers"></div>
-    <div class="actions" data-slot="courses"></div>
+    <div class="actions" data-slot="courses">
+      <button type="button" data-help="explanations">Explications</button>
+    </div>
   </div>
 </template>
 <template id="licenses">{{LICENSE}}</template>
