@@ -356,12 +356,13 @@ class Library:
         name, _, fragment = ref.partition("#")
         if not name and origin:
             return origin, fragment
+        relative_path = Path(os.path.abspath(origin.path.parent / name)) if origin else None
         matches = []
         for note in self.notes:
             if name in {note.id, note.path.stem, note.path.name, str(note.path),
                         note.path.as_posix()}:
                 matches.append(note)
-            elif origin and local_path(origin.path.parent / name) == note.path:
+            elif relative_path == note.path:
                 matches.append(note)
         require(len(matches) == 1, f"Missing or ambiguous selected note: {ref}")
         return matches[0], fragment

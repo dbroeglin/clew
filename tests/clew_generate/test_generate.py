@@ -307,6 +307,13 @@ class GenerateTests(unittest.TestCase):
         with self.assertRaisesRegex(GenerateError, "ambiguous"):
             library.resolve("cours")
 
+    def test_id_reference_resolution_does_not_restat_selected_notes(self):
+        library = Library([self.root / "cours.md", self.root / "exercice-1.md"])
+        with patch("notes.local_path", side_effect=AssertionError("unexpected filesystem access")):
+            note, fragment = library.resolve("cours#Sous-espace", library.notes[1])
+        self.assertEqual(note.id, "cours")
+        self.assertEqual(fragment, "Sous-espace")
+
     def test_copied_skill_without_repository_runtime(self):
         copied = self.root / "standalone"
         shutil.copytree(SKILL, copied, ignore=shutil.ignore_patterns("__pycache__"))
