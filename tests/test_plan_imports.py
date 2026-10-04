@@ -5,11 +5,13 @@ import io
 import json
 import os
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from test_digest_pdf import clients, di_result, ingestion, make_pdf, page_result, response
@@ -220,6 +222,97 @@ class PlanningTests(unittest.TestCase):
             plan = self.plan()
         self.assertEqual(plan["entries"][0]["classification"], "blocked")
         self.assertEqual(plan["discovery_conflicts"][0]["path"], str(output))
+
+    def test_cloud_reparse_tags_are_not_path_redirection(self) -> None:
+        tags = [0x9000001A | variant << 12 for variant in range(16)]
+        tags.extend([0x80000021, 0x80000015])
+        for mode in (stat.S_IFREG, stat.S_IFDIR):
+            for tag in tags:
+                with self.subTest(mode=mode, tag=hex(tag)):
+                    attributes = SimpleNamespace(
+                        st_mode=mode,
+                        st_file_attributes=stat.FILE_ATTRIBUTE_REPARSE_POINT,
+                        st_reparse_tag=tag,
+                    )
+                    with patch.object(Path, "lstat", return_value=attributes):
+                        self.assertFalse(planner.is_link(self.inputs))
+
+    def test_links_junctions_and_unavailable_tags_remain_blocked(self) -> None:
+        cases = [
+            SimpleNamespace(st_mode=stat.S_IFLNK, st_file_attributes=0),
+            SimpleNamespace(st_mode=stat.S_IFDIR, st_file_attributes=1024, st_reparse_tag=0xA0000003),
+            SimpleNamespace(st_mode=stat.S_IFREG, st_file_attributes=1024, st_reparse_tag=0xA000000C),
+            SimpleNamespace(st_mode=stat.S_IFDIR, st_file_attributes=1024),
+            SimpleNamespace(st_mode=stat.S_IFDIR, st_file_attributes=1024, st_reparse_tag=0),
+        ]
+        for attributes in cases:
+            with self.subTest(attributes=attributes), patch.object(Path, "lstat", return_value=attributes):
+                self.assertTrue(planner.is_link(self.inputs))
+
+    def test_cloud_placeholder_tree_and_completed_artifacts_are_inspected(self) -> None:
+        source = self.pdf()
+        output = self.bundle(source)
+        nested = self.pdf("nested/online.pdf")
+        original_lstat = Path.lstat
+
+        def cloud_lstat(path: Path):
+            attributes = original_lstat(path)
+            if path.is_relative_to(self.inputs):
+                return SimpleNamespace(
+                    st_mode=attributes.st_mode,
+                    st_file_attributes=stat.FILE_ATTRIBUTE_REPARSE_POINT,
+                    st_reparse_tag=0x9000F01A,
+                )
+            return attributes
+
+        with patch.object(Path, "lstat", autospec=True, side_effect=cloud_lstat):
+            plan = self.plan()
+        entries = {entry["source"]: entry for entry in plan["entries"]}
+        self.assertEqual(entries[str(source)]["classification"], "already_converted")
+        self.assertEqual(entries[str(nested)]["classification"], "convert")
+        self.assertEqual(plan["excluded_bundles"], [str(output)])
+        self.assertEqual(plan["discovery_conflicts"], [])
+
+    def test_cloud_placeholder_input_pdf_is_eligible_for_conversion(self) -> None:
+        source = self.pdf()
+        original_lstat = Path.lstat
+
+        def cloud_lstat(path: Path):
+            if path == source:
+                return SimpleNamespace(
+                    st_mode=stat.S_IFREG,
+                    st_file_attributes=stat.FILE_ATTRIBUTE_REPARSE_POINT,
+                    st_reparse_tag=0x9000001A,
+                )
+            return original_lstat(path)
+
+        with patch.object(Path, "lstat", autospec=True, side_effect=cloud_lstat):
+            self.assertEqual(self.plan(source)["entries"][0]["classification"], "convert")
+
+    def test_hydration_failure_is_blocked_and_not_silently_skipped(self) -> None:
+        source = self.pdf()
+        with patch.object(planner, "inspect_pdf", side_effect=OSError("Cloud file unavailable offline")):
+            plan = self.plan()
+        self.assertEqual(len(plan["entries"]), 1)
+        self.assertEqual(plan["entries"][0]["source"], str(source))
+        self.assertEqual(plan["entries"][0]["classification"], "blocked")
+        self.assertIn("Cloud file unavailable offline", plan["entries"][0]["reason"])
+
+    def test_metadata_hydration_error_preserves_the_path_and_cause(self) -> None:
+        source = self.pdf()
+        output = self.bundle(source)
+        original_read_text = Path.read_text
+
+        def offline_metadata(path: Path, *args, **kwargs):
+            if path == output / "manifest.json":
+                raise OSError("Cloud provider is unavailable offline")
+            return original_read_text(path, *args, **kwargs)
+
+        with patch.object(Path, "read_text", autospec=True, side_effect=offline_metadata):
+            plan = self.plan()
+        self.assertEqual(plan["entries"][0]["classification"], "blocked")
+        self.assertIn(str(output / "manifest.json"), plan["entries"][0]["reason"])
+        self.assertIn("Cloud provider is unavailable offline", plan["entries"][0]["reason"])
 
     def test_real_symlink_is_not_traversed(self) -> None:
         outside = self.root / "outside"
