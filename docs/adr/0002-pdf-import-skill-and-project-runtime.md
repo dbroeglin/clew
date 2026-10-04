@@ -108,6 +108,15 @@ recursively for `.pdf` files, case-insensitively, and sorts discovered source
 paths for a deterministic plan. Do not follow symbolic links or directory
 junctions out of the selected tree.
 
+OneDrive and other shared synchronized folders are valid input and output
+locations. Windows cloud placeholders are non-redirecting reparse points, not
+symbolic links or junctions, and must not be blocked solely by the reparse-point
+attribute. Inspect the name-surrogate tag bit to identify path redirection;
+block reparse points whose tag is unavailable. File reads may hydrate online-only
+content. Surface hydration and access failures, and retain source-change checks.
+Retry deletion requires explicit approval with a warning that synchronization
+can propagate the deletion to other people and devices.
+
 Exclude recognized generated Import bundles and their entire contents, including
 their retained `source/` PDFs, from recursive discovery. Recognition must use
 consistent import metadata and artifact structure, or an output tracked as

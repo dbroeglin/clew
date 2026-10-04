@@ -67,7 +67,8 @@ conversion requiring cleanup.
 During manual inventory, use the same rules as the helper:
 
 - Scan case-insensitive `.pdf` extensions recursively, in deterministic path
-  order. Do not traverse symlinks, junctions, or other reparse points.
+  order. Do not traverse symlinks, junctions, or other path-redirection reparse
+  points. Allow OneDrive folders and non-redirecting cloud placeholders.
 - Exclude recognized Import bundles, including their retained `source` PDFs.
   Use metadata and structure, never directory names alone. Report ambiguous
   metadata as a conflict rather than silently hiding it or converting its copies.
@@ -84,6 +85,25 @@ Never replace a blocked target as part of routine discovery. Ask for the user's
 decision with its precise path and reason. Permission to convert other PDFs
 does not authorize deleting that directory. Do not follow a manifest reference
 outside its bundle.
+
+### OneDrive and shared synchronized folders
+
+OneDrive is a supported source and output location, including Files On-Demand.
+Do not reject a file or directory merely because Windows reports
+`FILE_ATTRIBUTE_REPARSE_POINT`. The planner checks `st_reparse_tag`: Windows'
+name-surrogate bit (`0x20000000`) marks path redirection, while cloud placeholder
+tags do not. A reparse point whose tag is unavailable remains blocked; use this
+same distinction during manual inventory and retry cleanup.
+
+Reading PDFs, hashing files, or inspecting manifests may make OneDrive download
+online-only content. If hydration, access, or enumeration fails, report the exact
+path and error and ask for the file to be made available locally; do not skip it
+silently or report a successful import. Do not change OneDrive settings.
+
+Shared sources or outputs may change on another laptop or through a collaborator.
+Recheck source identity and output ownership before execution or cleanup. Warn
+that deleting a synchronized failed-output directory can propagate that deletion
+to other devices and people. Approval for conversion is not deletion approval.
 
 ## 2. Propose the exact plan and get approval
 
@@ -164,10 +184,13 @@ Before a specifically approved deletion:
 1. Re-inspect the exact resolved path. Verify it was absent immediately before
    this run and created by the run, using your recorded observations and
    `run.json` where available. Do not rely only on a directory name.
-2. Reject a symlink/junction/reparse point, the selected input directory,
+2. Reject a symlink, junction, path-redirection reparse point, or a reparse point
+   with an unavailable tag, the selected input directory,
    repository root, source location, any ancestor of an original planned input, or any
    pre-existing blocked target. Inspect contents and stop if unexpected files,
    human edits, concurrent modifications, or uncertain ownership are present.
+   A OneDrive cloud placeholder alone is not a reason to reject cleanup, but the
+   user must approve the exact deletion and its synchronized consequences.
 3. Show the exact cleanup command, addressed with literal-path semantics, and
    the exact retry command. On PowerShell the cleanup is
    `Remove-Item -LiteralPath '<verified-exact-output>' -Recurse`; never use

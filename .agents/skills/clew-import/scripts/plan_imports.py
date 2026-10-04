@@ -28,10 +28,15 @@ class InspectionError(Exception):
 
 
 def is_link(path: Path) -> bool:
+    """Reject path redirection, not non-redirecting OneDrive cloud placeholders."""
     attributes = path.lstat()
-    return stat.S_ISLNK(attributes.st_mode) or bool(
-        getattr(attributes, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT
-    )
+    if stat.S_ISLNK(attributes.st_mode):
+        return True
+    if not getattr(attributes, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT:
+        return False
+    tag = getattr(attributes, "st_reparse_tag", 0)
+    # WinNT.h's name-surrogate bit identifies namespace redirection.
+    return tag == 0 or bool(tag & 0x20000000)
 
 
 def sha256(path: Path) -> str:
@@ -42,10 +47,11 @@ def sha256(path: Path) -> str:
 def read_object(path: Path) -> dict[str, object]:
     try:
         if is_link(path):
-            raise InspectionError(f"Metadata is a link or reparse point: {path}")
+            raise InspectionError(f"Metadata redirects its path or has an unavailable reparse tag: {path}")
         value = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, ValueError) as error:
-        raise InspectionError(f"Cannot read metadata at {path}: {type(error).__name__}") from error
+        detail = str(error) if isinstance(error, OSError) else type(error).__name__
+        raise InspectionError(f"Cannot read metadata at {path}: {detail}") from error
     if not isinstance(value, dict):
         raise InspectionError(f"Metadata is not a JSON object: {path}")
     return value
@@ -82,7 +88,7 @@ def artifact(output: Path, reference: object) -> Path:
         if path == output:
             break
         if os.path.lexists(path) and is_link(path):
-            raise InspectionError(f"Artifact is a link or reparse point: {path}")
+            raise InspectionError(f"Artifact redirects its path or has an unavailable reparse tag: {path}")
     if not target.resolve().is_relative_to(output.resolve()):
         raise InspectionError("A manifest artifact path escapes the import bundle.")
     if not target.is_file():
@@ -150,7 +156,7 @@ def discover(input_path: Path) -> tuple[list[Path], list[dict[str, str]], list[s
             return
         for child in sorted(directory.iterdir(), key=lambda path: (path.name.casefold(), path.name)):
             if is_link(child):
-                conflicts.append({"path": str(child), "reason": "Link/reparse point was not traversed."})
+                conflicts.append({"path": str(child), "reason": "Path redirection or unavailable reparse tag was not traversed."})
             elif child.is_dir():
                 visit(child)
             elif child.is_file() and child.suffix.lower() == ".pdf":
@@ -159,7 +165,7 @@ def discover(input_path: Path) -> tuple[list[Path], list[dict[str, str]], list[s
     if not os.path.lexists(input_path):
         raise InspectionError(f"Input does not exist: {input_path}")
     if is_link(input_path):
-        raise InspectionError("Input is a link or reparse point; supply a real local path.")
+        raise InspectionError("Input redirects its path or has an unavailable reparse tag; supply a real local path.")
     input_path = input_path.resolve()
     if input_path.is_dir():
         visit(input_path)
@@ -295,7 +301,7 @@ def build_plan(
             entry.update(sha256=digest, page_count=count, pages=wanted)
             if os.path.lexists(output):
                 if is_link(output) or not output.is_dir():
-                    raise InspectionError("Target is a file, link, or reparse point.")
+                    raise InspectionError("Target is a file, redirects its path, or has an unavailable reparse tag.")
                 issues = inspect_completed(source, output, digest, count, wanted)
                 entry.update(classification="already_converted", reason="Source, artifacts, and page scope match.",
                              review_issues=issues)

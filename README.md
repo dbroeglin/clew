@@ -11,6 +11,12 @@ commands before execution. `chapter_1.pdf` defaults to a sibling `chapter_1`
 bundle. Completed imports are checked by source hash, artifacts, and page scope;
 existing conflicts require a decision rather than automatic replacement.
 
+OneDrive folders and Files On-Demand are supported. Reading online-only PDFs
+or import artifacts may download their contents; access or hydration failures
+are reported rather than silently skipped. Actual symlinks and junctions remain
+blocked. Retry cleanup still needs explicit approval: deletion in a shared
+synchronized folder can propagate to collaborators and other devices.
+
 The skill uses the bundled PDF converter and a **project-level** UV environment.
 Setup uses `uv sync --locked`. Configure a root `.env` using `.env.example` as
 guidance, with real Azure endpoints and a vision/structured-output deployment.
