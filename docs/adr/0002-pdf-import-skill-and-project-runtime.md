@@ -10,6 +10,10 @@
 > [ADR-0004](0004-faithful-multi-bundle-ingest.md) subsequently places script tests
 > outside skills and refines downstream vault retention to a source subset.
 > Import still produces and preserves complete bundles.
+> [ADR-0005](0005-conservative-import-and-latex-leakage-review.md) supersedes the
+> restriction on changing the upstream page prompt and Markdown content checks:
+> conservative transcription instructions and non-mutating LaTeX leakage review
+> are now permitted. Other import safety and artifact contracts remain unchanged.
 
 ## Context
 

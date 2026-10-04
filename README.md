@@ -54,6 +54,13 @@ The output must not already exist. A bundle includes the original PDF in
 Exit `2` means completed but needs review; `1` means failed and `130` interrupted.
 The skill asks before deleting a verified failed output and retrying.
 
+The page prompt asks for minimal, image-evidenced corrections, not proofreading
+or cosmetic rewriting. A non-mutating check flags known LaTeX commands leaked
+into ordinary Markdown as `needs_review`, with page and block-line evidence.
+It preserves the generated Markdown and raw responses; it does not repair
+content, rescan old bundles, or prove transcription fidelity. See the skill
+instructions for the bounded command list and exclusions.
+
 For read-only inspection with the environment already installed:
 
 ```powershell
