@@ -11,6 +11,11 @@ from ingest_io import contained, fingerprint, no_redirect, require, sha256
 from markdown_source import MarkdownSource
 
 
+def retained_reference(metadata: dict, reference: str) -> str:
+    source = metadata["source"]
+    return source["name"] if reference == source["path"] else reference
+
+
 @dataclass
 class Bundle:
     root: Path
@@ -18,6 +23,9 @@ class Bundle:
     files: dict[str, str]
     markdown: MarkdownSource
     fingerprint: str
+
+    def retained_path(self, reference: str) -> str:
+        return retained_reference(self.metadata, reference)
 
     def inventory(self) -> dict:
         return {
@@ -106,11 +114,13 @@ def load_snapshot(root: Path, record: dict) -> Bundle:
     require(isinstance(source, dict) and isinstance(source.get("path"), str),
             "Invalid snapshot source.")
     require({"document.md", source["path"]} <= files.keys(), "Snapshot is missing source files.")
+    require(source["path"] == f"source/{source['name']}" and source["name"].lower().endswith(".pdf"),
+            "Snapshot source path/name differs.")
     for path, digest in files.items():
         require(isinstance(path, str) and isinstance(digest, str), "Invalid snapshot file.")
-        require(sha256(contained(root, path)) == digest, f"Retained file changed: {path}")
+        retained = retained_reference(metadata, path)
+        require(sha256(contained(root, retained)) == digest, f"Retained file changed: {retained}")
     require(files[source["path"]] == source.get("sha256"), "Snapshot PDF identity differs.")
-    require(source["path"] == f"source/{source['name']}", "Snapshot source path/name differs.")
     require(all(path in {"document.md", source["path"]} or path.startswith("figures/")
                 for path in files), "Unexpected retained artifact.")
     markdown_bytes = contained(root, "document.md").read_bytes()

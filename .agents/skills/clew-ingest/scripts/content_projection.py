@@ -52,7 +52,8 @@ def verify_projection(text: str, note: Note, bundles: dict[str, Bundle]) -> None
                     position += len(line)
                 position = link.start - offset - removed
                 replacement = quote(posixpath.relpath(
-                    f"sources/{part.source}/{link.path}", posixpath.dirname(note_path(note))), safe="/")
+                    f"sources/{part.source}/{bundles[part.source].retained_path(link.path)}",
+                    posixpath.dirname(note_path(note))), safe="/")
                 require(actual[position:position + len(replacement)] == replacement,
                         "Source projection fidelity differs at a rewritten destination.")
                 original = document.text[link.start:link.end]

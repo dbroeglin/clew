@@ -18,8 +18,9 @@ sys.path.insert(0, str(SCRIPTS))
 
 from bundle_sources import load_bundle
 from formats import Plan
-from ingest_io import no_redirect, relative_path
+from ingest_io import fingerprint, no_redirect, relative_path
 from inspect_bundles import inspect
+from inspect_vault import inspect as inspect_vault
 from markdown_source import MarkdownSource
 from plan_checks import plan_hash
 from validate_ingest import validate
@@ -32,6 +33,12 @@ class IngestTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
+        (self.root / ".obsidian").mkdir()
+        (self.root / "courses").mkdir()
+
+    def placement(self):
+        return {"vault": str(self.root), "parent": "courses",
+                "rationale": "Use the existing course container confirmed in this fixture."}
 
     def bundle(self, name, text, *, status="extracted", issues=None):
         root = self.root / name
@@ -105,8 +112,9 @@ class IngestTests(unittest.TestCase):
             {"rel": "needs", "origin": "algebre-exercice#^q-image",
              "target": "algebre-exercice#^q-kernel", "evidence": evidence},
         ]
-        return Plan.model_validate({"schema_version": 1, "ingest_id": "algebre",
-                                    "title": "Algebre", "destination": str(self.root / "output"),
+        return Plan.model_validate({"schema_version": 2, "ingest_id": "algebre",
+                                    "title": "Algebre", "destination": str(self.root / "courses" / "output"),
+                                    "placement": self.placement(),
                                     "sources": sources, "notes": notes,
                                     "relationships": relationships, "issues": []})
 
@@ -129,12 +137,15 @@ class IngestTests(unittest.TestCase):
                          for path in root.rglob("*") if path.is_file()})
         for source, bundle in bundles.items():
             for name in bundle.files:
-                self.assertEqual((root / "sources" / source / name).read_bytes(),
+                self.assertEqual((root / "sources" / source / bundle.retained_path(name)).read_bytes(),
                                  (bundle.root / name).read_bytes())
             self.assertFalse((root / "sources" / source / "raw").exists())
+            self.assertFalse((root / "sources" / source / "source").exists())
+            self.assertTrue((bundle.root / "source" / "same.pdf").is_file())
         course = (root / "courses" / "algebre-cours.md").read_text(encoding="utf-8")
         self.assertIn("../sources/cours/figures/same.png", course)
-        self.assertIn("[cours](../sources/cours/source/same.pdf), pages 1", course)
+        self.assertIn("cours: [page 1](../sources/cours/same.pdf#page=1)", course)
+        self.assertIn('"file": "sources/cours/same.pdf"', course)
         self.assertIn("$$x^2 + y^2 = 1$$", course)
         self.assertNotIn("<!-- page:", course)
         exercise = (root / "exercices" / "algebre-exercice.md").read_text(encoding="utf-8")
@@ -170,8 +181,8 @@ class IngestTests(unittest.TestCase):
                           "title_origin": "agent", "order": 10, "parts": [part]})
         evidence = [{"source": "poly", "start": ranges[1][0], "end": ranges[1][1]}]
         plan = Plan.model_validate({
-            "schema_version": 1, "ingest_id": "mixed", "title": "Mixed",
-            "destination": str(self.root / "mixed-output"),
+            "schema_version": 2, "ingest_id": "mixed", "title": "Mixed",
+            "destination": str(self.root / "courses" / "mixed-output"), "placement": self.placement(),
             "sources": [{"id": "poly", "bundle": str(root), "fingerprint": load_bundle(root).fingerprint}],
             "notes": notes,
             "relationships": [{"rel": "course", "origin": "mixed-section", "target": "mixed-course",
@@ -185,8 +196,8 @@ class IngestTests(unittest.TestCase):
         root = self.bundle("partial", "<!-- page: 3 -->\n\n# Course only\n",
                            status="needs_review", issues=[{"z": "Uncertain figure", "a": 3}])
         plan = Plan.model_validate({
-            "schema_version": 1, "ingest_id": "partial", "title": "Partial course",
-            "destination": str(self.root / "out"),
+            "schema_version": 2, "ingest_id": "partial", "title": "Partial course",
+            "destination": str(self.root / "courses" / "out"), "placement": self.placement(),
             "sources": [{"id": "cours", "bundle": str(root), "fingerprint": load_bundle(root).fingerprint}],
             "notes": [{"id": "partial-course", "type": "course", "title": "Course only",
                        "title_origin": "source", "order": 1,
@@ -197,6 +208,11 @@ class IngestTests(unittest.TestCase):
         self.assertFalse((Path(plan.destination) / "exercices").exists())
         self.assertFalse((Path(plan.destination) / "corriges").exists())
         self.assertEqual(load_bundle(root).metadata["pages"], [3])
+        note = (Path(plan.destination) / "courses" / "partial-course.md").read_text()
+        self.assertIn("[page 3](../sources/cours/same.pdf#page=3)", note)
+        self.assertNotIn("#page=1", note)
+        self.assertIn("[PDF, page 3](sources/cours/same.pdf#page=3)",
+                      (Path(plan.destination) / "index.md").read_text())
 
     def test_multiple_supplied_answers_and_ambiguity(self):
         plan = self.plan()
@@ -260,6 +276,7 @@ class IngestTests(unittest.TestCase):
         self.assertEqual((root / "human.md").read_text(), "keep")
         nested = self.mutate(plan, lambda d: d.update(
             destination=str(Path(d["sources"][0]["bundle"]) / "nested")))
+        nested.placement.parent = "course"
         with self.assertRaisesRegex(ValueError, "inside an input"):
             check(nested)
 
@@ -279,7 +296,7 @@ class IngestTests(unittest.TestCase):
         plan = self.plan()
         materialize(plan, plan_hash(plan))
         root = Path(plan.destination)
-        for name in ("courses/algebre-cours.md", "sources/cours/source/same.pdf",
+        for name in ("courses/algebre-cours.md", "sources/cours/same.pdf",
                      "sources/cours/figures/same.png", "index.md"):
             path = root / name
             original = path.read_bytes()
@@ -363,10 +380,15 @@ class IngestTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(len(json.loads(result.stdout)["bundles"]), 1)
         self.assertFalse((copied / "tests").exists())
-        for script in ("inspect_bundles", "slice_markdown", "write_ingest", "validate_ingest"):
+        for script in ("inspect_bundles", "inspect_vault", "slice_markdown", "write_ingest", "validate_ingest"):
             result = subprocess.run([sys.executable, "-B", str(copied / "scripts" / (script + ".py")), "--help"],
                                     cwd=self.root, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
+        result = subprocess.run([sys.executable, "-B", str(copied / "scripts" / "inspect_vault.py"),
+                                 str(self.root), "--within", "courses"],
+                                cwd=self.root, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["scope"], "courses")
         plan_path = self.root / "plan.json"
         plan_path.write_text(plan.model_dump_json(), encoding="utf-8")
         result = subprocess.run([sys.executable, "-B", str(copied / "scripts" / "write_ingest.py"),
@@ -383,6 +405,21 @@ class IngestTests(unittest.TestCase):
                                 text=True, encoding="utf-8")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout)["status"], "validated")
+
+    def test_relocated_output_validates_after_original_vault_disappears(self):
+        plan = self.plan()
+        vault = self.root / "old-vault"
+        (vault / "courses").mkdir(parents=True)
+        data = plan.model_dump()
+        data["placement"]["vault"] = str(vault)
+        data["destination"] = str(vault / "courses" / "chapter")
+        plan = Plan.model_validate(data)
+        materialize(plan, plan_hash(plan))
+        moved = self.root / "relocated-chapter"
+        shutil.move(plan.destination, moved)
+        shutil.rmtree(vault)
+        self.assertFalse(vault.exists())
+        self.assertEqual(validate(moved)["status"], "validated")
 
     def test_reference_definitions_cannot_cross_notes_or_callout_context(self):
         plan = self.plan()
@@ -435,8 +472,8 @@ class IngestTests(unittest.TestCase):
                 "<!-- page: 2 -->\r\n\r\nRepeated.\r\n\r\nRepeated.")
         root = self.bundle("rich", text)
         plan = Plan.model_validate({
-            "schema_version": 1, "ingest_id": "rich", "title": "Rich question",
-            "destination": str(self.root / "rich-output"),
+            "schema_version": 2, "ingest_id": "rich", "title": "Rich question",
+            "destination": str(self.root / "courses" / "rich-output"), "placement": self.placement(),
             "sources": [{"id": "sheet", "bundle": str(root), "fingerprint": load_bundle(root).fingerprint}],
             "notes": [{"id": "rich-exercise", "type": "exercise", "title": "Question",
                        "title_origin": "agent", "order": 1,
@@ -507,12 +544,251 @@ class IngestTests(unittest.TestCase):
     def test_malformed_persisted_record_is_explicit_cli_error(self):
         root = self.root / "broken"
         root.mkdir()
-        (root / "ingest.json").write_text('{"schema_version":1,"status":"complete"}', encoding="utf-8")
+        (root / "ingest.json").write_text('{"schema_version":3,"status":"complete"}', encoding="utf-8")
         result = subprocess.run([sys.executable, "-B", str(SCRIPTS / "validate_ingest.py"), str(root)],
                                 capture_output=True, encoding="utf-8")
         self.assertEqual(result.returncode, 1)
         self.assertIn("ValidationError", result.stderr)
         self.assertNotIn("Traceback", result.stderr)
+
+    def test_original_pdf_links_use_flat_retained_copy_and_preserve_import_paths(self):
+        text = "<!-- page: 1 -->\n\n[Original PDF](<source/Cours%203.pdf>)\n"
+        bundle_root = self.bundle("pdf-link", text)
+        (bundle_root / "source" / "same.pdf").rename(bundle_root / "source" / "Cours 3.pdf")
+        manifest_path = bundle_root / "manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        manifest["source"].update(name="Cours 3.pdf", path="source/Cours 3.pdf")
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        plan = Plan.model_validate({
+            "schema_version": 2, "ingest_id": "pdf", "title": "PDF references",
+            "destination": str(self.root / "courses" / "pdf-output"), "placement": self.placement(),
+            "sources": [{"id": "poly", "bundle": str(bundle_root),
+                         "fingerprint": load_bundle(bundle_root).fingerprint}],
+            "notes": [{"id": "pdf-course", "type": "course", "title": "PDF",
+                       "title_origin": "agent", "order": 1,
+                       "parts": [{"source": "poly", "start": 1, "end": 3}]}],
+            "relationships": [], "issues": []})
+        materialize(plan, plan_hash(plan))
+        root = Path(plan.destination)
+        self.assertTrue((root / "sources" / "poly" / "Cours 3.pdf").is_file())
+        self.assertFalse((root / "sources" / "poly" / "source").exists())
+        self.assertEqual((root / "sources" / "poly" / "document.md").read_bytes(), text.encode())
+        note = (root / "courses" / "pdf-course.md").read_text(encoding="utf-8")
+        self.assertIn("[Original PDF](<../sources/poly/Cours%203.pdf>)", note)
+        self.assertIn("[PDF, page 1](sources/poly/Cours%203.pdf#page=1)", (root / "index.md").read_text())
+        record = json.loads((root / "ingest.json").read_text())
+        self.assertEqual(record["schema_version"], 3)
+        self.assertEqual(record["sources"]["poly"]["metadata"]["source"]["path"], "source/Cours 3.pdf")
+        self.assertIn("source/Cours 3.pdf", record["sources"]["poly"]["files"])
+        self.assertIn("sources/poly/Cours 3.pdf", record["files"])
+        self.assertEqual(validate(root)["status"], "validated")
+
+    def test_old_output_version_and_approved_hash_are_not_silently_upgraded(self):
+        plan = self.plan()
+        for stale in (fingerprint(plan.model_dump()),
+                      fingerprint({"output_version": 2, "plan": plan.model_dump()})):
+            with self.assertRaisesRegex(ValueError, "including output version"):
+                materialize(plan, stale)
+        self.assertFalse(Path(plan.destination).exists())
+        materialize(plan, plan_hash(plan))
+        root = Path(plan.destination)
+        record_path = root / "ingest.json"
+        record = json.loads(record_path.read_text())
+        for version in (1, 2):
+            record["schema_version"] = version
+            record_path.write_text(json.dumps(record), encoding="utf-8")
+            before = {path.relative_to(root): path.read_bytes()
+                      for path in root.rglob("*") if path.is_file()}
+            with self.assertRaisesRegex(ValueError, "Existing outputs are not migrated"):
+                validate(root)
+            self.assertEqual(before, {path.relative_to(root): path.read_bytes()
+                                     for path in root.rglob("*") if path.is_file()})
+
+    def test_vault_root_outside_and_configuration_placements_are_blocked(self):
+        plan = self.plan()
+        edits = [
+            lambda d: d.update(destination=str(self.root / "root-chapter")),
+            lambda d: d.update(destination=str(self.root.parent / "outside-chapter")),
+            lambda d: d["placement"].update(parent="."),
+            lambda d: d["placement"].update(parent="../outside"),
+            lambda d: d["placement"].update(parent=str(self.root / "courses")),
+            lambda d: d["placement"].update(parent=".obsidian"),
+            lambda d: d["placement"].update(parent=".github"),
+            lambda d: d["placement"].update(parent="courses/.git"),
+            lambda d: d.update(destination=str(self.root / "courses" / ".obsidian")),
+            lambda d: d["placement"].update(vault=str(self.root / "missing-vault")),
+            lambda d: d["placement"].update(rationale=""),
+        ]
+        for edit in edits:
+            with self.assertRaises(ValueError):
+                check(self.mutate(plan, edit))
+        self.assertFalse(Path(plan.destination).exists())
+        legacy = plan.model_dump()
+        legacy["schema_version"] = 1
+        legacy.pop("placement")
+        with self.assertRaises(ValueError):
+            Plan.model_validate(legacy)
+        legacy["schema_version"] = 2
+        with self.assertRaises(ValueError):
+            Plan.model_validate(legacy)
+
+    def test_parent_creation_is_explicit_read_only_until_approved(self):
+        plan = self.plan()
+        data = plan.model_dump()
+        data["placement"].update(parent="courses/PT/maths", create_parent=False)
+        data["destination"] = str(self.root / "courses" / "PT" / "maths" / "chapter")
+        with self.assertRaisesRegex(ValueError, "approve create_parent"):
+            check(Plan.model_validate(data))
+        self.assertFalse((self.root / "courses" / "PT").exists())
+        data["placement"]["create_parent"] = True
+        approved = Plan.model_validate(data)
+        report, _ = check(approved)
+        self.assertEqual(report["create_directories"], [
+            str(self.root / "courses" / "PT"), str(self.root / "courses" / "PT" / "maths")])
+        self.assertEqual(report["placement"]["rationale"], approved.placement.rationale)
+        self.assertFalse((self.root / "courses" / "PT").exists())
+        materialize(approved, report["plan_sha256"])
+        self.assertTrue((Path(approved.destination) / "index.md").is_file())
+        self.assertEqual(validate(Path(approved.destination))["status"], "validated")
+
+    def test_placement_changes_invalidate_approval_and_preserve_parent_files(self):
+        plan = self.plan()
+        changed = self.mutate(plan, lambda d: d["placement"].update(rationale="Different location reasoning."))
+        with self.assertRaisesRegex(ValueError, "Plan changed"):
+            materialize(changed, plan_hash(plan))
+        self.assertFalse(Path(plan.destination).exists())
+        parent_file = self.root / "existing-file"
+        parent_file.write_bytes(b"keep")
+        data = plan.model_dump()
+        data["placement"].update(parent="existing-file", create_parent=True)
+        data["destination"] = str(parent_file / "chapter")
+        with self.assertRaisesRegex(ValueError, "not a directory"):
+            check(Plan.model_validate(data))
+        self.assertEqual(parent_file.read_bytes(), b"keep")
+
+    def test_placement_cannot_nest_an_ingest_inside_an_existing_one(self):
+        plan = self.plan()
+        materialize(plan, plan_hash(plan))
+        root = Path(plan.destination)
+        before = {path.relative_to(root): path.read_bytes()
+                  for path in root.rglob("*") if path.is_file()}
+        data = plan.model_dump()
+        data["placement"]["parent"] = "courses/output/exercices"
+        data["destination"] = str(root / "exercices" / "nested-chapter")
+        with self.assertRaisesRegex(ValueError, "inside an existing or unrecognized ingest"):
+            check(Plan.model_validate(data))
+        self.assertEqual(before, {path.relative_to(root): path.read_bytes()
+                                 for path in root.rglob("*") if path.is_file()})
+        self.assertEqual(validate(root)["status"], "validated")
+
+    def test_every_selected_source_page_gets_a_separate_pdf_fragment(self):
+        text = "<!-- page: 3 -->\n\nPrinted page 100.\n\n<!-- page: 5 -->\n\nContinuation.\n"
+        source = self.bundle("disjoint-pages", text)
+        plan = Plan.model_validate({
+            "schema_version": 2, "ingest_id": "pages", "title": "Page references",
+            "destination": str(self.root / "courses" / "pages-output"), "placement": self.placement(),
+            "sources": [{"id": "poly", "bundle": str(source), "fingerprint": load_bundle(source).fingerprint}],
+            "notes": [{"id": "pages-course", "type": "course", "title": "Pages",
+                       "title_origin": "agent", "order": 1,
+                       "parts": [{"source": "poly", "start": 1, "end": len(MarkdownSource(text).lines)}]}],
+            "relationships": [], "issues": []})
+        materialize(plan, plan_hash(plan))
+        note = (Path(plan.destination) / "courses" / "pages-course.md").read_text()
+        self.assertIn("poly: [page 3](../sources/poly/same.pdf#page=3), "
+                      "[page 5](../sources/poly/same.pdf#page=5)", note)
+        self.assertNotIn("#page=3-5", note)
+        self.assertNotIn("#page=100", note)
+        self.assertEqual(validate(Path(plan.destination))["status"], "validated")
+
+    def test_exercise_links_to_original_page_two(self):
+        text = "<!-- page: 2 -->\n\nCalculate 2 + 2.\n"
+        source = self.bundle("page-two-exercise", text)
+        plan = Plan.model_validate({
+            "schema_version": 2, "ingest_id": "sum", "title": "Exercise",
+            "destination": str(self.root / "courses" / "sum-output"), "placement": self.placement(),
+            "sources": [{"id": "feuille", "bundle": str(source), "fingerprint": load_bundle(source).fingerprint}],
+            "notes": [{"id": "sum-question", "type": "exercise", "title": "Sum",
+                       "title_origin": "agent", "order": 1,
+                       "parts": [{"source": "feuille", "start": 1, "end": 3,
+                                  "role": "question", "id": "q-sum"}]}],
+            "relationships": [], "issues": []})
+        materialize(plan, plan_hash(plan))
+        root = Path(plan.destination)
+        self.assertIn("[page 2](../sources/feuille/same.pdf#page=2)",
+                      (root / "exercices" / "sum-question.md").read_text())
+        self.assertEqual((root / "sources" / "feuille" / "document.md").read_bytes(), text.encode())
+        self.assertEqual(validate(root)["status"], "needs_review")
+
+
+class VaultInventoryTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        (self.root / ".obsidian").mkdir()
+        (self.root / ".obsidian" / "private.json").write_text("must not be read")
+        chapter = self.root / "courses" / "PT" / "maths" / "existing-chapter"
+        chapter.mkdir(parents=True)
+        (chapter / "course.md").write_text("---\nlevel: pt\nsubject: maths\n---\n")
+
+    def test_inventory_is_read_only_and_returns_paths_not_note_contents(self):
+        before = {path.relative_to(self.root): path.read_bytes()
+                  for path in self.root.rglob("*") if path.is_file()}
+        with patch.object(Path, "read_text", side_effect=AssertionError("Inventory must not read file contents")):
+            report = inspect_vault(self.root)
+        self.assertTrue(report["obsidian_marker"])
+        chapter = next(item for item in report["directories"]
+                       if item["path"] == "courses/PT/maths/existing-chapter")
+        self.assertEqual(chapter["markdown_samples"], ["courses/PT/maths/existing-chapter/course.md"])
+        self.assertNotIn("must not be read", json.dumps(report))
+        self.assertNotIn("subject: maths", json.dumps(report))
+        self.assertEqual(before, {path.relative_to(self.root): path.read_bytes()
+                                 for path in self.root.rglob("*") if path.is_file()})
+        self.assertEqual(report, inspect_vault(self.root))
+
+    def test_limits_are_visible_and_focused_inspection_does_not_escape(self):
+        limited = inspect_vault(self.root, depth=1)
+        self.assertIn({"path": "courses/PT", "reason": "depth limit"}, limited["omitted"])
+        bounded = inspect_vault(self.root, max_directories=1)
+        self.assertEqual(len(bounded["directories"]), 1)
+        self.assertIn({"path": "courses", "reason": "directory limit"}, bounded["omitted"])
+        focused = inspect_vault(self.root, within="courses/PT/maths", depth=1)
+        self.assertEqual(focused["scope"], "courses/PT/maths")
+        self.assertEqual(len(focused["directories"]), 2)
+        for scope in ("../outside", ".obsidian"):
+            with self.assertRaises(ValueError):
+                inspect_vault(self.root, within=scope)
+
+    def test_cli_inventory_works_without_an_obsidian_installation(self):
+        result = subprocess.run([sys.executable, "-B", str(SCRIPTS / "inspect_vault.py"), str(self.root)],
+                                capture_output=True, encoding="utf-8")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(json.loads(result.stdout)["requires_agent_review"])
+
+    def test_existing_ingest_markers_and_sample_limits_are_visible(self):
+        chapter = self.root / "courses" / "PT" / "maths" / "existing-chapter"
+        (chapter / "ingest.json").write_text("{}")
+        (chapter / "second.md").write_text("second note")
+        report = inspect_vault(self.root, within="courses/PT/maths/existing-chapter", samples=1)
+        self.assertTrue(report["directories"][0]["has_ingest_record"])
+        self.assertEqual(report["directories"][0]["markdown_count"], 2)
+        self.assertEqual(len(report["directories"][0]["markdown_samples"]), 1)
+
+    def test_redirected_vaults_and_scope_paths_are_blocked(self):
+        directory = self.root / "courses"
+        redirect = directory.lstat()
+        with patch.object(Path, "lstat", return_value=SimpleNamespace(st_mode=0o120777)):
+            with self.assertRaisesRegex(ValueError, "Redirected path"):
+                inspect_vault(self.root)
+        original = Path.lstat
+
+        def linked_scope(path, *args, **kwargs):
+            return SimpleNamespace(st_mode=0o120777) if path == directory else original(path, *args, **kwargs)
+
+        with patch.object(Path, "lstat", linked_scope):
+            with self.assertRaisesRegex(ValueError, "Redirected path"):
+                inspect_vault(self.root, within="courses")
+        self.assertEqual(directory.lstat(), redirect)
 
 
 class MarkdownTests(unittest.TestCase):

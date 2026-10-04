@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 Slug = Annotated[str, Field(pattern=r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$")]
 Digest = Annotated[str, Field(pattern=r"^[a-f0-9]{64}$")]
+OUTPUT_VERSION = 3
 
 
 class Record(BaseModel):
@@ -74,11 +75,19 @@ class Issue(Record):
     note: Slug | None = None
 
 
+class Placement(Record):
+    vault: str
+    parent: str = Field(min_length=1)
+    rationale: str = Field(min_length=1)
+    create_parent: bool = False
+
+
 class Plan(Record):
-    schema_version: Literal[1]
+    schema_version: Literal[2]
     ingest_id: Slug
     title: str = Field(min_length=1)
     destination: str
+    placement: Placement
     sources: list[Source] = Field(min_length=1)
     notes: list[Note] = Field(min_length=1)
     relationships: list[Edge]
@@ -106,7 +115,7 @@ class Snapshot(Record):
 
 
 class IngestRecord(Record):
-    schema_version: Literal[1]
+    schema_version: Literal[3]
     status: Literal["writing", "complete"]
     plan: Plan
     plan_sha256: Digest

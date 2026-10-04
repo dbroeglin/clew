@@ -1,6 +1,6 @@
-# Version 1 contracts
+# Versioned contracts
 
-## Plan
+## Plan (version 2)
 
 All objects reject unknown keys. IDs use lowercase ASCII letters/digits/dashes,
 start with a letter, and have no consecutive/trailing dashes. Note IDs start
@@ -9,10 +9,16 @@ relative paths are rejected. Absolute input/output paths use host syntax.
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "ingest_id": "algebre",
   "title": "Algebre",
-  "destination": "C:\\vault\\algebre",
+  "destination": "C:\\vault\\courses\\PT\\maths\\algebre",
+  "placement": {
+    "vault": "C:\\vault",
+    "parent": "courses/PT/maths",
+    "rationale": "Existing PT mathematics chapters use this container; confirmed by the user.",
+    "create_parent": false
+  },
   "sources": [
     {"id": "cours", "bundle": "C:\\imports\\cours", "fingerprint": "<inspection fingerprint>"}
   ],
@@ -34,6 +40,15 @@ relative paths are rejected. Absolute input/output paths use host syntax.
 The illustrative hash must be replaced with the actual 64-character digest.
 Required plan keys are all shown. Source IDs are distinct; paths select explicit
 bundles. The fingerprint includes the import manifest and retained subset hashes.
+
+`placement` is required. Its `vault` must be an existing absolute directory;
+`parent` must be a visible non-root portable relative path within it, not a configuration
+directory or inside an earlier ingest root. `destination` is a new direct child
+of that parent. The agent chooses the location from source context and vault
+conventions and obtains placement confirmation; scripts only enforce safety.
+The example hierarchy is not mandatory. `rationale` is nonempty; `create_parent`
+defaults to false. Missing parent containers require explicit creation approval
+and `create_parent: true`. A rationale or hash is not proof of user permission.
 
 Notes require `id`, `type`, `title`, `title_origin` (`source` or `agent`), positive
 `order`, and `parts`. Types: `course`, `section`, `exercise`, `correction`.
@@ -105,37 +120,69 @@ callouts, removes only documented separators, and reverses recorded local-link
 rewrites to compare against the exact source ranges; it also checks canonical
 note metadata/wrappers separately.
 Each source-bearing note also includes clickable links to its retained PDFs
-with original PDF page numbers; these provenance links are structural additions.
+with original PDF page numbers; these provenance links are structural additions:
+`[page 2](../sources/feuille/chapitre.pdf#page=2)`. Each page gets its own link,
+not a range fragment. Discontiguous imports use actual PDF pages, not selection
+positions or printed page labels. Index PDF links target the first imported page.
+Source-authored PDF links are not given new page fragments.
 
 `index.md` uses ordinary Markdown and wikilinks, not plugin queries. Stable
-source copies live at `sources/<source-id>/source/<original-name>.pdf`,
+source copies live at `sources/<source-id>/<original-name>.pdf`,
 `sources/<source-id>/document.md`, and their original `figures/` paths.
 Source IDs disambiguate identical filenames across bundles.
 
-`ingest.json` records schema version, `writing`/`complete` status, the plan and
+`ingest.json` uses output schema version **3** and records `writing`/`complete` status, the plan and
 its hash, source metadata/hashes, expected file hashes, and review findings.
+The PDF sits next to `document.md`; there is no inner `source/` directory.
+Snapshot metadata and snapshot file keys preserve the original Import-relative
+references (including `source/<original-name>.pdf`). The output file inventory,
+note frontmatter, and generated links use the flattened retained path instead.
+Retained Markdown remains byte-identical, including its original relative links;
+generated notes resolve those links to the new retained locations.
 Only notes are the learning-content store. Validation reconstructs the allowed
 structural projection from retained Markdown and compares the complete note
 bytes, as well as coverage, hashes, links, and file ownership. Human edits are
 reported as changes; this version does not merge them or overwrite them.
 
 Validation uses no external bundle path and can validate a relocated complete
-ingest. It rejects extra files/directories as ownership uncertainty. A completion
+ingest without requiring the original vault or placement parent to exist.
+It rejects extra files/directories as ownership uncertainty. A completion
 record is not a cryptographic signature against deliberate record tampering.
 
 Every created file belongs to one root; deleting that root is sufficient for
 whole-ingest removal. No source bundle, shared attachment folder, or other ingest
-is modified. Scripts never implement deletion.
+is modified. Approved missing parent containers may also be created; these
+shared directories are not chapter-owned and may remain after root removal.
+Scripts never implement deletion.
+
+Plan version 2 requires contextual placement; note schema remains version 1.
+Output version 3 includes placement and page-addressed provenance, retaining
+version 2's flat PDF layout. Approval hashes include the output version, so an
+earlier approved hash cannot authorize changed output or placement. Rerun
+`--check` and approve its new paths/hash before materialization. Existing
+version-1/2 outputs and version-1 plans are rejected explicitly, never modified
+or automatically migrated. Choose and confirm placement, then create a fresh
+approved ingest in a new destination from the original Import bundles.
 
 ## Reports and commands
 
 Inspector: JSON `bundles` with fingerprints, metadata, hashes, zero-based safe
 boundaries, page markers, and local references.
 
-Writer `--check`: JSON exact paths, `plan_sha256`, `requires_approval: true`, and
-review issues. This is read-only.
+Vault inspector: read-only JSON `vault`, `scope`, `obsidian_marker`,
+`directories` (relative paths, Markdown counts/sample paths, `has_ingest_record`),
+`omitted` entries with reasons, and `requires_agent_review: true`. No note or
+configuration contents are read. Optional `--within`, `--depth` (default 4),
+`--max-directories` (128), and `--samples` (3) bound/focus discovery. Samples are
+not exhaustive; the agent reads relevant notes and reviews inventory omissions.
+An Obsidian installation or `.obsidian` marker is not required.
 
-Writer `--plan-sha256 HASH`: binds execution to that plan, creates a new root,
+Writer `--check`: JSON exact paths, `plan_sha256`, `requires_approval: true`, and
+review issues, plus `placement` and exact `create_directories` for any missing
+parents. This is read-only, including when parent creation is approved.
+
+Writer `--plan-sha256 HASH`: binds execution to that plan, creates only approved
+missing containers and a new root,
 validates, and reports the same persisted validation result. A hash is not user
 authorization; the skill handles permission.
 

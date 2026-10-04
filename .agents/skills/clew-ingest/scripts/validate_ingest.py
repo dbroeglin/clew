@@ -6,7 +6,7 @@ from pathlib import Path
 
 from bundle_sources import load_snapshot
 from content_projection import verify_projection
-from formats import IngestRecord, Plan
+from formats import OUTPUT_VERSION, IngestRecord, Plan
 from ingest_io import command, contained, no_redirect, read_json, require, sha256
 from plan_checks import check_plan, note_path, output_paths, plan_hash
 from render_notes import render_index, render_note
@@ -14,12 +14,15 @@ from render_notes import render_index, render_note
 
 def verify(root: Path, record: dict, *, incomplete: bool = False) -> dict:
     root = no_redirect(root)
+    require(isinstance(record, dict), "Invalid ingest record.")
+    require(type(record.get("schema_version")) is int and record["schema_version"] == OUTPUT_VERSION,
+            f"Unsupported ingest output version; expected {OUTPUT_VERSION}. "
+            "Existing outputs are not migrated; create a fresh approved ingest.")
     IngestRecord.model_validate(record)
     require(isinstance(record, dict)
             and set(record) == {"schema_version", "status", "plan", "plan_sha256",
                                 "sources", "issues", "files"},
             "Invalid ingest record.")
-    require(record["schema_version"] == 1, "Unknown ingest record version.")
     require(record["status"] == "complete" or
             (incomplete and record["status"] == "writing"), "Ingest is incomplete.")
     plan = Plan.model_validate(record["plan"])

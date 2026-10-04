@@ -7,8 +7,9 @@ from collections import defaultdict
 from pathlib import Path
 
 from bundle_sources import Bundle, load_bundle
-from formats import Note, Plan
+from formats import OUTPUT_VERSION, Note, Plan
 from ingest_io import fingerprint, no_redirect, read_json, relative_path, require
+from vault_placement import missing_parents, placement_parent
 
 FOLDERS = {"course": "courses", "section": "courses",
            "exercise": "exercices", "correction": "corriges"}
@@ -23,7 +24,7 @@ def read_plan(path: Path) -> Plan:
 
 
 def plan_hash(plan: Plan) -> str:
-    return fingerprint(plan.model_dump())
+    return fingerprint({"output_version": OUTPUT_VERSION, "plan": plan.model_dump()})
 
 
 def inspect_plan(plan: Plan) -> dict[str, Bundle]:
@@ -44,7 +45,11 @@ def check_destination(plan: Plan, bundles: dict[str, Bundle]) -> Path:
     require(path.is_absolute(), "Destination must be absolute.")
     path = no_redirect(path)
     require(not os.path.lexists(path), f"Destination already exists: {path}")
-    require(path.parent.is_dir(), "Destination parent must already exist.")
+    relative_path(path.name)
+    require(not path.name.startswith("."), "Chapter destination must not be a hidden/configuration directory.")
+    require(path.parent == placement_parent(plan),
+            "Destination must be a chapter directly under the confirmed vault parent, not the vault root.")
+    missing_parents(plan)
     require(all(not path.is_relative_to(bundle.root) for bundle in bundles.values()),
             "Destination must not be inside an input bundle.")
     return path
@@ -213,7 +218,7 @@ def check_plan(plan: Plan, bundles: dict[str, Bundle]) -> list[dict]:
 def output_paths(plan: Plan, bundles: dict[str, Bundle]) -> list[str]:
     paths = ["index.md", "ingest.json", *[note_path(note) for note in plan.notes]]
     for source, bundle in bundles.items():
-        paths.extend(f"sources/{source}/{path}" for path in bundle.files)
+        paths.extend(f"sources/{source}/{bundle.retained_path(path)}" for path in bundle.files)
     require(len({path.casefold() for path in paths}) == len(paths), "Output filename collision.")
     for path in paths:
         relative_path(path)

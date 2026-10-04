@@ -20,9 +20,14 @@ def target_link(address: str) -> str:
     return f"[[{address}]]"
 
 
+def pdf_page_uri(source: str, bundle: Bundle, page: int, directory: str = "") -> str:
+    path = posixpath.relpath(f"sources/{source}/{bundle.metadata['source']['name']}", directory)
+    return quote(path, safe="/") + f"#page={page}"
+
+
 def sources_for(note: Note, bundles: dict[str, Bundle]) -> list[dict]:
     return [{"id": part.source,
-             "file": f"sources/{part.source}/{bundles[part.source].metadata['source']['path']}",
+             "file": f"sources/{part.source}/{bundles[part.source].metadata['source']['name']}",
              "pages": bundles[part.source].markdown.pages(part.start, part.end),
              "lines": [part.start, part.end]}
             for part in note.parts]
@@ -44,7 +49,8 @@ def render_note(note: Note, plan: Plan, bundles: dict[str, Bundle]) -> bytes:
     for index, part in enumerate(note.parts):
         bundle = bundles[part.source]
         replacements = {path: quote(posixpath.relpath(
-            f"sources/{part.source}/{path}", posixpath.dirname(note_path(note))), safe="/")
+            f"sources/{part.source}/{bundle.retained_path(path)}",
+            posixpath.dirname(note_path(note))), safe="/")
                         for path in bundle.files}
         content = bundle.markdown.rewrite(part.start, part.end, replacements)
         if part.role == "text":
@@ -81,10 +87,12 @@ def render_note(note: Note, plan: Plan, bundles: dict[str, Bundle]) -> bytes:
                 bundles[part.source].markdown.pages(part.start, part.end))
         references = []
         for source, pages in pages_by_source.items():
-            path = quote(posixpath.relpath(
-                f"sources/{source}/{bundles[source].metadata['source']['path']}",
-                posixpath.dirname(note_path(note))), safe="/")
-            references.append(f"- [{source}]({path}), pages {','.join(map(str, sorted(pages)))}")
+            links = []
+            for page in sorted(pages):
+                uri = pdf_page_uri(source, bundles[source], page, posixpath.dirname(note_path(note)))
+                links.append(f"[page {page}]({uri})")
+            if links:
+                references.append(f"- {source}: " + ", ".join(links))
         body.append("\n\n## Sources\n\n" + "\n".join(references) + "\n")
     return (frontmatter(values) + "\n\n".join(body)).encode("utf-8")
 
@@ -102,8 +110,10 @@ def render_index(plan: Plan, issues: list[dict], bundles: dict[str, Bundle]) -> 
             content += "".join(f"- [[{note.id}|{note.title}]]\n" for note in notes) + "\n"
     content += "## Sources\n\n"
     for source in plan.sources:
-        pdf = quote(f"sources/{source.id}/{bundles[source.id].metadata['source']['path']}", safe="/")
-        content += f"- `{source.id}`: [PDF]({pdf}) / [Markdown](sources/{source.id}/document.md)\n"
+        bundle = bundles[source.id]
+        page = bundle.metadata["pages"][0]
+        pdf = pdf_page_uri(source.id, bundle, page)
+        content += f"- `{source.id}`: [PDF, page {page}]({pdf}) / [Markdown](sources/{source.id}/document.md)\n"
     if issues:
         content += "\n## Review\n\n"
         content += "".join(f"- **{issue['code']}**: {issue['message']}\n" for issue in issues)

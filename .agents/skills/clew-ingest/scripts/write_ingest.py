@@ -7,13 +7,14 @@ import shutil
 from pathlib import Path
 
 from bundle_sources import Bundle
-from formats import Plan
+from formats import OUTPUT_VERSION, Plan
 from ingest_io import (command, contained, json_text, no_redirect, require,
                        sha256, write_new)
 from plan_checks import (check_destination, check_plan, inspect_plan, note_path,
                          output_paths, plan_hash, read_plan)
 from render_notes import render_index, render_note
 from validate_ingest import validate, verify
+from vault_placement import missing_parents
 
 
 def check(plan: Plan) -> tuple[dict, dict[str, Bundle]]:
@@ -23,12 +24,14 @@ def check(plan: Plan) -> tuple[dict, dict[str, Bundle]]:
     return {
         "schema_version": 1, "status": "checked", "destination": str(destination),
         "plan_sha256": plan_hash(plan), "requires_approval": True,
+        "placement": plan.placement.model_dump(),
+        "create_directories": [str(path) for path in missing_parents(plan)],
         "files": output_paths(plan, bundles), "issues": issues,
     }, bundles
 
 
 def materialize(plan: Plan, expected_hash: str) -> dict:
-    require(plan_hash(plan) == expected_hash, "Plan changed since approval.")
+    require(plan_hash(plan) == expected_hash, "Plan changed since approval (including output version).")
     report, bundles = check(plan)
     root = check_destination(plan, bundles)
     notes = {note_path(note): render_note(note, plan, bundles) for note in plan.notes}
@@ -38,11 +41,17 @@ def materialize(plan: Plan, expected_hash: str) -> dict:
     for source, bundle in bundles.items():
         snapshots[source] = {"metadata": bundle.metadata, "files": bundle.files,
                              "fingerprint": bundle.fingerprint}
-        hashes.update({f"sources/{source}/{name}": digest for name, digest in bundle.files.items()})
-    record = {"schema_version": 1, "status": "writing", "plan": plan.model_dump(),
+        hashes.update({f"sources/{source}/{bundle.retained_path(name)}": digest
+                       for name, digest in bundle.files.items()})
+    record = {"schema_version": OUTPUT_VERSION, "status": "writing", "plan": plan.model_dump(),
               "plan_sha256": expected_hash, "sources": snapshots,
               "issues": report["issues"], "files": hashes}
     initial = json_text(record).encode("utf-8")
+    for directory in missing_parents(plan):
+        no_redirect(directory)
+        directory.mkdir(exist_ok=True)
+        no_redirect(directory)
+        require(directory.is_dir(), f"Placement parent is not a directory: {directory}")
     root.mkdir()
     record_path = root / "ingest.json"
     try:
@@ -51,7 +60,7 @@ def materialize(plan: Plan, expected_hash: str) -> dict:
             write_new(contained(root, name, exists=False), data)
         for source, bundle in bundles.items():
             for name, digest in bundle.files.items():
-                target = contained(root, f"sources/{source}/{name}", exists=False)
+                target = contained(root, f"sources/{source}/{bundle.retained_path(name)}", exists=False)
                 target.parent.mkdir(parents=True, exist_ok=True)
                 no_redirect(target)
                 with contained(bundle.root, name).open("rb") as incoming, target.open("xb") as outgoing:

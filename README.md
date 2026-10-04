@@ -75,6 +75,12 @@ boundaries, meaningful note names, question/answer matches, and source-evidenced
 relationships; small Python tools execute those decisions deterministically.
 Every concrete ingest plan requires user approval before writing.
 
+Before planning, the skill inspects the identified vault and representative
+notes, chooses a suitable existing learning-material container, and asks for
+placement confirmation. Ambiguity prompts a focused question, never a silent
+vault-root fallback. No fixed subject/level hierarchy is imposed. Missing
+containers can be proposed but need explicit creation approval.
+
 Ingest preserves supplied text, formulas, and figures. Missing exercises or
 corrections are allowed; generated material and inferred prerequisite graphs
 belong to future Enrich work. HTML Generate is also a separate future phase.
@@ -88,7 +94,10 @@ algebre/
   exercices/    exercise notes with question anchors
   corriges/     correction notes with answer anchors
   sources/
-    cours/      original PDF, imported Markdown, referenced figures
+    cours/
+      chapitre.pdf
+      document.md
+      figures/  referenced figures
     feuille/    another independently retained source
     corrige/    another independently retained source
   ingest.json   plan, provenance, file ownership, and review findings
@@ -96,16 +105,20 @@ algebre/
 
 Only required type directories are created. Stable source IDs prevent collisions
 between identically named inputs. Original PDFs and Markdown are byte-identical
-copies; only referenced figures are copied. Raw extraction evidence and logs stay
+copies, stored together directly under each source ID without a second `source/`
+directory; only referenced figures are copied. Raw extraction evidence and logs stay
 in the untouched original bundles. The retained subset is not a complete Import
 bundle. All created files live under the ingest root: removing that exact
 directory removes the entire ingest, with no shared or scattered assets.
+Approved new parent containers are shared vault organization and may remain;
+they are never automatically deleted.
 There is no automatic deletion, overwrite, merge, or incremental update.
 
 With the shared environment installed, inspect inputs without writing:
 
 ```powershell
 uv run --package clew-ingest --locked --no-sync python -B ".agents\skills\clew-ingest\scripts\inspect_bundles.py" "C:\courses\course" "C:\courses\exercises" "C:\courses\corrections"
+uv run --package clew-ingest --locked --no-sync python -B ".agents\skills\clew-ingest\scripts\inspect_vault.py" "C:\vault"
 ```
 
 The skill reads the sources and authors a versioned plan using the
@@ -116,20 +129,35 @@ Check that plan without creating its destination:
 uv run --package clew-ingest --locked --no-sync python -B ".agents\skills\clew-ingest\scripts\write_ingest.py" "C:\plans\ingest.json" --check
 ```
 
-Review the boundaries, matches, evidence, exact output paths, and issues.
+Review the confirmed placement, any parent directories to create, boundaries,
+matches, evidence, exact output paths, and issues.
 Only after approval, execute using the returned plan hash:
 
 ```powershell
 uv run --package clew-ingest --locked --no-sync python ".agents\skills\clew-ingest\scripts\write_ingest.py" "C:\plans\ingest.json" --plan-sha256 "<approved plan hash>"
-uv run --package clew-ingest --locked --no-sync python -B ".agents\skills\clew-ingest\scripts\validate_ingest.py" "C:\vault\algebre"
+uv run --package clew-ingest --locked --no-sync python -B ".agents\skills\clew-ingest\scripts\validate_ingest.py" "C:\vault\courses\PT\maths\algebre"
 ```
 
-The destination parent must exist; the destination must not. Changed sources or
+The destination must be a new direct child of the confirmed non-root vault
+parent, outside earlier ingests. Missing parents need explicit approval and
+`placement.create_parent: true`; read-only checks report their exact paths.
+The illustrated hierarchy is not mandatory. Changed sources or
 plans block execution. Ambiguous matches remain unlinked source content with
 visible review findings. Failed partial output is preserved, never automatically
 cleaned up or reused. Validation checks exact coverage and allowed structural
 projection, hashes, anchors, relationships, and root ownership. It can operate
 after external bundle locations disappear or the complete ingest is moved.
+
+Generated source links open individual original PDF pages using `#page=N`, for
+example `[page 2](../sources/feuille/chapitre.pdf#page=2)`. Multiple pages get
+separate links; selected-page imports retain their original page numbers.
+Source-authored links and retained Markdown remain faithful.
+
+Ingest output is version 3; plans are version 2 with required placement, and note
+schemas remain version 1. Approval hashes include the output version and full
+placement. Earlier version-1 plans and version-1/2 outputs are rejected, not
+migrated or modified: confirm placement, reuse the original Import bundles, and
+approve a fresh plan/new destination without repeating PDF conversion.
 
 The tools make no cloud calls and require no Obsidian installation or plugin.
 For a standalone copied skill, run `uv sync` in its directory initially,

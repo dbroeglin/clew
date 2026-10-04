@@ -2,6 +2,30 @@
 
 These are decision examples, not fixed page limits or automatic grouping rules.
 
+## Contextual placement
+
+The user identifies `C:\vault`. A read-only inventory lists comparable chapters
+under `courses/PT/maths`, and representative notes confirm their programme and
+subject. The supplied algebra source fits that context. Propose
+`C:\vault\courses\PT\maths\algebre`, explain the evidence, and ask for placement
+confirmation before authoring the detailed plan. Record:
+
+```json
+{
+  "vault": "C:\\vault",
+  "parent": "courses/PT/maths",
+  "rationale": "Matches the existing PT mathematics chapters and supplied algebra material.",
+  "create_parent": false
+}
+```
+
+If the actual vault uses `Mathematiques/PT`, use that instead; the example is
+not a required taxonomy. If the level is unclear, ask rather than invent it.
+If the parent is missing, propose its exact creation and use `create_parent:
+true` only after confirmation. Never fall back to the vault root or nest inside
+another ingest. Final approval must still cover the full checked plan and any
+missing container paths.
+
 ## One mixed source
 
 Suppose inspection finds these safe ranges:
@@ -22,7 +46,14 @@ safe ranges; never force the illustrative numbers onto a different source.
 
 Course and section notes both go in `courses/`. The exercise/correction live in
 their respective directories, and one retained bundle subset lives under
-`sources/poly/`.
+`sources/poly/`, with its PDF beside `document.md` and optional `figures/`.
+There is no inner `source/` folder in the ingest output.
+
+An exercise spanning original PDF pages 2 and 4 gets separate Sources links:
+`[page 2](../sources/poly/chapitre.pdf#page=2)` and
+`[page 4](../sources/poly/chapitre.pdf#page=4)`. A partial import starting at page
+3 links its index to `sources/poly/chapitre.pdf#page=3`, not page 1. Retained
+Markdown and its source-authored links stay unchanged.
 
 Question dependencies and matches:
 
