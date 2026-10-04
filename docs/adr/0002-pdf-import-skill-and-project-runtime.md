@@ -7,6 +7,9 @@
 > supersedes this record's repository-root ownership of dependency declarations,
 > configuration templates, and tests. Its PDF Import behavior, safety gates,
 > artifact contract, and implementation provenance remain accepted.
+> [ADR-0004](0004-faithful-multi-bundle-ingest.md) subsequently places script tests
+> outside skills and refines downstream vault retention to a source subset.
+> Import still produces and preserves complete bundles.
 
 ## Context
 

@@ -15,7 +15,13 @@ the same change.
 Treat every first-party skill directory as a portable artifact. Follow
 [ADR-0003](docs/adr/0003-autonomous-portable-skills.md): keep complete operating
 instructions, executable assets, direct dependency declarations, configuration
-templates, tests/evals, licenses, and provenance inside the skill as applicable.
+templates, workflow evals, licenses, and provenance inside the skill as applicable.
+
+Keep executable script tests and fixtures **outside skill directories**, under
+repository-owned `tests/<skill_name>/` suites, as specified by
+[ADR-0004](docs/adr/0004-faithful-multi-bundle-ingest.md). Test location is a
+development concern, not a runtime dependency. Workflow evaluations may remain
+inside the skill. Do not bundle script tests to make a skill portable.
 
 Do not make a skill depend on repository ADRs, READMEs, tests, configuration
 templates, dependency manifests, or undocumented directory conventions. If a

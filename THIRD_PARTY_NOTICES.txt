@@ -3,7 +3,8 @@ Third-party agent skills and extension dependencies
 Clew PDF converter and offline regression tests
 Source: https://github.com/dbroeglin/clew-old
 Commit: 77c1e4c4569e4e8067f20d3809edd582b1f9a257
-Files: .agents/skills/clew-import/scripts/digest_pdf.py, tests/test_digest_pdf.py
+Files: .agents/skills/clew-import/scripts/digest_pdf.py,
+       tests/clew_import/test_digest_pdf.py
 Converter blob: d0eff2c0daa9e454360eb649db459b4c72408d42
 License: MIT; see the root LICENSE and .agents/skills/clew-import/LICENSE.
 Converter modifications: retain and verify the original PDF in the output

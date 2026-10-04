@@ -1,0 +1,145 @@
+# Version 1 contracts
+
+## Plan
+
+All objects reject unknown keys. IDs use lowercase ASCII letters/digits/dashes,
+start with a letter, and have no consecutive/trailing dashes. Note IDs start
+with `<ingest_id>-` and become filenames. Windows reserved names and unsafe
+relative paths are rejected. Absolute input/output paths use host syntax.
+
+```json
+{
+  "schema_version": 1,
+  "ingest_id": "algebre",
+  "title": "Algebre",
+  "destination": "C:\\vault\\algebre",
+  "sources": [
+    {"id": "cours", "bundle": "C:\\imports\\cours", "fingerprint": "<inspection fingerprint>"}
+  ],
+  "notes": [
+    {
+      "id": "algebre-espaces-vectoriels",
+      "type": "course",
+      "title": "Espaces vectoriels",
+      "title_origin": "source",
+      "order": 10,
+      "parts": [{"source": "cours", "start": 1, "end": 12, "role": "text"}]
+    }
+  ],
+  "relationships": [],
+  "issues": []
+}
+```
+
+The illustrative hash must be replaced with the actual 64-character digest.
+Required plan keys are all shown. Source IDs are distinct; paths select explicit
+bundles. The fingerprint includes the import manifest and retained subset hashes.
+
+Notes require `id`, `type`, `title`, `title_origin` (`source` or `agent`), positive
+`order`, and `parts`. Types: `course`, `section`, `exercise`, `correction`.
+Only a course-index note may have empty parts. Empty other notes are errors.
+
+Each part selects `source`, `start`, `end`, and optional `role` (defaults to
+`text`). Question/answer parts require an `id` prefixed `q-`/`r-`; optional `label`
+preserves the printed question/answer label. Text parts cannot have block IDs.
+Question parts belong to exercises; answer parts to corrections.
+
+Ranges are one-based inclusive lines in unchanged UTF-8 Markdown. Each source
+line, including whitespace and page markers, must be assigned exactly once.
+Start/end cannot bisect parser-mapped Markdown constructs. Parts preserve
+per-source order in each note; sections preserve source order within their
+course. Orders are unique per note type (sections scoped to their parent course).
+
+Source page markers are metadata only: standalone parsed HTML comments matching
+`<!-- page: N -->` are removed from displayed notes, never from retained Markdown.
+Lookalikes in code remain. Source text otherwise stays exact, except local
+destinations rewritten to the retained source and structural separators/wrappers.
+
+Local CommonMark links/images must reference manifest-declared figures or the
+retained PDF. Destinations must be portable relative paths, with no query/fragment.
+Inline destinations and reference definitions with simple or angle-bracket paths
+are supported. Reference usages and definitions must stay in the same note's
+plain-text context or in the same question/answer part. Identical reference labels
+from different sources cannot share a note. Plans violating those scopes are
+blocked; regroup without changing source text. Complex destinations that cannot be located losslessly are
+reported as blockers, not silently rewritten. External URLs and source fragment
+links remain source content and are reported for review.
+
+Relationships have `rel`, `origin`, `target`, and a nonempty `evidence` list.
+Each evidence item is a valid source range (`source`, `start`, `end`) containing
+source text. Scripts validate location, not the truth of the interpretation.
+
+| rel | origin | target |
+| --- | --- | --- |
+| `course` | section or exercise note ID | course note ID |
+| `correction` | correction note ID | exercise note ID |
+| `question` | correction answer address | exercise question address |
+| `needs` | exercise question address | earlier question in the same exercise |
+
+Block addresses are `<note-id>#^<block-id>`. Sections require one course parent;
+exercises may link several courses. Corrections have at most one exercise, but
+one exercise may have multiple correction notes or supplied answers. Linked
+answers must agree with the correction's exercise association. Question `needs`
+must point backward; cycles and forward links are impossible under this rule.
+Unmatched answers/corrections and missing answers produce review findings.
+
+Issues contain `code`, `message`, and optional `note`. Include semantic uncertainty
+explicitly. Import issues and structural missing-link findings are also emitted.
+Do not add relationships merely to avoid warnings.
+
+## Persisted notes and ownership
+
+All course and section notes share `courses/`. Exercises and corrections use
+`exercices/` and `corriges/`. Frontmatter is readable YAML with JSON flow values
+(valid YAML), English keys, source/agent title origin, draft status, order, sources,
+and established relationships. Source references include source ID, retained
+PDF path relative to the ingest root, page numbers, and original line ranges.
+
+Plain source Markdown stays plain. Question/answer blocks become `question`/
+`reponse` callouts with source fields and note-local anchors. Added wrappers and
+metadata are structural, not new learning content. Exercise/correction note
+links are emitted reciprocally. A course note lists linked sections/exercises.
+Invisible `clew-part` comments delimit source segments for independent fidelity
+projection. That structural marker prefix is reserved. Validation unwraps
+callouts, removes only documented separators, and reverses recorded local-link
+rewrites to compare against the exact source ranges; it also checks canonical
+note metadata/wrappers separately.
+Each source-bearing note also includes clickable links to its retained PDFs
+with original PDF page numbers; these provenance links are structural additions.
+
+`index.md` uses ordinary Markdown and wikilinks, not plugin queries. Stable
+source copies live at `sources/<source-id>/source/<original-name>.pdf`,
+`sources/<source-id>/document.md`, and their original `figures/` paths.
+Source IDs disambiguate identical filenames across bundles.
+
+`ingest.json` records schema version, `writing`/`complete` status, the plan and
+its hash, source metadata/hashes, expected file hashes, and review findings.
+Only notes are the learning-content store. Validation reconstructs the allowed
+structural projection from retained Markdown and compares the complete note
+bytes, as well as coverage, hashes, links, and file ownership. Human edits are
+reported as changes; this version does not merge them or overwrite them.
+
+Validation uses no external bundle path and can validate a relocated complete
+ingest. It rejects extra files/directories as ownership uncertainty. A completion
+record is not a cryptographic signature against deliberate record tampering.
+
+Every created file belongs to one root; deleting that root is sufficient for
+whole-ingest removal. No source bundle, shared attachment folder, or other ingest
+is modified. Scripts never implement deletion.
+
+## Reports and commands
+
+Inspector: JSON `bundles` with fingerprints, metadata, hashes, zero-based safe
+boundaries, page markers, and local references.
+
+Writer `--check`: JSON exact paths, `plan_sha256`, `requires_approval: true`, and
+review issues. This is read-only.
+
+Writer `--plan-sha256 HASH`: binds execution to that plan, creates a new root,
+validates, and reports the same persisted validation result. A hash is not user
+authorization; the skill handles permission.
+
+Validator: JSON file list, ingest ID, root, plan hash, issues, and report status
+`validated` or `needs_review`. All JSON commands exit `0` on completed operations
+with visible review findings, `1` on errors with stderr diagnostics. Slicer emits
+exact Markdown to stdout. None of these commands perform model inference.

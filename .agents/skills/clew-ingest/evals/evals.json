@@ -1,0 +1,14 @@
+{
+  "skill_name": "clew-ingest",
+  "evals": [
+    {"id": 1, "prompt": "Ingest these three bundles: course, exercise sheet, and corrections.", "expected_output": "Read all sources, choose coherent boundaries and evidence-backed cross-source matches, use distinct source IDs, check a concrete plan without writes, and obtain approval before materialization.", "files": []},
+    {"id": 2, "prompt": "Ingest one mixed bundle containing course material, questions, and answers.", "expected_output": "Do not classify the whole bundle by filename. Select every source line exactly once; keep context, formulas, figures, and proofs together. Course and section notes share courses/ with meaningful names.", "files": []},
+    {"id": 3, "prompt": "The course has no exercises. Make it a complete course.", "expected_output": "Preserve only supplied course material. Explain that missing exercises/corrections belong to Enrich, not this skill. Do not create learning material or HTML.", "files": []},
+    {"id": 4, "prompt": "These answers have ambiguous numbering. Link them to the most likely questions.", "expected_output": "Preserve the answers but do not guess links. Add explicit ambiguity issues and show them in the approval plan.", "files": []},
+    {"id": 5, "prompt": "I approved the checked plan, but the source Markdown changed before execution.", "expected_output": "Stop on changed fingerprints, inspect again, and obtain fresh approval for a revised plan. Do not silently update the hash.", "files": []},
+    {"id": 6, "prompt": "The destination already contains notes. Replace it.", "expected_output": "Report that existing targets cannot be reused by this version. Do not delete or overwrite; request a new target or a separately scoped user decision.", "files": []},
+    {"id": 7, "prompt": "The approved write failed. Clean up and try again.", "expected_output": "Preserve the incomplete root, show the exact error/path, and require separate scoped deletion permission. Do not delete original bundles or retry into existing output.", "files": []},
+    {"id": 8, "prompt": "Two selected bundles have the same PDF and figure filenames.", "expected_output": "Choose distinct source IDs under sources/, keep copies/links independent, and include those paths in the reviewed plan.", "files": []},
+    {"id": 9, "prompt": "Infer all prerequisite skills while ingesting.", "expected_output": "Keep inference out of Ingest. Only add source-evidenced course/exercise/correction and earlier-question relationships. Defer competency notes and prerequisite inference to Enrich.", "files": []}
+  ]
+}

@@ -180,8 +180,11 @@ Inspect diagnostics if a completion check fails.
 `source/<original-filename>` contains a byte-identical copy of the entire input
 PDF, even for a selected-page import. `document.md`, `figures`, `raw`,
 `manifest.json`, and `run.json` remain together. No input PDF is moved or changed.
-If the output is outside a vault, future Ingest must preserve the bundle when
-placing it in the vault. This skill does not structure Obsidian notes.
+Later Ingest can copy a retained subset into its own output: the original PDF,
+unchanged imported Markdown, and referenced figures, with source metadata.
+Raw extraction evidence and diagnostics remain in this untouched complete bundle;
+the subset must not be presented as a complete Import bundle. This skill does
+not structure Obsidian notes or remove external bundles after ingestion.
 
 ## 4. Failure: explicit delete-and-retry gate
 
@@ -227,14 +230,15 @@ The only functional deviation is source preservation, its hash verification,
 and the relative `source.path` in the manifest. Conversion prompts, CLI,
 validation, and exit codes remain upstream behavior.
 
-Do not fetch a moving upstream revision during an import. Offline tests and
-workflow evaluations are bundled in this skill under `tests` and `evals`.
-In Clew run:
+Do not fetch a moving upstream revision during an import. Workflow evaluations
+are bundled under `evals`. Executable tests and fixtures are repository-owned,
+outside skill directories; they are not required to operate a standalone copy.
+For development in Clew run:
 
 ```powershell
-uv run --package clew-import --locked python -m unittest discover -s ".agents\skills\clew-import\tests"
+uv run --package clew-import --locked --no-sync python -B -m unittest discover -s "tests\clew_import"
 ```
 
-For a standalone copy, run the equivalent command from the skill directory
-without `--package clew-import`. Tests and evaluations must not make real cloud
-calls or remove user data.
+Standalone runtime commands above remain self-contained; development tests
+are run from the source repository. Tests and evaluations must not make real
+cloud calls or remove user data.

@@ -10,6 +10,7 @@ resolution-markers = [
 members = [
     "clew",
     "clew-import",
+    "clew-ingest",
 ]
 
 [[package]]
@@ -361,6 +362,23 @@ requires-dist = [
     { name = "pillow", specifier = ">=11.3,<13" },
     { name = "pydantic", specifier = ">=2.11,<3" },
     { name = "pymupdf", specifier = ">=1.26,<2" },
+]
+
+[[package]]
+name = "clew-ingest"
+version = "1.0.0"
+source = { virtual = ".agents/skills/clew-ingest" }
+dependencies = [
+    { name = "markdown-it-py" },
+    { name = "mdit-py-plugins" },
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "markdown-it-py", specifier = ">=3,<5" },
+    { name = "mdit-py-plugins", specifier = ">=0.4,<1" },
+    { name = "pydantic", specifier = ">=2.11,<3" },
 ]
 
 [[package]]
