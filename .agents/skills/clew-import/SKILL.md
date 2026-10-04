@@ -11,14 +11,19 @@ description: >-
 
 # Clew Import
 
-Implement the Import boundary in ADR-0001 and ADR-0002. Operate on a local PDF
-or recursively on a local directory. Convert faithfully without summarizing,
-translating, correcting the author's claims, or generating learning material.
+Convert a local PDF, or PDFs discovered recursively in a local directory, into
+faithful retained-source bundles for later document processing. Preserve source
+content and meaning: do not summarize, translate, correct the author's claims,
+organize Obsidian notes, enrich learning material, or generate HTML.
 
 The executable is `scripts/digest_pdf.py` relative to this skill. Python
-dependencies, `.venv`, `pyproject.toml`, `uv.lock`, and `.env` belong to the Clew
-repository root, **not** this skill. Resolve that root from the skill location,
-not from the source directory or the caller's current directory.
+dependencies and supported Python versions are declared in this skill's
+`pyproject.toml`. The skill can run as a standalone UV project. When installed
+as a member of a UV workspace, use the host's shared lockfile and `.venv`; in the
+Clew workspace select the `clew-import` package. Real configuration remains in
+the execution project root's untracked `.env`; use this skill's `.env.example`
+as the complete template. Never require repository ADRs or other documentation
+to operate this skill.
 
 ## 1. Inspect without changing anything
 
@@ -33,23 +38,30 @@ cloud destinations for approval. An absent `.env` blocks conversion even if
 inherited variables exist.
 
 If the project environment is absent, do a read-only filesystem inventory first:
-show candidate PDFs, obvious output conflicts, and the setup command
-`uv sync --locked`. Ask for setup approval. Do not run `uv run` in its ordinary
+show candidate PDFs, obvious output conflicts, and the applicable setup command.
+In the Clew workspace it is `uv sync --all-packages --locked`; for a copied
+standalone skill, run `uv sync` in the skill directory to create its host-owned
+lock and environment, then use `uv sync --locked` subsequently. Ask for setup
+approval. Do not run `uv run` in its ordinary
 sync mode during discovery: it can create an environment and install packages.
 After approved setup, finish the detailed plan below and request conversion
 approval separately. If UV or the lockfile is missing, report the blocker;
-do not install UV, regenerate the lock, or fall back to global Python.
+do not install UV or fall back to global Python. A missing Clew workspace lock is
+a repository blocker. A standalone copy without a lock may create its host-owned
+lock only through the separately approved initial `uv sync`.
 
 With the project environment present, use the read-only planner from the
 repository root. In PowerShell, for an input such as `C:\courses`:
 
 ```powershell
-uv run --locked --no-sync --env-file .env python -B ".agents\skills\clew-import\scripts\plan_imports.py" "C:\courses" --check-env
+uv run --package clew-import --locked --no-sync --env-file .env python -B ".agents\skills\clew-import\scripts\plan_imports.py" "C:\courses" --check-env
 ```
 
 If `.env` is absent, omit `--env-file .env` and `--check-env` to inspect sources
 without loading configuration. The resulting plan will report the missing file.
-Use platform-appropriate path separators and shell quoting. The helper's
+For a copied standalone skill, run the same script from that skill's directory
+without `--package clew-import`, using its local `scripts` path. Use
+platform-appropriate path separators and shell quoting. The helper's
 `command` fields are PowerShell syntax; on other shells, reconstruct commands
 from their `argv` arrays with correct quoting.
 
@@ -107,7 +119,7 @@ to other devices and people. Approval for conversion is not deletion approval.
 
 ## 2. Propose the exact plan and get approval
 
-Show the repository working directory, every candidate and classification,
+Show the execution project directory, every candidate and classification,
 source-to-output mapping, review issues, and preflight blockers. Include **all**
 relevant commands: approved setup if needed, configuration actions still needed,
 and one exact conversion command per eligible PDF. Do not expose secrets in
@@ -138,10 +150,10 @@ permission to execute. A plan approval is not permission to delete outputs.
 
 ## 3. Execute the approved commands
 
-Run sequentially from the repository root with the shared project environment:
+Run sequentially from the execution project root with its UV environment:
 
 ```powershell
-uv run --locked --env-file .env python ".agents\skills\clew-import\scripts\digest_pdf.py" "C:\courses\chapter_1.pdf" --output "C:\courses\chapter_1"
+uv run --package clew-import --locked --env-file .env python ".agents\skills\clew-import\scripts\digest_pdf.py" "C:\courses\chapter_1.pdf" --output "C:\courses\chapter_1"
 ```
 
 Immediately before each run, recheck the source SHA-256 against the plan and
@@ -186,7 +198,7 @@ Before a specifically approved deletion:
    `run.json` where available. Do not rely only on a directory name.
 2. Reject a symlink, junction, path-redirection reparse point, or a reparse point
    with an unavailable tag, the selected input directory,
-   repository root, source location, any ancestor of an original planned input, or any
+   execution project root, source location, any ancestor of an original planned input, or any
    pre-existing blocked target. Inspect contents and stop if unexpected files,
    human edits, concurrent modifications, or uncertain ownership are present.
    A OneDrive cloud placeholder alone is not a reason to reject cleanup, but the
@@ -215,7 +227,14 @@ The only functional deviation is source preservation, its hash verification,
 and the relative `source.path` in the manifest. Conversion prompts, CLI,
 validation, and exit codes remain upstream behavior.
 
-Do not fetch a moving upstream revision during an import. Offline tests live in
-the root `tests` directory; run `uv run --locked python -m unittest discover -s tests`.
-Workflow evaluation scenarios are in `evals/evals.json`. They must not make real
-cloud calls or remove user data.
+Do not fetch a moving upstream revision during an import. Offline tests and
+workflow evaluations are bundled in this skill under `tests` and `evals`.
+In Clew run:
+
+```powershell
+uv run --package clew-import --locked python -m unittest discover -s ".agents\skills\clew-import\tests"
+```
+
+For a standalone copy, run the equivalent command from the skill directory
+without `--package clew-import`. Tests and evaluations must not make real cloud
+calls or remove user data.

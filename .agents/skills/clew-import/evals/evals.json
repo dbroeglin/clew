@@ -4,13 +4,13 @@
     {
       "id": 1,
       "prompt": "Plan imports for the fixture courses directory. It has a new chapter_1.pdf, nested/Chapter 2.PDF, a complete chapter_3 bundle and its retained PDF, and a needs_review chapter_4 bundle.",
-      "expected_output": "Recursively inspect without conversion. Exclude retained copies. Propose exact commands only for chapter_1 and Chapter 2, with sibling outputs and repository working directory. Skip chapter_3 and chapter_4; report chapter_4 review issues. Ask for approval before cloud calls.",
+      "expected_output": "Recursively inspect without conversion. Exclude retained copies. Propose exact commands only for chapter_1 and Chapter 2, with sibling outputs and the execution project directory. Skip chapter_3 and chapter_4; report chapter_4 review issues. Ask for approval before cloud calls.",
       "files": []
     },
     {
       "id": 2,
       "prompt": "Import the fixture folder. The project .venv and .env are missing.",
-      "expected_output": "Read-only initial inventory. Explain missing configuration without displaying secrets. Propose uv sync --locked, request setup approval, and do not install or convert before approval. After setup, obtain a separate approval for the detailed cloud plan.",
+      "expected_output": "Read-only initial inventory. Explain missing configuration without displaying secrets. In Clew propose uv sync --all-packages --locked; for an unlocked standalone copy propose initial uv sync. Request setup approval and do not install or convert before approval. After setup, obtain a separate approval for the detailed cloud plan.",
       "files": []
     },
     {

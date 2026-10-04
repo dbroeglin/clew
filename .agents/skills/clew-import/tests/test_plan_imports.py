@@ -83,6 +83,33 @@ class PlanningTests(unittest.TestCase):
             self.assertFalse(Path(entry["output"]).exists())
         self.assertIn("sync", plan["setup_command"])
 
+    def test_workspace_plan_selects_package_and_syncs_all_members(self) -> None:
+        self.pdf()
+        (self.project / "pyproject.toml").write_text(
+            '[project]\nname = "host"\nversion = "1.0.0"\n'
+            '[tool.uv.workspace]\nmembers = [".agents/skills/*"]\n',
+            encoding="utf-8",
+        )
+        plan = self.plan()
+        argv = plan["entries"][0]["argv"]
+        self.assertEqual(argv[0:4], ["uv", "run", "--package", "clew-import"])
+        self.assertIn("--all-packages", plan["setup_command"])
+
+    def test_project_root_uses_only_a_workspace_that_contains_the_skill(self) -> None:
+        skill = self.project / ".agents" / "skills" / "clew-import"
+        skill.mkdir(parents=True)
+        with patch.object(planner, "SKILL_ROOT", skill):
+            (self.project / "pyproject.toml").write_text(
+                '[tool.uv.workspace]\nmembers = [".agents/skills/other"]\n',
+                encoding="utf-8",
+            )
+            self.assertEqual(planner.project_root(), skill)
+            (self.project / "pyproject.toml").write_text(
+                '[tool.uv.workspace]\nmembers = [".agents/skills/*"]\n',
+                encoding="utf-8",
+            )
+            self.assertEqual(planner.project_root(), self.project)
+
     def test_existing_complete_bundle_is_skipped_and_its_copy_is_excluded(self) -> None:
         source = self.pdf()
         output = self.bundle(source)

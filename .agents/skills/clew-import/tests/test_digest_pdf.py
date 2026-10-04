@@ -29,7 +29,7 @@ from PIL import Image
 from pydantic import ValidationError
 from requests.structures import CaseInsensitiveDict
 
-SKILL_SCRIPTS = Path(__file__).resolve().parents[1] / ".agents" / "skills" / "clew-import" / "scripts"
+SKILL_SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SKILL_SCRIPTS))
 import digest_pdf as ingestion
 

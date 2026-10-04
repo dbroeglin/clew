@@ -3,6 +3,11 @@
 - Status: Accepted
 - Date: 2026-10-04
 
+> **Supersession note:** [ADR-0003](0003-autonomous-portable-skills.md)
+> supersedes this record's repository-root ownership of dependency declarations,
+> configuration templates, and tests. Its PDF Import behavior, safety gates,
+> artifact contract, and implementation provenance remain accepted.
+
 ## Context
 
 [ADR-0001](0001-document-processing-pipeline.md) separates Import, Ingest,
