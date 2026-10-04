@@ -23,22 +23,33 @@
     }).catch(reason => error("Erreur de rendu mathématique : " + reason.message));
     return queue;
   }
-  function element(tag, className, text) {
-    const node = document.createElement(tag);
-    if (className) node.className = className;
-    if (text) node.textContent = text;
+  function required(root, selector) {
+    const node = root.querySelector(selector);
+    if (!node) throw new Error("Missing template hook: " + selector);
     return node;
   }
-  function button(text, handler) {
-    const node = element("button", "", text);
-    node.type = "button";
-    node.addEventListener("click", handler);
-    return node;
+  function clone(name) {
+    const template = document.getElementById("template-" + name);
+    if (!(template instanceof HTMLTemplateElement)) {
+      throw new Error("Missing HTML template: " + name);
+    }
+    return document.importNode(template.content, true);
   }
-  function setPanel(title, markup) {
+  function slot(root, name) {
+    return required(root, '[data-slot="' + name + '"]');
+  }
+  function action(root, name) {
+    return required(root, '[data-action="' + name + '"]');
+  }
+  function content(markup) {
+    const fragment = clone("content");
+    slot(fragment, "content").innerHTML = markup;
+    return fragment;
+  }
+  function setPanel(title, fragment) {
     MathJax.typesetClear([panel]);
     panelTitle.textContent = title;
-    panel.innerHTML = markup;
+    panel.replaceChildren(fragment);
     panel.querySelectorAll("[id]").forEach(node => {
       if (document.getElementById(node.id) !== node) node.removeAttribute("id");
     });
@@ -49,113 +60,106 @@
   function courseButtons(ids, container) {
     ids.forEach(id => {
       const course = courses.get(id);
-      container.append(button("Cours · " + course.title, () => setPanel(course.title, course.html)));
+      const fragment = clone("course-link");
+      slot(fragment, "title").textContent = course.title;
+      required(fragment, "button").addEventListener("click", () =>
+        setPanel(course.title, content(course.html)));
+      container.append(fragment);
     });
   }
   const correctionControls = [];
   function renderQuestion(item) {
-    const section = element("section", "question");
+    const fragment = clone("question");
+    const section = slot(fragment, "question");
     section.id = item.id;
-    section.append(element("span", "question-label", item.label));
-    const statement = element("div");
-    statement.innerHTML = item.html;
-    section.append(statement);
-    const actions = element("div", "actions");
+    slot(section, "label").textContent = item.label;
+    slot(section, "statement").innerHTML = item.html;
+    const actions = slot(section, "actions");
+    const method = required(section, '[data-help="method"]');
     if (item.method) {
-      const method = button("Méthode", () =>
-        setPanel("Méthode · " + item.label,
-          '<p class="aid-label">Aide ajoutée · distincte de la correction fournie</p>' + item.method));
-      method.dataset.help = "method";
-      actions.append(method);
-    }
+      method.addEventListener("click", () => {
+        const methodView = clone("method");
+        slot(methodView, "content").innerHTML = item.method;
+        setPanel(method.textContent + " · " + item.label, methodView);
+      });
+    } else method.remove();
+    const hints = required(section, '[data-help="hints"]');
     if (item.hints.length) {
-      const hints = button("Indices", () => {
-      setPanel("Indices · " + item.label, '<p class="aid-label">Aides ajoutées · révélation progressive</p>');
-      item.hints.forEach((markup, index) => {
-        const hint = element("div", "hint");
-        hint.innerHTML = markup;
-        hint.hidden = index > 0;
-        panel.append(hint);
+      hints.addEventListener("click", () => {
+        const hintsView = clone("hints");
+        const container = slot(hintsView, "hints");
+        item.hints.forEach((markup, index) => {
+          const hintView = clone("hint");
+          const hint = slot(hintView, "hint");
+          hint.innerHTML = markup;
+          hint.hidden = index > 0;
+          container.append(hintView);
+        });
+        const reveal = action(hintsView, "reveal");
+        reveal.addEventListener("click", () => {
+          const next = container.querySelector('[data-slot="hint"][hidden]');
+          if (next) next.hidden = false;
+          reveal.hidden = !container.querySelector('[data-slot="hint"][hidden]');
+          typeset(panel);
+        });
+        reveal.hidden = item.hints.length < 2;
+        setPanel(hints.textContent + " · " + item.label, hintsView);
       });
-      const reveal = button("Révéler l'indice suivant", () => {
-        const next = panel.querySelector(".hint[hidden]");
-        if (next) next.hidden = false;
-        reveal.hidden = !panel.querySelector(".hint[hidden]");
-        typeset(panel);
-      });
-      reveal.hidden = item.hints.length < 2;
-      panel.append(reveal);
-      typeset(panel);
-      });
-      hints.dataset.help = "hints";
-      actions.append(hints);
-    }
+    } else hints.remove();
     courseButtons(item.courses, actions);
-    section.append(actions);
     if (item.corrections.length) {
-      const correction = element("div", "correction");
-      correction.hidden = true;
-      correction.innerHTML = '<p class="correction-title">Correction fournie</p>' +
-        item.corrections.map(markup => '<div>' + markup + '</div>').join("");
-      const courseActions = element("div", "actions");
-      courseButtons(item.courses, courseActions);
-      correction.append(courseActions);
-      const toggle = button("Afficher la correction", () => {
+      const correctionView = clone("correction");
+      const correction = slot(correctionView, "correction");
+      const answers = slot(correctionView, "answers");
+      item.corrections.forEach(markup => answers.append(content(markup)));
+      courseButtons(item.courses, slot(correctionView, "courses"));
+      const toggle = action(correctionView, "correction");
+      toggle.addEventListener("click", () => {
         const open = correction.hidden;
         correctionControls.forEach(([other, control]) => {
           other.hidden = true;
-          control.textContent = "Afficher la correction";
+          control.textContent = control.dataset.labelOpen;
           control.setAttribute("aria-expanded", "false");
         });
         correction.hidden = !open;
-        toggle.textContent = open ? "Masquer la correction" : "Afficher la correction";
+        toggle.textContent = open ? toggle.dataset.labelClose : toggle.dataset.labelOpen;
         toggle.setAttribute("aria-expanded", String(open));
         if (open) typeset(correction);
       });
       correction.id = item.id + "-correction";
       toggle.setAttribute("aria-controls", correction.id);
-      toggle.setAttribute("aria-expanded", "false");
       correctionControls.push([correction, toggle]);
-      section.append(toggle, correction);
+      section.append(correctionView);
     }
     return section;
   }
   data.reading.forEach(id => {
     const course = courses.get(id);
-    const details = element("details");
-    details.append(element("summary", "", course.title));
-    const body = element("div", "course-body");
+    const fragment = clone("course");
+    const details = required(fragment, "details");
+    slot(details, "title").textContent = course.title;
+    const body = slot(details, "body");
     body.innerHTML = course.html;
-    details.append(body);
-    document.getElementById("reading").append(details);
+    document.getElementById("reading").append(fragment);
     details.addEventListener("toggle", () => { if (details.open) typeset(body); });
   });
   data.exercises.forEach(exercise => {
-    const details = element("details", "exercise");
-    const summary = element("summary");
-    summary.append(element("span", "exercise-title", exercise.title));
-    const start = button("Commencer l'exercice", event => {
+    const fragment = clone("exercise");
+    const details = required(fragment, "details");
+    slot(details, "title").textContent = exercise.title;
+    action(details, "start").addEventListener("click", event => {
       event.preventDefault();
       event.stopPropagation();
       details.open = true;
     });
-    start.className = "start";
-    summary.append(start);
-    const body = element("div", "exercise-body");
-    const context = element("div");
-    context.innerHTML = exercise.context;
-    body.append(context);
+    const body = slot(details, "body");
+    slot(details, "context").innerHTML = exercise.context;
     exercise.segments.forEach(segment => {
       if (segment.question) body.append(renderQuestion(questions.get(segment.question)));
-      else {
-        const shared = element("div");
-        shared.innerHTML = segment.html;
-        body.append(shared);
-      }
+      else body.append(content(segment.html));
     });
-    details.append(summary, body);
     details.addEventListener("toggle", () => { if (details.open) typeset(body); });
-    document.getElementById("exercises").append(details);
+    document.getElementById("exercises").append(fragment);
   });
   document.addEventListener("click", event => {
     const link = event.target.closest('a[href^="#"]');
@@ -165,7 +169,7 @@
       const course = data.courses.find(item =>
         item.html.includes('id="' + link.hash.slice(1) + '"'));
       if (course) {
-        setPanel(course.title, course.html);
+        setPanel(course.title, content(course.html));
         target = document.getElementById(link.hash.slice(1));
       }
       if (!target) {
@@ -176,12 +180,12 @@
           const kind = item.method.includes(marker) ? "method" : "hints";
           document.getElementById(item.id).querySelector('[data-help="' + kind + '"]').click();
           target = document.getElementById(link.hash.slice(1));
-          if (target?.closest(".hint")) {
-            for (const hint of panel.querySelectorAll(".hint")) {
+          if (target?.closest('[data-slot="hint"]')) {
+            for (const hint of panel.querySelectorAll('[data-slot="hint"]')) {
               hint.hidden = false;
               if (hint.contains(target)) break;
             }
-            panel.querySelector("button").hidden = !panel.querySelector(".hint[hidden]");
+            action(panel, "reveal").hidden = !panel.querySelector('[data-slot="hint"][hidden]');
           }
         }
       }
@@ -189,7 +193,7 @@
     if (target) {
       for (let parent = target.parentElement; parent; parent = parent.parentElement) {
         if (parent.tagName === "DETAILS") parent.open = true;
-        if (parent.classList.contains("correction")) {
+        if (parent.dataset.slot === "correction") {
           const entry = correctionControls.find(([node]) => node === parent);
           if (entry && parent.hidden) entry[1].click();
         }

@@ -43,6 +43,64 @@ window.MathJax = {
   </aside>
 </main>
 <noscript>Activez JavaScript pour lire cette publication interactive.</noscript>
+<template id="template-course">
+  <details>
+    <summary data-slot="title"></summary>
+    <div class="course-body" data-slot="body"></div>
+  </details>
+</template>
+<template id="template-exercise">
+  <details class="exercise">
+    <summary>
+      <span class="exercise-title" data-slot="title"></span>
+      <button class="start" type="button" data-action="start">Commencer l'exercice</button>
+    </summary>
+    <div class="exercise-body" data-slot="body">
+      <div data-slot="context"></div>
+    </div>
+  </details>
+</template>
+<template id="template-question">
+  <section class="question" data-slot="question">
+    <span class="question-label" data-slot="label"></span>
+    <div data-slot="statement"></div>
+    <div class="actions" data-slot="actions">
+      <button type="button" data-help="method">Méthode</button>
+      <button type="button" data-help="hints">Indices</button>
+    </div>
+  </section>
+</template>
+<template id="template-course-link">
+  <button type="button">Cours · <span data-slot="title"></span></button>
+</template>
+<template id="template-content">
+  <div data-slot="content"></div>
+</template>
+<template id="template-method">
+  <div>
+    <p class="aid-label">Aide ajoutée · distincte de la correction fournie</p>
+    <div data-slot="content"></div>
+  </div>
+</template>
+<template id="template-hints">
+  <div>
+    <p class="aid-label">Aides ajoutées · révélation progressive</p>
+    <div data-slot="hints"></div>
+    <button type="button" data-action="reveal">Révéler l'indice suivant</button>
+  </div>
+</template>
+<template id="template-hint">
+  <div class="hint" data-slot="hint"></div>
+</template>
+<template id="template-correction">
+  <button type="button" data-action="correction" aria-expanded="false"
+    data-label-open="Afficher la correction" data-label-close="Masquer la correction">Afficher la correction</button>
+  <div class="correction" data-slot="correction" hidden>
+    <p class="correction-title">Correction fournie</p>
+    <div data-slot="answers"></div>
+    <div class="actions" data-slot="courses"></div>
+  </div>
+</template>
 <template id="licenses">{{LICENSE}}</template>
 <script id="publication" type="application/json">{{DATA}}</script>
 <script>{{SCRIPT}}</script>

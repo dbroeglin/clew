@@ -57,6 +57,47 @@ format references, and workflow evaluations in the skill. Keep executable
 tests outside it, under `tests/clew_generate`, per ADR-0004. Browser checks are
 development tooling, not a standalone runtime requirement.
 
+### HTML-first template maintenance
+
+Keep repeated course/exercise/question views, optional controls, hint panels,
+corrections, content containers, and course links in native HTML `<template>`
+blocks inside `assets/template.html`. This refines the fixed-template decision:
+the file owns the actual view markup, not just the outer page shell.
+
+JavaScript clones these blocks, fills text and Python-rendered content, removes
+unavailable controls, and attaches interaction behavior. Do not construct view
+markup with JavaScript HTML strings or `createElement` calls. CSS remains in
+`assets/style.css`; Python embeds the assets without a frontend build step.
+
+Use stable template IDs and `data-slot`, `data-action`, and `data-help` hooks
+as the markup/behavior contract rather than styling classes or incidental
+nesting. Layout, static labels, and classes can be edited in HTML without
+rewriting behavior, provided those hooks and native control semantics remain.
+Missing required templates/hooks fail explicitly, not through a silent fallback.
+Browser checks must exercise edited template structure as well as the existing
+offline learning interactions.
+
+### Topology-led chapter discovery
+
+When the user supplies a course/chapter context, do not require a hand-authored
+list of its constituent notes. A selected chapter directory or Ingest `index.md`
+expands to current learning notes under `courses/`, `exercices/`, and `corriges/`,
+plus optional help notes. Reuse note metadata for role, reading order,
+course/section membership, and answer/question matches. Directory roles supply
+structural defaults only; they do not infer pedagogical relationships.
+
+When only a vault/material container and course name are established, bounded
+read-only discovery lists chapter paths and titles. The skill selects the unique
+matching chapter from user context; ask only about genuine ambiguity.
+Do not publish an entire vault or scan unrelated machine locations.
+Exclude hidden configuration and retained `sources/`; stop discovery at chapter
+roots and report inventory-limit omissions.
+
+This uses Ingest's known topology without requiring its implementation,
+validating its record, or comparing hashes. Explicit current-note paths remain
+supported for other layouts. Missing roles, including corrections, are valid;
+unresolved semantic relationships still require explicit agent decisions.
+
 ## Consequences
 
 - A current course can be published without rerunning any previous stage.
@@ -70,3 +111,7 @@ development tooling, not a standalone runtime requirement.
   representative inspection complement static selection checks.
 - Ingest's existing immutable-output validator is unchanged and intentionally
   not used by Generate. Future Enrich ownership/revision semantics remain open.
+- HTML-first view markup is maintainable without a framework; changes to
+  behavioral hooks or native controls require coordinated JavaScript updates.
+- Normal Ingest chapters can be selected by folder/index rather than by note
+  enumeration, while bounded discovery keeps publication scoped to one course.

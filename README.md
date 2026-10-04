@@ -181,12 +181,24 @@ deterministic Python reads the current notes and renders them. Human edits are
 accepted. No Ingest validation, approval hashes, run ledger, Obsidian plugin,
 server, embedded model, or Azure call is required.
 
+Supply a chapter folder or its Ingest `index.md` rather than listing note files.
+Generate discovers the `courses/`, `exercices/`, and `corriges/` topology,
+optional aids, and existing metadata/relationships automatically. When only a
+vault/container and course name are known, `inspect_notes.py --list-chapters`
+lists chapter titles for the skill to select. Retained `sources/` documents and
+hidden configuration are excluded; arbitrary explicit notes remain supported.
+
 Expandable exercises display methods, progressive hints, inline supplied
 corrections, and contextual course excerpts when those already exist.
 Unavailable controls are omitted; Generate never authors teaching material.
 Guided-step tabs and an Enrich implementation are outside this release.
 The responsive layout uses light/dark styling; it is not a pixel-identical
 copy of the separately authored mock.
+
+Repeated view markup and static labels live in native `<template>` blocks in
+the skill's `assets/template.html`. JavaScript clones/populates these views and
+attaches behavior through stable data hooks; styling stays in `assets/style.css`.
+Layout edits do not require a frontend framework or JavaScript markup changes.
 
 HTML embeds styles, scripts, figures, and a pinned licensed MathJax SVG runtime.
 It opens directly from the filesystem without CDNs or network rendering
@@ -199,7 +211,8 @@ and dynamic TeX extensions are unsupported rather than silently executed.
 With the workspace environment installed:
 
 ```powershell
-uv run --package clew-generate --locked --no-sync python -B ".agents\skills\clew-generate\scripts\inspect_notes.py" "C:\vault\cours.md" "C:\vault\exercice.md" "C:\vault\corrige.md"
+uv run --package clew-generate --locked --no-sync python -B ".agents\skills\clew-generate\scripts\inspect_notes.py" "C:\vault" --list-chapters
+uv run --package clew-generate --locked --no-sync python -B ".agents\skills\clew-generate\scripts\inspect_notes.py" "C:\vault\courses\PT\maths\algebre"
 uv run --package clew-generate --locked --no-sync python -B ".agents\skills\clew-generate\scripts\generate_html.py" "C:\plans\layout.json" --check
 uv run --package clew-generate --locked --no-sync python ".agents\skills\clew-generate\scripts\generate_html.py" "C:\plans\layout.json"
 ```

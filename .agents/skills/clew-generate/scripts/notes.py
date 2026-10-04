@@ -206,11 +206,148 @@ def read_note(path: Path) -> Note:
     return Note(path, text, metadata, body, parts, blocks)
 
 
+def discover_chapter(root: Path) -> tuple[list[Note], dict]:
+    root = local_path(root)
+    require(root.is_dir(), f"Expected chapter directory: {root}")
+    roles = {"courses": "course", "exercices": "exercise",
+             "corriges": "correction", "aides": "help"}
+    require(any((root / name).is_dir() for name in ("courses", "exercices", "corriges")),
+            f"Not a chapter directory; expected courses/, exercices/, or corriges/: {root}")
+    found: list[Note] = []
+    omitted: list[str] = []
+
+    def walk(directory: Path, role: str) -> None:
+        local_path(directory)
+        for entry in sorted(directory.iterdir(), key=lambda path: (path.name.casefold(), path.name)):
+            if entry.name.startswith("."):
+                omitted.append(entry.relative_to(root).as_posix())
+                continue
+            entry = local_path(entry)
+            if entry.is_dir():
+                walk(entry, role)
+            elif entry.suffix.lower() == ".md":
+                note = read_note(entry)
+                note.metadata.setdefault("type", role)
+                found.append(note)
+
+    for name, role in roles.items():
+        directory = root / name
+        if directory.exists() or directory.is_symlink():
+            require(local_path(directory).is_dir(), f"Expected note directory: {directory}")
+            walk(directory, role)
+    index = None
+    for entry in sorted(root.iterdir(), key=lambda path: (path.name.casefold(), path.name)):
+        if entry.name.lower() == "index.md":
+            index = read_note(entry)
+        elif not entry.name.startswith(".") and entry.suffix.lower() == ".md":
+            note = read_note(entry)
+            if note.metadata.get("type") == "help":
+                found.append(note)
+            else:
+                omitted.append(entry.name)
+    require(bool(found), f"No learning notes found in chapter: {root}")
+
+    def order(note: Note) -> int:
+        value = note.metadata.get("order", 1_000_000_000)
+        require(type(value) is int and value > 0, f"Invalid note order: {note.path}")
+        return value
+
+    courses = {note.id: note for note in found if note.metadata.get("type") == "course"}
+
+    def rank(note: Note) -> tuple:
+        kind = note.metadata.get("type")
+        parent = note
+        if kind == "section":
+            targets = note.metadata.get("courses", [])
+            require(isinstance(targets, list) and all(isinstance(ref, str) for ref in targets),
+                    f"Invalid section courses: {note.path}")
+            if len(targets) == 1:
+                identifier = targets[0].removeprefix("[[").removesuffix("]]").split("|", 1)[0]
+                parent = courses.get(identifier, note)
+        group = {"course": 0, "section": 0, "exercise": 1, "correction": 2, "help": 3}.get(kind, 4)
+        return (group, order(parent), parent.id if group == 0 else "",
+                kind == "section", order(note), note.id, note.path.as_posix())
+
+    found.sort(key=rank)
+    return found, {"root": str(root), "title": index.title if index else root.name,
+                   "notes": len(found), "omitted": omitted,
+                   "excluded": ["sources/", "ingest.json", "index.md", "hidden entries"]}
+
+
+def chapter_directory(root: Path) -> bool:
+    if not root.is_dir():
+        return False
+    if (root / "ingest.json").is_file():
+        return True
+    index = root / "index.md"
+    if index.is_file() and read_note(index).metadata.get("type") == "ingest":
+        return True
+    for name in ("courses", "exercices", "corriges"):
+        directory = local_path(root / name)
+        if directory.is_dir() and any(entry.suffix.lower() == ".md"
+                                     for entry in directory.iterdir()):
+            return True
+    return False
+
+
+def list_chapters(root: Path, *, depth: int = 8, limit: int = 512) -> dict:
+    root = local_path(root)
+    require(root.is_dir(), f"Expected vault or material container: {root}")
+    chapters = []
+    omitted = []
+    visited = 0
+
+    def walk(directory: Path, level: int) -> None:
+        nonlocal visited
+        if visited >= limit or level > depth:
+            omitted.append(str(directory))
+            return
+        visited += 1
+        directory = local_path(directory)
+        if chapter_directory(directory):
+            index = directory / "index.md"
+            chapters.append({"root": str(directory),
+                             "title": read_note(index).title if index.is_file() else directory.name})
+            return
+        for entry in sorted(directory.iterdir(), key=lambda path: (path.name.casefold(), path.name)):
+            if entry.name.startswith(".") or entry.name == "sources":
+                continue
+            entry = local_path(entry)
+            if entry.is_dir():
+                walk(entry, level + 1)
+
+    walk(root, 0)
+    return {"root": str(root), "chapters": chapters, "omitted": omitted,
+            "excluded": ["sources/", "hidden entries"]}
+
+
 class Library:
     def __init__(self, paths: list[Path]):
         require(bool(paths), "Select at least one note.")
-        self.notes = [read_note(path) for path in paths]
-        require(len({note.path for note in self.notes}) == len(self.notes), "Duplicate selected note.")
+        selected = [local_path(path) for path in paths]
+        require(len(set(selected)) == len(selected), "Duplicate selected input.")
+        self.notes: list[Note] = []
+        self.chapters: list[dict] = []
+        chapter_roots = set()
+        seen = set()
+        for path in selected:
+            note = None if path.is_dir() else read_note(path)
+            if path.is_dir() or (path.name.lower() == "index.md"
+                                 and note.metadata.get("type") == "ingest"):
+                root = path if path.is_dir() else path.parent
+                require(chapter_directory(root),
+                        f"Not a chapter directory: {root}. Use --list-chapters on the vault first.")
+                if root in chapter_roots:
+                    continue
+                chapter_roots.add(root)
+                notes, report = discover_chapter(root)
+                self.chapters.append(report)
+            else:
+                notes = [note]
+            for item in notes:
+                if item.path not in seen:
+                    seen.add(item.path)
+                    self.notes.append(item)
 
     def resolve(self, ref: str, origin: Note | None = None) -> tuple[Note, str]:
         require(isinstance(ref, str) and bool(ref), "Expected nonempty note reference.")
@@ -236,6 +373,10 @@ class Library:
     def inventory(self) -> list[dict]:
         return [{"path": str(note.path), "id": note.id, "title": note.title,
                  "type": note.metadata.get("type"), "lines": len(note.text.splitlines()),
+                 "order": note.metadata.get("order"),
+                 "relationships": {key: note.metadata[key]
+                                   for key in ("courses", "exercises", "corrections", "question")
+                                   if key in note.metadata},
                  "blocks": [{"ref": f"{note.id}#^{part.block}", "kind": part.kind,
                              "label": part.label, "relationships": part.fields}
                             for part in note.parts if part.block],

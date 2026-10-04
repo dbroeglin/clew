@@ -8,6 +8,7 @@
     {"id": 5, "prompt": "Overwrite this existing HTML with the selected current notes.", "expected_output": "Scope replacement to that exact derived file, check the layout, use --overwrite, and never delete directories or change source notes.", "files": []},
     {"id": 6, "prompt": "The selected note contains Dataview, SVG figures, and a missing course reference.", "expected_output": "Report unsupported constructs and missing selected targets precisely; do not execute plugins/scripts, silently discard content, scan unrelated notes, or invent a fallback.", "files": []},
     {"id": 7, "prompt": "Make all three questions have exactly three hints.", "expected_output": "Use only existing aids with their actual counts; explain that authoring new learning content belongs to Enrich.", "files": []},
-    {"id": 8, "prompt": "Plan generation from these notes.", "expected_output": "Inspect and propose selectors/commands without writing the HTML; do not mistake planning for execution authorization.", "files": []}
+    {"id": 8, "prompt": "Plan generation from these notes.", "expected_output": "Inspect and propose selectors/commands without writing the HTML; do not mistake planning for execution authorization.", "files": []},
+    {"id": 9, "prompt": "Generate my algebra course from this vault. It was organized by Ingest.", "expected_output": "Use the established vault path and bounded --list-chapters discovery to identify the unique matching chapter by title/context, then inspect its folder/index. Discover course, exercise, correction, and optional aid notes using topology and metadata without asking for each filename, reading retained source Markdown as notes, or validating hashes. Ask only if chapter/mapping ambiguity remains.", "files": []}
   ]
 }

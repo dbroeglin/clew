@@ -1,5 +1,22 @@
 # A small publication
 
+For an ordinary Ingest chapter, there is no need to list its individual notes:
+
+```json
+{
+  "schema_version": 1,
+  "title": "Revision d'algebre",
+  "notes": ["C:/vault/courses/PT/maths/algebre"],
+  "output": "C:/publications/algebre.html"
+}
+```
+
+`inspect_notes.py <chapter>` discovers the current course, exercises,
+corrections, optional aids, and their existing links/order. If only the vault
+and course name are known, `inspect_notes.py <vault> --list-chapters` helps the
+skill identify the matching chapter without asking for note filenames.
+Unresolved semantic mappings still belong to the skill, not the discovery script.
+
 Select current course, exercise, and correction notes. Suppose the exercise has
 two anchored question callouts and the correction already links its answers
 through `question::` fields. Only the question-specific course excerpts need a

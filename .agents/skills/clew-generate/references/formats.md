@@ -26,10 +26,29 @@ Unknown layout/options keys are rejected. Paths are absolute or relative to the
 layout file; output must be `.html` under an existing parent.
 Nothing requires a fixed vault layout, Ingest record, or immutable notes.
 
+For normal Ingest content, `notes: ["C:/vault/courses/PT/maths/algebre"]`
+is sufficient. A chapter directory or its schema-1 `type: ingest` `index.md`
+expands to current Markdown under `courses/`, `exercices/`, and `corriges/`,
+recursively within those role directories. Optional `aides/` and chapter-root
+notes with `type: help` are included. Explicit files can be combined with chapter
+inputs; overlapping discovered notes are included once.
+
+Existing frontmatter supplies IDs/roles/order. Notes without a type inherit the
+known directory role. Discovered roles follow course/exercise/correction/help
+order; notes follow positive integer `order` metadata with deterministic ID/path
+ties. Section `courses` links group sections with their parent course.
+An explicit file list still preserves user-specified ordering.
+No `ingest.json` content is read or validated. The index supplies chapter title
+but is not itself rendered as a learning note; `sources/` and hidden entries
+are excluded. A vault root is not a publication scope: first use
+`inspect_notes.py <vault> --list-chapters`, then select the desired chapter.
+The list operation stops at chapter roots and reports inventory-limit omissions.
+
 Optional `courses` and `exercises` are ordered arrays of selectors. Defaults
 select notes with frontmatter `type: course`/`section` or `type: exercise`.
-Explicit empty arrays suppress that role. Without metadata, explicitly specify
-the role. At least one course or exercise is required. Unselected notes can
+Explicit empty arrays suppress that role. For explicit files without metadata,
+specify the role; chapter-discovered notes inherit their directory role.
+At least one course or exercise is required. Unselected notes can
 still provide correction/help/excerpt targets; listing a note does not imply
 displaying its entire body.
 
@@ -115,7 +134,8 @@ CommonMark with tables and dollar-delimited math is rendered in Python.
 Lists, code, blockquotes, known callouts, and heading/block references are
 supported. Link targets must be published somewhere: add their view to the
 layout rather than accepting a broken internal link. Contextual course targets
-can open in the side panel. All target notes must be selected in `notes`.
+can open in the side panel. All target notes must be included by a selected
+chapter or selected explicitly in `notes`.
 
 Local PNG/JPEG/GIF/WebP figures, including `![[figure.png]]`, are embedded after
 checking type signatures. Use Markdown syntax for relative image paths.

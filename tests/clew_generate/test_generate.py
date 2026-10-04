@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 SKILL = ROOT / ".agents" / "skills" / "clew-generate"
@@ -17,7 +18,7 @@ sys.path.insert(0, str(SKILL / "scripts"))
 sys.path.insert(0, str(ROOT / "tests"))
 
 from generate_html import generate
-from notes import GenerateError, Library
+from notes import GenerateError, Library, list_chapters
 from publication import compile_layout, load_layout
 from render_html import Renderer
 from runtime_fixtures import build_wheelhouse
@@ -127,6 +128,17 @@ class GenerateTests(unittest.TestCase):
         self.assertIn("<title>{{DATA}}</title>", page)
         self.assertIn('"title":"{{DATA}}"', page)
 
+    def test_repeated_markup_is_owned_by_native_html_templates(self):
+        template = (SKILL / "assets" / "template.html").read_text(encoding="utf-8")
+        script = (SKILL / "assets" / "interaction.js").read_text(encoding="utf-8")
+        for name in ("course", "exercise", "question", "course-link", "content",
+                     "method", "hints", "hint", "correction"):
+            self.assertIn(f'<template id="template-{name}">', template)
+        self.assertNotIn("createElement", script)
+        self.assertNotIn('<p class=', script)
+        self.assertNotIn('<div>', script)
+        self.assertIn('data-label-open="Afficher la correction"', template)
+
     def test_course_only_and_unnumbered_exercise(self):
         self.modify(exercises=[], courses=["cours"])
         self.assertEqual(len(self.model()["reading"]), 1)
@@ -136,6 +148,94 @@ class GenerateTests(unittest.TestCase):
         self.assertEqual(len(model["questions"]), 1)
         self.assertEqual(model["exercises"][0]["context"], "")
         self.assertEqual(str(model).count("Une seule question"), 1)
+
+    def chapter_fixture(self) -> Path:
+        chapter = self.root / "vault" / "courses" / "PT" / "maths" / "algebre"
+        chapter.mkdir(parents=True)
+        for role in ("courses", "exercices", "corriges", "sources"):
+            (chapter / role).mkdir()
+        for filename, role in [("cours.md", "courses"), ("exercice-1.md", "exercices"),
+                               ("exercice-2.md", "exercices"), ("exercice-3.md", "exercices"),
+                               ("corrige.md", "corriges")]:
+            shutil.copyfile(self.root / filename, chapter / role / filename)
+        for filename in ("figure.png", "original.pdf"):
+            shutil.copyfile(self.root / filename, chapter / "courses" / filename)
+        shutil.copyfile(self.root / "aides.md", chapter / "aides.md")
+        (chapter / "index.md").write_text(
+            '---\ntype: ingest\nid: algebre\ntitle: "Révision algèbre"\n---\n'
+            '[[cours]]\n[[ex-1]]\n[[corrige]]\n', encoding="utf-8")
+        (chapter / "ingest.json").write_text("Not consulted by Generate", encoding="utf-8")
+        (chapter / "sources" / "document.md").write_text(
+            "---\n: deliberately malformed frontmatter\n---\n", encoding="utf-8")
+        (chapter / ".obsidian").mkdir()
+        (chapter / ".obsidian" / "private.md").write_text("not a learning note", encoding="utf-8")
+        for filename, value in [("exercice-1.md", 30), ("exercice-2.md", 10),
+                                 ("exercice-3.md", 20)]:
+            path = chapter / "exercices" / filename
+            path.write_text(path.read_text(encoding="utf-8").replace(
+                "type: exercise", f"type: exercise\norder: {value}"), encoding="utf-8")
+        return chapter
+
+    def test_discover_ingest_chapter_and_index_with_metadata_order(self):
+        chapter = self.chapter_fixture()
+        for selected in (chapter, chapter / "index.md"):
+            library = Library([selected])
+            self.assertEqual(len(library.notes), 6)
+            self.assertEqual(library.chapters[0]["title"], "Révision algèbre")
+            exercises = [note.id for note in library.notes if note.metadata.get("type") == "exercise"]
+            self.assertEqual(exercises, ["ex-2", "ex-3", "ex-1"])
+            self.assertFalse(any(note.path.parent.name == "sources" for note in library.notes))
+        self.modify(notes=[str(chapter)])
+        model = self.model()
+        self.assertEqual([exercise["title"] for exercise in model["exercises"]],
+                         ["Exercice 2", "Exercice 3", "Exercice 1"])
+        self.assertTrue(all(len(question["corrections"]) == 1 for question in model["questions"]))
+        generate(self.layout)
+
+    def test_find_chapter_within_vault_without_publishing_entire_vault(self):
+        chapter = self.chapter_fixture()
+        vault = self.root / "vault"
+        report = list_chapters(vault)
+        self.assertEqual(report["chapters"], [{"root": str(chapter), "title": "Révision algèbre"}])
+        self.assertEqual(report["omitted"], [])
+        with self.assertRaisesRegex(GenerateError, "list-chapters"):
+            Library([vault])
+        limited = list_chapters(vault, depth=1)
+        self.assertFalse(limited["chapters"])
+        self.assertTrue(limited["omitted"])
+
+    def test_course_only_topology_without_ingest_metadata(self):
+        chapter = self.root / "simple-chapter"
+        (chapter / "courses").mkdir(parents=True)
+        (chapter / "courses" / "cours.md").write_text("# Cours\n\nTexte actuel.", encoding="utf-8")
+        self.modify(notes=[str(chapter)])
+        model = self.model()
+        self.assertEqual(len(model["reading"]), 1)
+        self.assertFalse(model["exercises"])
+
+    def test_discovered_sections_follow_their_parent_and_inspector_reports_links(self):
+        chapter = self.chapter_fixture()
+        (chapter / "courses" / "section.md").write_text(
+            '---\nid: section\ntype: section\norder: 1\ncourses: ["[[cours]]"]\n---\n'
+            '## Section\n\nTexte.', encoding="utf-8")
+        library = Library([chapter, chapter / "index.md"])
+        courses = [note.id for note in library.notes
+                   if note.metadata.get("type") in {"course", "section"}]
+        self.assertEqual(courses, ["cours", "section"])
+        result = subprocess.run(
+            [sys.executable, "-B", str(SKILL / "scripts" / "inspect_notes.py"), str(chapter)],
+            capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        report = json.loads(result.stdout)
+        section = next(note for note in report["notes"] if note["id"] == "section")
+        self.assertEqual(section["relationships"]["courses"], ["[[cours]]"])
+        self.assertEqual(section["order"], 1)
+        result = subprocess.run(
+            [sys.executable, "-B", str(SKILL / "scripts" / "inspect_notes.py"),
+             str(self.root / "vault"), "--list-chapters"],
+            capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(json.loads(result.stdout)["containers"][0]["chapters"]), 1)
 
     def test_plain_heading_and_block_overrides(self):
         (self.root / "simple.md").write_text("# Question\n\nCalculer $x$.\n\n^q\n",
@@ -233,7 +333,20 @@ class GenerateTests(unittest.TestCase):
                          "Set CLEW_TEST_BROWSER=1 for local browser checks.")
     def test_browser_offline_file_and_interactions(self):
         from playwright.sync_api import sync_playwright
-        generate(self.layout)
+        assets = self.root / "edited-assets"
+        shutil.copytree(SKILL / "assets", assets)
+        template = assets / "template.html"
+        markup = template.read_text(encoding="utf-8")
+        markup = markup.replace(
+            '<section class="question" data-slot="question">',
+            '<article class="question" data-slot="question">').replace(
+            "</section>\n</template>", "</article>\n</template>")
+        markup = markup.replace('<div data-slot="statement"></div>',
+                                '<div class="edited-layout"><div data-slot="statement"></div></div>')
+        template.write_text(markup, encoding="utf-8")
+        shutil.copyfile(SKILL / "LICENSE", self.root / "LICENSE")
+        with patch("render_html.ASSETS", assets):
+            generate(self.layout)
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch(channel="msedge", headless=True)
             page = browser.new_page()
@@ -244,10 +357,17 @@ class GenerateTests(unittest.TestCase):
             page.route("https://**/*", lambda route: (requests.append(route.request.url), route.abort()))
             page.goto((self.root / "publication.html").as_uri())
             page.wait_for_function("!!window.MathJax?.startup?.document")
+            self.assertEqual(page.locator("article.question .edited-layout").count(), 6)
+            self.assertEqual(page.locator('[data-help="method"]').count(), 1)
+            self.assertEqual(page.locator('[data-help="hints"]').count(), 1)
+            self.assertEqual(page.locator(".exercise").count(), 3)
             page.get_by_role("button", name="Commencer l'exercice").first.click()
+            self.assertEqual(page.locator(".exercise[open]").count(), 1)
             page.wait_for_selector(".exercise[open] mjx-container svg")
             page.get_by_role("button", name="Méthode", exact=True).click()
             page.get_by_role("heading", name="Méthode · Question 1").wait_for()
+            self.assertTrue(page.get_by_role("heading", name="Méthode · Question 1").evaluate(
+                "node => node === document.activeElement"))
             page.get_by_role("button", name="Indices", exact=True).click()
             page.wait_for_function("document.querySelectorAll('#panel-content .hint:not([hidden])').length === 1")
             reveal = page.get_by_role("button", name="Révéler l'indice suivant")
@@ -255,11 +375,17 @@ class GenerateTests(unittest.TestCase):
             self.assertEqual(page.locator("#panel-content .hint:not([hidden])").count(), 2)
             reveal.click()
             self.assertTrue(reveal.is_hidden())
-            first = page.get_by_role("button", name="Afficher la correction").first
+            page.get_by_role("button", name="Indices", exact=True).click()
+            self.assertEqual(page.locator("#panel-content .hint:not([hidden])").count(), 1)
+            first = page.locator(".question").first.locator('[data-action="correction"]')
             first.click()
             self.assertEqual(page.locator(".correction:not([hidden])").count(), 1)
+            self.assertEqual(first.get_attribute("aria-expanded"), "true")
             page.locator(".question").nth(1).get_by_role("button", name="Afficher la correction").click()
             self.assertEqual(page.locator(".correction:not([hidden])").count(), 1)
+            self.assertEqual(first.get_attribute("aria-expanded"), "false")
+            page.get_by_role("button", name="Masquer la correction").click()
+            self.assertEqual(page.locator(".correction:not([hidden])").count(), 0)
             page.locator(".question").first.get_by_role("button", name="Cours · Sous-espace").first.click()
             page.wait_for_selector("#panel-content mjx-container svg")
             self.assertTrue(page.locator("#error").is_hidden())
