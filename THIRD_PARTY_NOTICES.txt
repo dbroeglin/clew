@@ -1,5 +1,14 @@
 Third-party agent skills and extension dependencies
 
+MathJax offline SVG runtime
+Source: https://www.npmjs.com/package/mathjax/v/3.2.2
+Version: 3.2.2
+File: .agents/skills/clew-generate/assets/mathjax/tex-svg.js (unmodified)
+License: Apache License 2.0; full license and provenance are retained in
+.agents/skills/clew-generate/assets/mathjax/.
+The runtime is embedded during HTML generation; no package download occurs
+when rendering user publications.
+
 Clew PDF converter and offline regression tests
 Source: https://github.com/dbroeglin/clew-old
 Commit: 77c1e4c4569e4e8067f20d3809edd582b1f9a257

@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}}</title>
+<script>
+(() => {
+  const param = new URLSearchParams(window.location.search).get("scoutTheme");
+  const theme =
+    param || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+  document.documentElement.setAttribute("data-theme", theme);
+})();
+</script>
+<style>{{STYLE}}</style>
+<script>
+window.MathJax = {
+  loader: {load: []},
+  tex: {
+    packages: ['base', 'ams', 'newcommand', 'configmacros'],
+    inlineMath: [['$', '$']],
+    displayMath: [['$$', '$$']],
+    macros: {llbracket: '\\lbrack\\!\\lbrack', rrbracket: '\\rbrack\\!\\rbrack'}
+  },
+  svg: {fontCache: 'local'},
+  startup: {typeset: false},
+  options: {
+    enableMenu: false,
+    skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+  }
+};
+</script>
+<script>{{MATHJAX}}</script>
+</head>
+<body>
+<header><p class="eyebrow">Clew · feuille d'exercices et cours</p><h1>{{TITLE}}</h1></header>
+<div id="error" role="alert" hidden></div>
+<main class="workspace">
+  <section class="sheet" aria-label="Cours et exercices"><div id="reading"></div><div id="exercises"></div></section>
+  <aside class="panel" aria-label="Aide contextuelle">
+    <h2 id="panel-title" tabindex="-1">Aide contextuelle</h2>
+    <div id="panel-content" aria-live="polite">Choisissez une méthode, des indices ou un cours.</div>
+  </aside>
+</main>
+<noscript>Activez JavaScript pour lire cette publication interactive.</noscript>
+<template id="licenses">{{LICENSE}}</template>
+<script id="publication" type="application/json">{{DATA}}</script>
+<script>{{SCRIPT}}</script>
+</body>
+</html>

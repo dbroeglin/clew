@@ -15,6 +15,7 @@ from unittest.mock import patch
 
 SCRIPTS = Path(__file__).resolve().parents[2] / ".agents" / "skills" / "clew-ingest" / "scripts"
 sys.path.insert(0, str(SCRIPTS))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from bundle_sources import load_bundle
 from formats import Plan
@@ -491,7 +492,7 @@ class IngestTests(unittest.TestCase):
         copied = self.root / "offline-standalone"
         shutil.copytree(SCRIPTS.parent, copied)
         exported = subprocess.run([
-            "uv", "export", "--package", "clew-ingest", "--locked",
+            "uv", "export", "--package", "clew-ingest", "--locked", "--no-dev",
             "--no-emit-project", "--no-hashes", "--format", "requirements-txt"],
             cwd=SCRIPTS.parents[3], capture_output=True, encoding="utf-8")
         self.assertEqual(exported.returncode, 0, exported.stderr)

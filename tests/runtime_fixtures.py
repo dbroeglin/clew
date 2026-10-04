@@ -1,4 +1,4 @@
-"""Temporary wheel fixtures from installed distributions, never published."""
+"""Shared temporary wheel fixtures from installed distributions, never published."""
 from __future__ import annotations
 
 import base64

@@ -1,0 +1,13 @@
+{
+  "skill_name": "clew-generate",
+  "evals": [
+    {"id": 1, "prompt": "Publish these current course, exercise and correction notes.", "expected_output": "Read selected notes, reuse existing links, write a small selector layout, check and publish one offline HTML without requiring Ingest records or hashes.", "files": []},
+    {"id": 2, "prompt": "Generate a page from Ingest-only notes. They have no hints.", "expected_output": "Publish existing content and omit methods/hint controls. Do not invent aids or run Enrich.", "files": []},
+    {"id": 3, "prompt": "The corrections have ambiguous question numbering.", "expected_output": "Ask a focused mapping question; do not guess using filename similarity or hide an ambiguous answer.", "files": []},
+    {"id": 4, "prompt": "I edited the Obsidian notes since Ingest. Publish those edits.", "expected_output": "Consume current notes directly without validating against ingest.json or restoring the imported text.", "files": []},
+    {"id": 5, "prompt": "Overwrite this existing HTML with the selected current notes.", "expected_output": "Scope replacement to that exact derived file, check the layout, use --overwrite, and never delete directories or change source notes.", "files": []},
+    {"id": 6, "prompt": "The selected note contains Dataview, SVG figures, and a missing course reference.", "expected_output": "Report unsupported constructs and missing selected targets precisely; do not execute plugins/scripts, silently discard content, scan unrelated notes, or invent a fallback.", "files": []},
+    {"id": 7, "prompt": "Make all three questions have exactly three hints.", "expected_output": "Use only existing aids with their actual counts; explain that authoring new learning content belongs to Enrich.", "files": []},
+    {"id": 8, "prompt": "Plan generation from these notes.", "expected_output": "Inspect and propose selectors/commands without writing the HTML; do not mistake planning for execution authorization.", "files": []}
+  ]
+}

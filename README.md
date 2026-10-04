@@ -90,7 +90,7 @@ containers can be proposed but need explicit creation approval.
 
 Ingest preserves supplied text, formulas, and figures. Missing exercises or
 corrections are allowed; generated material and inferred prerequisite graphs
-belong to future Enrich work. HTML Generate is also a separate future phase.
+belong to future Enrich work. HTML Generate is a separate publication phase.
 
 Each ingest creates one new directory:
 
@@ -171,7 +171,45 @@ For a standalone copied skill, run `uv sync` in its directory initially,
 `uv sync --locked` subsequently, omit `--package clew-ingest`, and use the local
 `scripts` directory. Setup is separate from routine read-only inspection.
 
-PDF Import and faithful Ingest are implemented. Enrich, HTML Generate, and other
+## Offline HTML Generate
+
+The [clew-generate skill](.agents/skills/clew-generate/SKILL.md) publishes current
+selected course, exercise, correction, and optional aid notes as one offline
+interactive HTML file. The agent chooses scope/order and unresolved mappings in
+a small [JSON layout](.agents/skills/clew-generate/references/formats.md);
+deterministic Python reads the current notes and renders them. Human edits are
+accepted. No Ingest validation, approval hashes, run ledger, Obsidian plugin,
+server, embedded model, or Azure call is required.
+
+Expandable exercises display methods, progressive hints, inline supplied
+corrections, and contextual course excerpts when those already exist.
+Unavailable controls are omitted; Generate never authors teaching material.
+Guided-step tabs and an Enrich implementation are outside this release.
+The responsive layout uses light/dark styling; it is not a pixel-identical
+copy of the separately authored mock.
+
+HTML embeds styles, scripts, figures, and a pinned licensed MathJax SVG runtime.
+It opens directly from the filesystem without CDNs or network rendering
+dependencies. Original PDFs remain optional external page-addressed links:
+moving the HTML can break those links without affecting the publication.
+Supported Markdown and explicit limitations are documented in the skill:
+raw HTML is escaped, while SVG, remote figures, Dataview, note transclusions,
+and dynamic TeX extensions are unsupported rather than silently executed.
+
+With the workspace environment installed:
+
+```powershell
+uv run --package clew-generate --locked --no-sync python -B ".agents\skills\clew-generate\scripts\inspect_notes.py" "C:\vault\cours.md" "C:\vault\exercice.md" "C:\vault\corrige.md"
+uv run --package clew-generate --locked --no-sync python -B ".agents\skills\clew-generate\scripts\generate_html.py" "C:\plans\layout.json" --check
+uv run --package clew-generate --locked --no-sync python ".agents\skills\clew-generate\scripts\generate_html.py" "C:\plans\layout.json"
+```
+
+Check scope and warnings before publication. The output parent must exist;
+existing HTML is refused unless replacing that exact file was explicitly
+requested with `--overwrite`. Source notes are never changed. A standalone
+copy uses its own `uv sync` setup and local `scripts` paths, without `--package`.
+
+PDF Import, faithful Ingest, and HTML Generate are implemented. Enrich and other
 source formats remain future work.
 
 ## Development
@@ -180,9 +218,11 @@ source formats remain future work.
 uv sync --all-packages --locked
 uv run --package clew-import --locked --no-sync python -B -m unittest discover -s "tests\clew_import"
 uv run --package clew-ingest --locked --no-sync python -B -m unittest discover -s "tests\clew_ingest"
+uv run --package clew-generate --locked --no-sync python -B -m unittest discover -s "tests\clew_generate"
 ```
 
-Script tests and fixtures belong to `tests/clew_import/` and `tests/clew_ingest/`,
+Script tests and fixtures belong to `tests/clew_import/`, `tests/clew_ingest/`,
+and `tests/clew_generate/`,
 never inside skill directories. Tests use synthetic documents and mocked/local
 SDK transports, not live Azure. Workflow eval descriptions remain inside skills.
 Ingest tests also install an unchanged copied skill into an independent UV
@@ -191,6 +231,18 @@ local wheels from the installed, locked runtime distributions, retaining their
 licenses and rebuilding wheel records; it requires neither registry access nor
 repository files at runtime. These fixtures remain outside the skill and are
 removed with the test's temporary directory.
+
+Generate tests include a synthetic three-exercise/six-question chapter and an
+independent copied-skill UV environment using temporary wheels built from the
+installed locked runtime distributions (shared `tests/runtime_fixtures.py`). Optional
+browser checks use the root development dependency Playwright and installed
+Microsoft Edge, opening local HTML with HTTP(S) requests blocked:
+
+```powershell
+$env:CLEW_TEST_BROWSER = "1"
+uv run --package clew-generate --locked --no-sync python -B -m unittest discover -s "tests\clew_generate"
+Remove-Item Env:\CLEW_TEST_BROWSER
+```
 
 An additional live-PyPI resolution check is opt-in (it never contacts Azure or
 a document service):
