@@ -10,6 +10,7 @@ import re
 import shutil
 import stat
 import sys
+import tomllib
 from collections.abc import Mapping, Sequence
 from pathlib import Path, PureWindowsPath
 from urllib.parse import urlsplit
@@ -18,7 +19,41 @@ import pymupdf
 
 import digest_pdf
 
-PROJECT_ROOT = Path(__file__).resolve().parents[4]
+SKILL_ROOT = Path(__file__).resolve().parents[1]
+
+
+def is_workspace(project: Path) -> bool:
+    try:
+        data = tomllib.loads((project / "pyproject.toml").read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, tomllib.TOMLDecodeError):
+        return False
+    return isinstance(data.get("tool", {}).get("uv", {}).get("workspace"), dict)
+
+
+def is_workspace_member(project: Path, member: Path) -> bool:
+    try:
+        data = tomllib.loads((project / "pyproject.toml").read_text(encoding="utf-8"))
+        workspace = data.get("tool", {}).get("uv", {}).get("workspace")
+        relative = member.resolve().relative_to(project.resolve())
+    except (OSError, UnicodeError, ValueError, tomllib.TOMLDecodeError):
+        return False
+    if not isinstance(workspace, dict) or not isinstance(workspace.get("members"), list):
+        return False
+    patterns = [pattern for pattern in workspace["members"] if isinstance(pattern, str)]
+    excludes = [pattern for pattern in workspace.get("exclude", []) if isinstance(pattern, str)]
+    return any(relative.match(pattern) for pattern in patterns) and not any(
+        relative.match(pattern) for pattern in excludes
+    )
+
+
+def project_root() -> Path:
+    for candidate in SKILL_ROOT.parents:
+        if (candidate / "uv.lock").is_file() and is_workspace_member(candidate, SKILL_ROOT):
+            return candidate
+    return SKILL_ROOT
+
+
+PROJECT_ROOT = project_root()
 CONVERTER = Path(__file__).with_name("digest_pdf.py")
 COMPLETE_STATUSES = {"extracted", "needs_review"}
 
@@ -248,11 +283,23 @@ def powershell_command(argv: Sequence[str]) -> str:
 
 def environment_blockers(project: Path, check_env: bool) -> list[str]:
     blockers = []
-    for name in ("pyproject.toml", "uv.lock", ".env"):
+    for name in ("pyproject.toml", ".env"):
         if not (project / name).is_file():
             blockers.append(f"Project root is missing {name}.")
+    if not (project / "uv.lock").is_file():
+        if project == SKILL_ROOT:
+            blockers.append("Standalone lock is missing; approve initial uv sync before conversion.")
+        else:
+            blockers.append("Workspace root is missing uv.lock.")
     if not (project / ".venv").is_dir():
-        blockers.append("Project environment is missing; approve uv sync --locked before planning.")
+        if is_workspace(project):
+            blockers.append(
+                "Project environment is missing; approve uv sync --all-packages --locked before planning."
+            )
+        elif (project / "uv.lock").is_file():
+            blockers.append("Project environment is missing; approve uv sync --locked before planning.")
+        else:
+            blockers.append("Project environment and lock are missing; approve initial uv sync before planning.")
     if shutil.which("uv") is None:
         blockers.append("UV is unavailable; no global-Python conversion fallback is allowed.")
     if check_env:
@@ -306,11 +353,14 @@ def build_plan(
                 entry.update(classification="already_converted", reason="Source, artifacts, and page scope match.",
                              review_issues=issues)
             else:
-                argv = [
-                    "uv", "run", "--locked", "--env-file", ".env",
+                argv = ["uv", "run"]
+                if is_workspace(project):
+                    argv.extend(["--package", "clew-import"])
+                argv.extend([
+                    "--locked", "--env-file", ".env",
                     "python", str(CONVERTER), str(source), "--output", str(output),
                     "--dpi", str(dpi), "--max-output-tokens", str(max_output_tokens),
-                ]
+                ])
                 if pages is not None:
                     argv.extend(["--pages", pages])
                 if high_resolution_ocr:
@@ -330,6 +380,11 @@ def build_plan(
         except digest_pdf.DigestionError:
             # The explicit configuration error is already included in blockers.
             configuration = None
+    setup = ["uv", "sync"]
+    if is_workspace(project):
+        setup.append("--all-packages")
+    if (project / "uv.lock").is_file():
+        setup.append("--locked")
     return {
         "schema_version": 1, "working_directory": str(project),
         "input": str(input_path.resolve()), "entries": entries,
@@ -337,7 +392,7 @@ def build_plan(
         "preflight_blockers": blockers,
         "configuration": configuration,
         "setup_required": not (project / ".venv").is_dir(),
-        "setup_command": powershell_command(["uv", "sync", "--locked"]),
+        "setup_command": powershell_command(setup),
         "requires_approval": True,
     }
 

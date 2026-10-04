@@ -1,7 +1,21 @@
 # Clew
 
-Agent skills for faithful document processing and personalized learning.
+Clew builds autonomous, portable agent skills for faithful document processing
+and personalized learning. Each skill directory is intended to be a distributable
+artifact: it contains its operating instructions, code, direct dependency
+declarations, configuration guidance, tests/evals, and provenance rather than
+depending on knowledge hidden elsewhere in this repository.
+
+Clew hosts those independent skill projects in one UV workspace so development
+uses a shared lockfile and virtual environment. A copied skill can still resolve
+and install its declared dependencies as its own UV project. External services,
+platform capabilities, host integrations, and dependencies on other skills must
+be explicit.
+
 Architecture decisions are indexed in [docs/adr/README.md](docs/adr/README.md).
+[ADR-0003](docs/adr/0003-autonomous-portable-skills.md) defines the portable-skill
+contract and makes coherent, complete, correct documentation part of the
+definition of done for every task and pull request.
 
 ## PDF Import
 
@@ -17,16 +31,18 @@ are reported rather than silently skipped. Actual symlinks and junctions remain
 blocked. Retry cleanup still needs explicit approval: deletion in a shared
 synchronized folder can propagate to collaborators and other devices.
 
-The skill uses the bundled PDF converter and a **project-level** UV environment.
-Setup uses `uv sync --locked`. Configure a root `.env` using `.env.example` as
-guidance, with real Azure endpoints and a vision/structured-output deployment.
-Authentication uses Entra ID through `DefaultAzureCredential`, not API keys.
-Do not commit `.env`.
+The skill uses its bundled PDF converter and declares its dependencies in
+[its own UV project](.agents/skills/clew-import/pyproject.toml). Clew resolves
+all skills into one shared environment; setup uses
+`uv sync --all-packages --locked`. Configure a root `.env` using the skill's
+[`.env.example`](.agents/skills/clew-import/.env.example) as guidance, with real
+Azure endpoints and a vision/structured-output deployment. Authentication uses
+Entra ID through `DefaultAzureCredential`, not API keys. Do not commit `.env`.
 
 From the repository root, a direct conversion looks like:
 
 ```powershell
-uv run --locked --env-file .env python ".agents\skills\clew-import\scripts\digest_pdf.py" "C:\courses\chapter_1.pdf" --output "C:\courses\chapter_1"
+uv run --package clew-import --locked --env-file .env python ".agents\skills\clew-import\scripts\digest_pdf.py" "C:\courses\chapter_1.pdf" --output "C:\courses\chapter_1"
 ```
 
 This sends document content to configured Azure services and may incur charges.
@@ -38,7 +54,7 @@ The skill asks before deleting a verified failed output and retrying.
 For read-only inspection with the environment already installed:
 
 ```powershell
-uv run --locked --no-sync python -B ".agents\skills\clew-import\scripts\plan_imports.py" "C:\courses"
+uv run --package clew-import --locked --no-sync python -B ".agents\skills\clew-import\scripts\plan_imports.py" "C:\courses"
 ```
 
 Add `--env-file .env` before `python` and `--check-env` after the input to check
@@ -53,8 +69,8 @@ other source formats are separate phases or future work.
 ## Development
 
 ```powershell
-uv sync --locked
-uv run --locked python -m unittest discover -s tests
+uv sync --all-packages --locked
+uv run --package clew-import --locked python -m unittest discover -s ".agents\skills\clew-import\tests"
 ```
 
 Tests use synthetic documents and mocked/local SDK transports, not live Azure.

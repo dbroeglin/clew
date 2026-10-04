@@ -6,6 +6,12 @@ resolution-markers = [
     "python_full_version < '3.12' or sys_platform != 'emscripten'",
 ]
 
+[manifest]
+members = [
+    "clew",
+    "clew-import",
+]
+
 [[package]]
 name = "annotated-types"
 version = "0.8.0"
@@ -329,6 +335,11 @@ wheels = [
 name = "clew"
 version = "1.0.0"
 source = { virtual = "." }
+
+[[package]]
+name = "clew-import"
+version = "1.0.0"
+source = { virtual = ".agents/skills/clew-import" }
 dependencies = [
     { name = "azure-ai-documentintelligence" },
     { name = "azure-identity" },

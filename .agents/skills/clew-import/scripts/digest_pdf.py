@@ -362,7 +362,7 @@ def settings_from_env(env: Mapping[str, str]) -> Settings:
     def required(name: str) -> str:
         value = env.get(name, "").strip()
         if not value:
-            raise DigestionError(f"Set {name}; see .env.example.")
+            raise DigestionError(f"Set {name}; see the bundled .env.example.")
         return value
 
     def endpoint(value: str) -> str:
