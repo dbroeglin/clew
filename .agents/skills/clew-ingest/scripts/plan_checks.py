@@ -212,7 +212,143 @@ def check_plan(plan: Plan, bundles: dict[str, Bundle]) -> list[dict]:
     for issue in issues:
         if issue.get("note"):
             require(issue["note"] in notes, "Review issue refers to an unknown note.")
+    review_structure(plan, bundles)
     return issues
+
+
+def review_structure(plan: Plan, bundles: dict[str, Bundle]) -> dict:
+    exceptions = {}
+    for issue in plan.issues:
+        if issue.code.startswith("structure-"):
+            key = (issue.note, issue.code)
+            require(key not in exceptions, f"Duplicate structure exception: {key}")
+            require(issue.note is not None and bool(issue.message.strip()),
+                    "Structure exceptions need a note and source-specific reasoning.")
+            exceptions[key] = issue
+    used = set()
+    reviews = []
+    units = []
+    note_units: dict[str, list[dict]] = defaultdict(list)
+
+    def owner(source: str, line: int) -> Note:
+        return next(note for note in plan.notes for part in note.parts
+                    if part.source == source and part.start <= line <= part.end)
+
+    def explain(note: Note, code: str, message: str, evidence: dict) -> None:
+        key = (note.id, code)
+        require(key in exceptions,
+                f"{message} Add a source-specific issue with note '{note.id}' and code '{code}'.")
+        used.add(key)
+        reviews.append({"note": note.id, "code": code,
+                        "message": exceptions[key].message, **evidence})
+
+    for note in plan.notes:
+        role = {"exercise": "question", "correction": "answer"}.get(note.type)
+        if role:
+            require(any(part.role == role for part in note.parts),
+                    f"{note.type.capitalize()} note needs anchored {role} parts: {note.id}")
+    for source, bundle in bundles.items():
+        rows = bundle.markdown.outline
+        candidates = []
+        for row in rows:
+            if row["kind"] not in {"exercise", "correction"}:
+                continue
+            note = owner(source, row["start"])
+            code = f"structure-candidate:{source}:{row['start']}"
+            if (note.id, code) in exceptions:
+                explain(note, code, "", {"source": source, "candidate": row})
+            else:
+                candidates.append(row)
+        for index, row in enumerate(candidates):
+            start = row["start"]
+            end = candidates[index + 1]["start"] - 1 if index + 1 < len(candidates) else len(bundle.markdown.lines)
+            note = owner(source, start)
+            require(note.type in {"exercise", "correction"}
+                    and (row["kind"] != "correction" or note.type == "correction"),
+                    f"Exercise/correction candidate {source}:{start} is in {note.type} note "
+                    f"{note.id}; structure the unit, or use 'structure-candidate:{source}:{start}' for this note "
+                    "only if source review establishes a misleading candidate.")
+            role = "question" if note.type == "exercise" else "answer"
+            # Shared introductions may belong to the following unit; only structural
+            # children and the heading establish ownership of this candidate.
+            owners = {note.id} | {other.id for other in plan.notes if other.type == note.type
+                                  for part in other.parts if part.source == source and part.role == role
+                                  and part.start <= end and start <= part.end}
+            require(len(owners) == 1,
+                    f"Exercise/correction unit {source}:{start}-{end} is split between notes: "
+                    f"{sorted(owners)}")
+            unit = {"source": source, "start": start, "end": end, "label": row["label"],
+                    "note": note.id, "type": note.type,
+                    "safe_start": start - 1 in bundle.markdown.boundaries,
+                    "safe_end": end in bundle.markdown.boundaries}
+            units.append(unit)
+            note_units[note.id].append(unit)
+            require(len(note_units[note.id]) == 1,
+                    f"Note {note.id} aggregates independent exercise/correction units: "
+                    f"{[(item['source'], item['start']) for item in note_units[note.id]]}. "
+                    + ("A candidate boundary is parser-unsafe; stop for a source-specific decision."
+                       if any(not item["safe_start"] or not item["safe_end"]
+                              for item in note_units[note.id]) else "Use one note per unit."))
+        course_groups: dict[tuple[str, str], list[dict]] = defaultdict(list)
+        item_groups: dict[int, list[dict]] = defaultdict(list)
+        for row in rows:
+            note = owner(source, row["start"])
+            if row["kind"] == "heading" and note.type in {"course", "section"}:
+                family = (".".join(map(str, row["number"][:-1])) or "root") if row["number"] else (
+                    f"heading-{row['parent'] or 'root'}-{row['level']}")
+                course_groups[note.id, family].append(row)
+            if row["kind"] == "item" and row["level"] == 1:
+                item_groups[row["parent"]].append(row)
+        for (note_id, family), peers in course_groups.items():
+            if len(peers) > 1:
+                note = next(note for note in plan.notes if note.id == note_id)
+                explain(note, f"structure-course-group:{source}:{family}",
+                        f"Course note {note.id} groups peer topics in {source}.",
+                        {"source": source, "candidates": peers})
+        for parent, items in item_groups.items():
+            owners = {owner(source, row["start"]).id for row in items
+                      if owner(source, row["start"]).type in {"exercise", "correction"}}
+            covered = any(unit["source"] == source and unit["start"] <= parent <= unit["end"]
+                          for unit in units)
+            if len(owners) > 1 and not covered:
+                explain(owner(source, parent), f"structure-candidate:{source}:{parent}",
+                        f"Unheaded source list {source}:{parent} crosses exercise/correction notes.",
+                        {"source": source, "candidates": items, "owners": sorted(owners)})
+        for note in plan.notes:
+            if note.type not in {"exercise", "correction"}:
+                continue
+            for part in note.parts:
+                if part.source != source:
+                    continue
+                internal = [row for row in rows if part.start <= row["start"] <= row["end"] <= part.end
+                            and (row["kind"] == "question"
+                                 or (row["kind"] == "heading" and row["number"])
+                                 or (row["kind"] == "item" and row["level"] == 1
+                                     and len(item_groups[row["parent"]]) > 1))]
+                groups = defaultdict(list)
+                for row in internal:
+                    key = (row["kind"], row["parent"] if row["kind"] == "item"
+                           else tuple(row["number"][:-1]) if row["kind"] == "heading" else ())
+                    groups[key].append(row)
+                if internal and (part.role == "text" or any(len(group) > 1 for group in groups.values())):
+                    explain(note, f"structure-block-group:{source}:{part.start}",
+                            f"Internal question/answer candidates need review in {note.id} "
+                            f"at {source}:{part.start}-{part.end}.",
+                            {"source": source, "start": part.start, "end": part.end,
+                             "role": part.role, "candidates": internal})
+    require(used == set(exceptions),
+            f"Unknown, unscoped, or unused structure exceptions: {sorted(set(exceptions) - used)}")
+    return {
+        "requires_agent_review": True, "units": units, "exceptions": reviews,
+        "notes": [{"id": note.id, "type": note.type,
+                   "parts": [part.model_dump(exclude_none=True) for part in note.parts],
+                   "question_count": sum(part.role == "question" for part in note.parts),
+                   "answer_count": sum(part.role == "answer" for part in note.parts),
+                   "questions": [f"{note.id}#^{part.id}" for part in note.parts if part.role == "question"],
+                   "answers": [f"{note.id}#^{part.id}" for part in note.parts if part.role == "answer"]}
+                  for note in plan.notes],
+        "relationships": [edge.model_dump() for edge in plan.relationships],
+    }
 
 
 def output_paths(plan: Plan, bundles: dict[str, Bundle]) -> list[str]:

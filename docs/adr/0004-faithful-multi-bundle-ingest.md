@@ -3,6 +3,10 @@
 - Status: Accepted
 - Date: 2026-10-04
 
+> Later refinement: [ADR-0008](0008-exercise-unit-pipeline-contract.md)
+> establishes exercise-level note ownership and internal question/answer
+> structure, with explicit source-unit review in normal plan checks.
+
 ## Context
 
 ADR-0001 separates conversion, faithful organization, enrichment, and publication.

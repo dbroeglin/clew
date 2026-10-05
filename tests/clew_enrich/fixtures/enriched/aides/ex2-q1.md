@@ -2,8 +2,8 @@
 schema_version: 1
 id: sequences-demo-aid-ex2-1
 type: help
-question: "[[sequences-demo-exercises#^q-ex2-1]]"
-correction: "[[sequences-demo-corrections#^r-ex2-1]]"
+question: "[[sequences-demo-exercise-2#^q-ex2-1]]"
+correction: "[[sequences-demo-correction-2#^r-ex2-1]]"
 ---
 
 > [!hint]

@@ -3,6 +3,10 @@
 - Status: Accepted
 - Date: 2026-10-04
 
+> Later refinement: [ADR-0008](0008-exercise-unit-pipeline-contract.md)
+> fixes source exercise/correction units and checks supplied-answer ownership.
+> Question-scoped help notes remain auxiliary additions, not source units.
+
 ## Context
 
 ADR-0001 separates faithful Ingest, optional Enrich, and repeatable Generate.

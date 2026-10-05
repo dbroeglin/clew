@@ -11,6 +11,16 @@ from mdit_py_plugins.dollarmath import dollarmath_plugin
 from ingest_io import relative_path, require
 
 PAGE = re.compile(r"<!-- page: ([1-9][0-9]*) -->")
+EXERCISE_HEADING = re.compile(
+    r"^(?:(?:correction|solution|corrig(?:e|\u00e9))\s+(?:de\s+)?"
+    r"(?:l['\u2019]\s*)?)?(?:exercice|exercise|problem|probl(?:e|\u00e8)me)"
+    r"(?:\s+(?:[0-9]+|[a-z])(?:\s|[.):-]|$)|\s*[:.-]|\s*$)", re.IGNORECASE)
+CORRECTION_HEADING = re.compile(
+    r"^(?:correction|solution|corrig(?:e|\u00e9))\s+(?:[0-9]+|[a-z])"
+    r"(?:\s|[.):-]|$)", re.IGNORECASE)
+NUMBERED_HEADING = re.compile(r"^([0-9]+(?:\.[0-9]+)*)(?:[.)]|\s)\s*")
+QUESTION_HEADING = re.compile(r"^(?:question|answer|r(?:e|\u00e9)ponse)\s+[0-9]+",
+                              re.IGNORECASE)
 
 
 def source_lines(text: str) -> list[str]:
@@ -57,6 +67,50 @@ class MarkdownSource:
             protected.update(range(start + 1, end))
         self.boundaries = sorted(set(range(len(self.lines) + 1)) - protected)
         self.links = self._links()
+        self.outline = self._outline()
+
+    def _outline(self) -> list[dict]:
+        rows = []
+        headings: list[dict] = []
+        numbered: dict[tuple[int, ...], dict] = {}
+        lists = []
+        safe = set(self.boundaries)
+        for index, token in enumerate(self.tokens):
+            if token.type in {"ordered_list_open", "bullet_list_open"}:
+                lists.append(token)
+            elif token.type in {"ordered_list_close", "bullet_list_close"}:
+                lists.pop()
+            if token.map is None:
+                continue
+            start, end = token.map
+            row = {"start": start + 1, "end": end,
+                   "safe_start": start in safe, "safe_end": end in safe}
+            if token.type == "heading_open":
+                inline = self.tokens[index + 1]
+                label = "".join(child.content for child in inline.children or [])
+                match = NUMBERED_HEADING.match(label)
+                number = [int(value) for value in match[1].split(".")] if match else []
+                level = int(token.tag[1:])
+                while headings and headings[-1]["level"] >= level:
+                    headings.pop()
+                parent = numbered.get(tuple(number[:-1])) if len(number) > 1 else None
+                parent = parent or (headings[-1] if headings else None)
+                kind = ("correction" if CORRECTION_HEADING.match(label) else
+                        "exercise" if EXERCISE_HEADING.match(label) else
+                        "question" if QUESTION_HEADING.match(label) else "heading")
+                row.update(kind=kind, label=inline.content, number=number, level=level,
+                           parent=parent["start"] if parent else None)
+                rows.append(row)
+                headings.append(row)
+                if number:
+                    numbered[tuple(number)] = row
+            elif token.type == "list_item_open" and lists[-1].type == "ordered_list_open":
+                row.update(kind="item", label=token.info + token.markup,
+                           number=[int(token.info)], level=len(lists),
+                           parent=lists[-1].map[0] + 1,
+                           context=headings[-1]["start"] if headings else None)
+                rows.append(row)
+        return rows
 
     def select(self, start: int, end: int, *, display: bool = False) -> str:
         require(1 <= start <= end <= len(self.lines), "Source range is out of bounds.")

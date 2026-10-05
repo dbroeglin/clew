@@ -20,6 +20,15 @@ The host agent reads, reasons, previews, and edits using its normal file tools.
 Python captures a local baseline and checks structural preservation/references;
 it does not generate prose or decide pedagogical matches.
 
+The source unit is one exercise note with all its questions and one supplied
+correction unit with its answers; separate supplied variants are possible.
+Preserve those files, unit IDs, source hierarchy, and established associations.
+Question/answer anchors are children of the unit, not reasons to split, merge,
+move, or relabel it. Question-scoped `type: help` notes remain auxiliary aids.
+Native Ingest output already has this structure; Enrich is optional, not a repair
+step for whole-sheet grouping. If selected material needs different source-unit
+boundaries, stop and agree a separate structuring scope rather than change them.
+
 Do not invent missing answers, new exercises, methods, prerequisite graphs,
 grading, or revision history. Do not rewrite the course, consult external
 learning sources, silently correct supplied mathematics, or run Import/Ingest.
@@ -65,6 +74,9 @@ Read [the format](references/formats.md) before proposing edits.
 For each selected question, identify its actual boundaries, supplied answer
 if any, and relevant existing course headings/blocks. Missing answers are valid.
 Ask about ambiguous boundaries or matches; do not resolve them by filenames.
+Use statements and reasoning as well as source numbering. An answer's question
+must belong to its correction note's owning exercise; identical local anchors
+in different exercises do not establish a match.
 
 Reuse existing question/answer callouts and anchors. Otherwise propose structural
 wrappers and stable, note-local question/answer anchors. Preserve source text,
@@ -123,6 +135,9 @@ The validator checks the pre-edit inventory, supplied-content projection,
 unchanged frontmatter/files, retained existing blocks, unique IDs/anchors,
 question/answer agreement, and precise course links in each aid. It reports
 counts and questions lacking supplied corrections; these are not errors.
+Correction `exercises` references must identify at most one whole exercise
+note, and every answer must target that owner. Without a declared association,
+the unit's resolved answer links must still agree on one exercise.
 Exit `0` means a completed check; exit `1` reports a concrete error to stderr.
 It never writes notes or repairs failures.
 
@@ -140,6 +155,8 @@ notes: hints reveal progressively in its side panel, explanations open there
 from a revealed supplied correction, and course links open the referenced
 passage in that panel. Supplied answers remain inline. Generate is optional and
 is not a runtime dependency of Enrich.
+Generate groups question views by their existing exercise unit and uses internal
+blocks for finer presentation; it never requires extra exercise/correction files.
 
 ## Maintenance
 

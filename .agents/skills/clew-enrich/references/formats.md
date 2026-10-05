@@ -4,6 +4,22 @@ Use current chapter notes under `courses/`, `exercices/`, `corriges/`, and
 separate aids under `aides/`. Those directory names and `[!reponse]` are existing
 format keywords, independent of the teaching language.
 
+An exercise note owns one actual exercise, including all subquestions and shared
+context. A correction note owns one supplied correction unit for that exercise.
+Keep these source units intact; multiple supplied variants may use separate
+correction notes. `type: help` files are auxiliary additions, not finer source
+exercise/correction units. Native notes already have internal question/answer
+blocks before optional enrichment.
+
+Unit IDs and note-local anchors form full addresses. Repeated `q-1` anchors in
+different exercise notes are distinct. An answer link must agree with the
+correction's declared `exercises` association and all other answers in that unit.
+When no association is declared in a current note, resolved answer links must
+still agree on one owning exercise; ambiguous matches require a decision.
+`exercises`, when present, is an array of references resolving to at most one
+whole exercise note, never a question fragment. Validation checks ownership even
+when the target question exists and repeats another exercise's local anchor.
+
 Do not alter source frontmatter. Preserve all supplied lines and their order.
 Wrap only explicitly selected question/answer spans. Reuse existing anchors,
 labels, source fields, and question links. IDs are unique across learning notes;

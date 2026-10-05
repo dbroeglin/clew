@@ -46,6 +46,8 @@ class Part:
     label: str = ""
     block: str = ""
     fields: str = ""
+    start: int = 0
+    end: int = 0
 
     def display(self) -> str:
         if self.label and self.kind in {"note", "warning", "tip", "method", "hint", "explanation"}:
@@ -80,6 +82,20 @@ class Note:
         if fragment.startswith("^"):
             require(fragment[1:] in self.blocks, f"Missing block: {self.id}#{fragment}")
             return [self.blocks[fragment[1:]]]
+        start, end = self.selection_span(fragment)
+        parts = split_parts("\n".join(self.body.splitlines()[start:end]))
+        for part in parts:
+            part.start += start
+            part.end += start
+        return parts
+
+    def selection_span(self, fragment: str = "") -> tuple[int, int]:
+        if not fragment:
+            return 0, len(self.body.splitlines())
+        if fragment.startswith("^"):
+            require(fragment[1:] in self.blocks, f"Missing block: {self.id}#{fragment}")
+            part = self.blocks[fragment[1:]]
+            return part.start, part.end
         match = re.fullmatch(r"L([1-9]\d*)-L([1-9]\d*)", fragment)
         if match:
             start, end = map(int, match.groups())
@@ -95,7 +111,7 @@ class Note:
                     f"Range bisects Markdown: {self.id}#{fragment}")
             selected = "".join(lines[start - 1:end])
             require(not selected.startswith("---"), "Select note content, not frontmatter.")
-            return split_parts(selected)
+            return start - 1 - header_lines, end - header_lines
         tokens = parser().parse(self.body)
         matches = []
         for index, token in enumerate(tokens):
@@ -109,7 +125,7 @@ class Note:
             if following.type == "heading_open" and int(following.tag[1:]) <= int(token.tag[1:]):
                 end = following.map[0]
                 break
-        return split_parts("\n".join(self.body.splitlines()[start:end]))
+        return start, end
 
 
 def split_parts(body: str) -> list[Part]:
@@ -117,11 +133,14 @@ def split_parts(body: str) -> list[Part]:
     lines = body.splitlines()
     parts: list[Part] = []
     plain: list[str] = []
+    positions: list[int] = []
 
     def flush() -> None:
         if plain:
-            parts.append(Part("text", "\n".join(plain).strip()))
+            parts.append(Part("text", "\n".join(plain).strip(),
+                              start=positions[0], end=positions[-1] + 1))
             plain.clear()
+            positions.clear()
 
     index = 0
     while index < len(lines):
@@ -132,9 +151,11 @@ def split_parts(body: str) -> list[Part]:
         if re.match(r"^\s*(`{3,}|~{3,})", line):
             fence = re.match(r"^\s*(`{3,}|~{3,})", line).group(1)
             plain.append(line)
+            positions.append(index)
             index += 1
             while index < len(lines):
                 plain.append(lines[index])
+                positions.append(index)
                 closing = re.fullmatch(r"\s*" + re.escape(fence[0]) + r"{" + str(len(fence)) + r",}\s*", lines[index])
                 index += 1
                 if closing:
@@ -143,6 +164,7 @@ def split_parts(body: str) -> list[Part]:
         callout = re.match(r"^> \[!(question|reponse|method|hint|explanation|note|warning|tip)\][+-]?(?: (.*))?$", line)
         if callout:
             flush()
+            start = index
             quoted = []
             index += 1
             while index < len(lines) and (lines[index] == ">" or lines[index].startswith("> ")):
@@ -158,7 +180,7 @@ def split_parts(body: str) -> list[Part]:
                 anchor = lines[index][1:]
                 index += 1
             parts.append(Part(callout[1], "\n".join(quoted).strip(),
-                              callout[2] or "", anchor, fields))
+                              callout[2] or "", anchor, fields, start, index))
             continue
         anchor = re.fullmatch(r"\^([A-Za-z0-9-]+)", line)
         if anchor:
@@ -170,13 +192,17 @@ def split_parts(body: str) -> list[Part]:
                 if starts:
                     start = starts[-1]
                     if start:
-                        parts.append(Part("text", "\n".join(plain[:start]).strip()))
+                        parts.append(Part("text", "\n".join(plain[:start]).strip(),
+                                          start=positions[0], end=positions[start - 1] + 1))
                         plain[:] = plain[start:]
+                        positions[:] = positions[start:]
                 flush()
             require(bool(parts) and not parts[-1].block, "Block anchor has no unique content.")
             parts[-1].block = anchor[1]
+            parts[-1].end = index + 1
         else:
             plain.append(line)
+            positions.append(index)
         index += 1
     flush()
     return parts

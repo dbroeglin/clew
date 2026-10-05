@@ -34,6 +34,7 @@ class Bundle:
             "source": self.metadata["source"], "pages": self.metadata["pages"],
             "files": self.files, "line_count": len(self.markdown.lines),
             "safe_boundaries": self.markdown.boundaries,
+            "outline": self.markdown.outline,
             "page_markers": [{"line": index + 1, "page": number}
                              for index, number in self.markdown.markers.items()],
             "local_references": sorted({link.path for link in self.markdown.links}),

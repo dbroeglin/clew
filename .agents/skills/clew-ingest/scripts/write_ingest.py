@@ -11,7 +11,7 @@ from formats import OUTPUT_VERSION, Plan
 from ingest_io import (command, contained, json_text, no_redirect, require,
                        sha256, write_new)
 from plan_checks import (check_destination, check_plan, inspect_plan, note_path,
-                         output_paths, plan_hash, read_plan)
+                         output_paths, plan_hash, read_plan, review_structure)
 from render_notes import render_index, render_note
 from validate_ingest import validate, verify
 from vault_placement import missing_parents
@@ -27,6 +27,7 @@ def check(plan: Plan) -> tuple[dict, dict[str, Bundle]]:
         "placement": plan.placement.model_dump(),
         "create_directories": [str(path) for path in missing_parents(plan)],
         "files": output_paths(plan, bundles), "issues": issues,
+        "structure": review_structure(plan, bundles),
     }, bundles
 
 
