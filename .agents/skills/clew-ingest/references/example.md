@@ -87,6 +87,25 @@ If a correction's numbering is ambiguous, preserve its answer block, omit the
 uncertain relationship, and add an issue explaining the uncertainty. The output
 validator will report the unmatched answer as well.
 
+## Several exercises, not several question files
+
+If the exercise source contains two exercises with two questions each, create
+two exercise notes, each with its context and two anchored question parts.
+Two corresponding supplied correction units become two correction notes, each
+with its own answer parts. Do not create one sheet note or four question notes.
+Shared sheet instructions remain faithfully assigned in source order, with
+their intended context shown in the plan.
+
+Both exercises may use local anchors `q-1` and `q-2`: their full note/block
+addresses differ. A correction labelled "Exercise 3" may answer the exercise
+labelled "Exercise 2" if the supplied content establishes numbering drift.
+Retain the printed labels and record the actual matching evidence; do not zip
+the inventories or change the source numbering.
+
+Enrich can add question-scoped help notes without moving these source units.
+Generate presents two exercises and four question views directly from the
+internal blocks, even before enrichment.
+
 ## Course without exercises
 
 Create only course/section notes, their course relationships, the index,

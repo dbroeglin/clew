@@ -125,9 +125,27 @@ to write the detailed ingest plan.
 ## 3. Decide structure and propose a concrete plan
 
 Choose coherent subtopics; keep statements with proofs, figures with explanations,
-and exercise context with questions. Do not impose a fixed page/token count or
-automatically split at headings. If a question cannot be separated safely, keep
-the larger unit and flag it rather than breaking a formula, list, or table.
+and exercise context with questions. Read all selected Markdown, not only its
+inventory, and review course, exercise, and correction structure separately.
+Placement uncertainty is not a reason to aggregate content. Do not impose a
+fixed page/token count or automatically split at headings; numbered peer
+subtopics may have inconsistent heading depths.
+
+Create exactly one exercise note per actual source exercise, with its shared
+context and all subquestions. Create one correction note per supplied correction
+unit for that exercise; separate supplied variants are allowed. Never put a whole
+multi-exercise sheet in one exercise/correction note, and never create those
+notes per question/answer. Include anchored `question`/`answer` parts inside the
+owning notes, including an unnumbered exercise. Preserve internal numbering and
+hierarchy. If a subquestion/answer cannot be separated safely, keep the coherent
+block inside that same note and explain it; do not break a formula, list, or
+table. An unsafe boundary between actual exercises is a blocker requiring a
+focused decision, not a silent aggregate.
+
+Review outline candidates against the actual source. Explain coherent course
+grouping and misleading candidates using note- and source-scoped issues; never
+use a blanket waiver to bypass exercise granularity. Review all selected roles
+before saying a splitting plan is complete, including on a follow-up request.
 
 Choose meaningful course/section filenames together under `courses/`.
 Exercises belong in `exercices/`, corrections in `corriges/`. Choose one ingest
@@ -161,7 +179,8 @@ uv run --package clew-ingest --locked --no-sync python -B ".agents\skills\clew-i
 
 Show the complete source set and roles, confirmed placement and rationale,
 destination, any exact parent directories to create, meaningful note names,
-boundaries and rationale, reading order, question/answer matches, dependency
+boundaries and rationale, source-unit ownership and question/answer counts,
+reading order, question/answer matches, dependency
 evidence, copied-source subset, review issues, output file list, exact execution
 command, and returned `plan_sha256`. Ask for explicit approval before writing.
 Approval of skill implementation, a general request to ingest, or approval of a
@@ -198,6 +217,13 @@ The writer validates before marking completion; independently validate the
 persisted root and inspect representative notes, equations, figures, and links.
 Mechanical fidelity does not establish that the agent's boundaries or matching
 decisions are pedagogically correct.
+
+The stage handoff is the notes, not a requirement to run Enrich. Native output
+already has exercise-level units and internal question/answer anchors. Enrich
+preserves those units and may add auxiliary `type: help` notes; these are not
+question-sized exercise/correction notes. Generate reads current notes and uses
+the internal structure for question views within each exercise, without splitting
+files or requiring this skill, its record, or snapshot validation.
 
 Generated Sources links open the retained PDF at each original page using
 `#page=N`, for example `[page 2](../sources/feuille/chapitre.pdf#page=2)`.

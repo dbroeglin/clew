@@ -20,6 +20,22 @@ definition of done for every task and pull request.
 places executable script tests and fixtures in repository-owned `tests/` suites,
 **outside skill directories**. A copied skill needs no repository tests to run.
 
+### Shared learning-unit contract
+
+Ingest creates **one note per exercise and supplied correction unit**, not per
+sheet or question. Shared context and all subquestions/answers stay in that unit;
+stable internal anchors provide finer addresses. Course notes cover coherent
+subtopics rather than arbitrary page counts or heading levels.
+
+Enrich preserves those units and adds auxiliary question-scoped help notes.
+Generate groups selected questions by their owning exercise and derives finer
+HTML views from the internal structure, without changing source notes or needing
+producer records. This works before optional enrichment. Matching uses source
+content and evidence, not printed numbers alone. See
+[ADR-0008](docs/adr/0008-exercise-unit-pipeline-contract.md).
+Historical record handling is deferred; this contract does not rule out future
+compatibility or migration work.
+
 ## PDF Import
 
 The local [clew-import skill](.agents/skills/clew-import/SKILL.md) accepts a PDF

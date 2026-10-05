@@ -78,10 +78,23 @@ links must agree with the published question and selected supplied answer.
 
 For an exercise containing anchored `[!question]` callouts, each callout is a
 question and surrounding plain text is shared context. Otherwise the selected
-body is one unnumbered question, with no duplicated introduction. To split a
-plain exercise into several questions without changing its notes, list explicit
-question selectors in `exercises`; each becomes an independent exercise view.
-This initial version does not guess numbered-list question boundaries.
+body is one explicitly selected unnumbered question, with no duplicated
+introduction. Native Ingest output already contains anchored questions, even
+before optional Enrich. This version does not guess numbered-list boundaries.
+
+Exercise identity is the resolved owning note ID, not the number of selectors
+or files. Multiple distinct question selectors from one note are grouped in one
+exercise view. A heading/range containing several anchored question blocks
+retains those questions and its selected context. Duplicate/overlapping question
+selections are errors, including whole-note plus child-block selection.
+Prefer one whole-note selector per exercise for native output.
+
+Store one source exercise per exercise note and one supplied correction unit
+per correction note; keep all subquestions/answers and shared context inside.
+Separate supplied variants may have separate correction notes. Do not create
+question/answer-sized source files for HTML. Full note/block addresses distinguish
+the same local anchor in different exercises. Auxiliary `type: help` notes do
+not change source-unit granularity.
 
 ## Current Ingest notes
 
@@ -90,6 +103,9 @@ anchors, and `[question:: [[exercise#^q-id]]]` fields. Answer fields provide
 automatic correction matches. Multiple supplied answers are displayed in
 selected-note order unless overridden. Exercise `courses` frontmatter supplies
 default contextual links; explicit question `courses` narrows them to excerpts.
+Supplied-answer targets must agree with the correction unit's exercise
+association. Selected shared correction context remains available with the
+answers rather than disappearing through answer-only selection.
 
 Remove only recognized frontmatter, exact `clew-part` structural comments,
 known structural field lines, callout wrappers, and standalone anchors from

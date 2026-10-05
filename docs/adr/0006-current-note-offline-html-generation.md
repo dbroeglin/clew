@@ -6,6 +6,8 @@
 > Later refinement: [ADR-0007](0007-course-linked-question-enrichment.md)
 > defines the first Enrich implementation and extends this publication
 > convention to supplied-answer explanations and aid-to-course panel links.
+> [ADR-0008](0008-exercise-unit-pipeline-contract.md) groups question selections
+> by owning exercise and separates note granularity from HTML presentation.
 
 ## Context
 

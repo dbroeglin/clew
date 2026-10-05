@@ -20,6 +20,16 @@ Python performs inspection, reference resolution, Markdown rendering, embedding,
 and publication. No embedded model, Obsidian/plugin installation, server,
 JavaScript build, Azure credentials, or cloud call is required.
 
+The learning unit is an exercise note containing its shared context and all
+questions, with corresponding supplied correction-unit notes. Note identity
+defines the exercise; internal anchored question/answer structure defines finer
+HTML views. Several question selections from the same exercise stay in one
+exercise view, not independent exercises. A selected heading can contain several
+question blocks. Repeated local block IDs in different notes are distinct.
+Never split source notes for presentation or match corrections by numbers alone.
+Selected shared context accompanies its unit. Native Ingest notes work before
+optional Enrich; auxiliary `type: help` notes are aids, not source exercises.
+
 ## Runtime
 
 Requires Python >=3.11 and UV. The skill owns its direct dependencies in
@@ -99,6 +109,10 @@ Choose title, course reading order, exercise order, correction targets, methods,
 ordered hints, supplied-answer explanations, and question-level course excerpts.
 Keep shared instructions with their exercises and do not duplicate unnumbered
 questions as context.
+Prefer whole exercise selectors for native notes. When selecting only questions
+or headings, retain their owning exercise and necessary selected context.
+Overlapping/duplicate question selections are errors; resolve them in the layout,
+not by silently suppressing source content.
 
 Ingest question/answer callouts and block IDs work directly. Ordinary supported
 Obsidian notes also work through explicit whole-note, heading, block, or safe

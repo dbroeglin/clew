@@ -59,6 +59,22 @@ Each part selects `source`, `start`, `end`, and optional `role` (defaults to
 preserves the printed question/answer label. Text parts cannot have block IDs.
 Question parts belong to exercises; answer parts to corrections.
 
+Each exercise note contains exactly one actual source exercise, with shared
+context and all subquestions; each correction note contains one supplied
+correction unit for an exercise. Separate supplied variants may have separate
+correction notes. Do not aggregate independent exercises/corrections or create
+exercise/correction files for their questions/answers. Exercise notes require
+anchored question parts; correction notes require anchored supplied answer parts.
+An all-text exercise/correction plan is incomplete structure, even with full
+source coverage. Preserve safely addressable internal questions and source
+hierarchy; explain inseparable blocks rather than splitting their owning note.
+
+Course/section notes cover coherent subtopics. Review numbered peers even when
+Markdown heading levels differ; no fixed size cutoff or automatic heading split
+defines coherence. Misleading candidates and coherent grouping require
+source-specific, note-scoped issues. Actual exercise boundaries that cannot be
+cut safely are blockers, not permission to aggregate or corrupt the source.
+
 Ranges are one-based inclusive lines in unchanged UTF-8 Markdown. Each source
 line, including whitespace and page markers, must be assigned exactly once.
 Start/end cannot bisect parser-mapped Markdown constructs. Parts preserve
@@ -114,6 +130,12 @@ Plain source Markdown stays plain. Question/answer blocks become `question`/
 `reponse` callouts with source fields and note-local anchors. Added wrappers and
 metadata are structural, not new learning content. Exercise/correction note
 links are emitted reciprocally. A course note lists linked sections/exercises.
+Note IDs identify exercise/correction units; local block IDs identify their
+questions/answers. The same `q-1` in two notes is not the same question. Enrich
+preserves these units and addresses, adding auxiliary `type: help` notes where
+appropriate. Generate consumes current notes directly, with finer question
+views derived from these internal blocks before or after optional enrichment.
+Neither downstream stage creates question/answer-sized source notes.
 Invisible `clew-part` comments delimit source segments for independent fidelity
 projection. That structural marker prefix is reserved. Validation unwraps
 callouts, removes only documented separators, and reverses recorded local-link
