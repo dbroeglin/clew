@@ -16,6 +16,9 @@ different exercise notes are distinct. An answer link must agree with the
 correction's declared `exercises` association and all other answers in that unit.
 When no association is declared in a current note, resolved answer links must
 still agree on one owning exercise; ambiguous matches require a decision.
+`exercises`, when present, is an array of references resolving to at most one
+whole exercise note, never a question fragment. Validation checks ownership even
+when the target question exists and repeats another exercise's local anchor.
 
 Do not alter source frontmatter. Preserve all supplied lines and their order.
 Wrap only explicitly selected question/answer spans. Reuse existing anchors,

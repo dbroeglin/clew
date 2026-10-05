@@ -322,6 +322,17 @@ def validate(root: Path, baseline_path: Path) -> dict:
     questions = set()
     answers = {}
     for note in notes:
+        owners = set()
+        if note.role == "correction":
+            associations = note.metadata.get("exercises", [])
+            require(isinstance(associations, list),
+                    f"Correction exercises must be an array: {note.id}")
+            for ref in associations:
+                exercise, fragment = resolve(notes, ref, note)
+                require(exercise.role == "exercise" and not fragment,
+                        f"Correction association needs a whole exercise note: {note.id} -> {ref}")
+                owners.add(exercise.id)
+            require(len(owners) <= 1, f"Correction unit has multiple exercises: {note.id}")
         for block in note.blocks:
             if block.kind not in {"question", "reponse"}:
                 continue
@@ -337,6 +348,10 @@ def validate(root: Path, baseline_path: Path) -> dict:
                 question_note, fragment = resolve(notes, links[0], note)
                 require(question_note.role == "exercise", f"Answer targets a non-exercise: {links[0]}")
                 question_note.block(fragment, "question")
+                require(not owners or question_note.id in owners,
+                        f"Answer targets a different exercise than its correction unit: "
+                        f"{note.id}#^{block.anchor} -> {question_note.id}")
+                owners.add(question_note.id)
                 answers[key] = (question_note.id, fragment)
     hints = explanations = 0
     for aid in notes:

@@ -39,6 +39,78 @@ class EnrichTests(unittest.TestCase):
         self.assertIn(old, text)
         path.write_text(text.replace(old, new), encoding="utf-8")
 
+    def ownership_chapter(self, associations=None):
+        chapter = self.root / "ownership"
+        (chapter / "exercices").mkdir(parents=True)
+        (chapter / "corriges").mkdir()
+        for number in (1, 2):
+            body = "".join(
+                f"> [!question] Question {question}\n> Supplied question {number}-{question}.\n>\n\n"
+                f"^q-{question}\n\n" for question in (1, 2))
+            (chapter / "exercices" / f"exercise-{number}.md").write_text(
+                f"---\nid: exercise-{number}\ntype: exercise\n---\n{body}", encoding="utf-8")
+        association = "" if associations is None else "exercises: " + json.dumps(associations) + "\n"
+        correction = chapter / "corriges" / "correction.md"
+        correction.write_text(
+            f"---\nid: correction\ntype: correction\n{association}---\n"
+            + "".join(f"> [!reponse] Answer {number}\n> Supplied answer {number}.\n>\n\n^r-{number}\n\n"
+                      for number in (1, 2)), encoding="utf-8")
+        before = self.root / "ownership-before.json"
+        capture(chapter, before)
+        return chapter, before, correction
+
+    def link_answers(self, correction, targets):
+        text = correction.read_text(encoding="utf-8")
+        for number, target in enumerate(targets, 1):
+            header = f"> [!reponse] Answer {number}\n"
+            text = text.replace(header, header + f"> [question:: [[{target}]]]\n")
+        correction.write_text(text, encoding="utf-8")
+
+    def test_declared_correction_owner_and_repeated_local_question_ids(self):
+        chapter, before, correction = self.ownership_chapter(["[[exercise-1]]"])
+        self.link_answers(correction, ["exercise-1#^q-1", "exercise-1#^q-2"])
+        report = validate(chapter, before)
+        self.assertEqual((report["questions"], report["supplied_answers"]), (4, 2))
+        self.assertEqual(report["questions_without_correction"],
+                         ["exercise-2#^q-1", "exercise-2#^q-2"])
+
+    def test_resolvable_answer_in_another_exercise_is_rejected(self):
+        chapter, before, correction = self.ownership_chapter(["[[exercise-1]]"])
+        self.link_answers(correction, ["exercise-2#^q-1", "exercise-1#^q-2"])
+        with self.assertRaisesRegex(EnrichError, "different exercise than its correction unit"):
+            validate(chapter, before)
+
+    def test_undeclared_correction_answers_must_agree_on_one_exercise(self):
+        chapter, before, correction = self.ownership_chapter()
+        self.link_answers(correction, ["exercise-1#^q-1", "exercise-1#^q-2"])
+        self.assertEqual(validate(chapter, before)["supplied_answers"], 2)
+        text = correction.read_text(encoding="utf-8")
+        correction.write_text(text.replace("exercise-1#^q-2", "exercise-2#^q-2"), encoding="utf-8")
+        with self.assertRaisesRegex(EnrichError, "different exercise than its correction unit"):
+            validate(chapter, before)
+
+    def test_multiple_declared_exercise_owners_are_rejected(self):
+        chapter, before, correction = self.ownership_chapter(["[[exercise-1]]", "[[exercise-2]]"])
+        self.link_answers(correction, ["exercise-1#^q-1", "exercise-1#^q-2"])
+        with self.assertRaisesRegex(EnrichError, "multiple exercises"):
+            validate(chapter, before)
+
+    def test_correction_association_cannot_target_one_question(self):
+        chapter, before, correction = self.ownership_chapter(["[[exercise-1#^q-1]]"])
+        self.link_answers(correction, ["exercise-1#^q-1", "exercise-1#^q-2"])
+        with self.assertRaisesRegex(EnrichError, "whole exercise note"):
+            validate(chapter, before)
+
+    def test_aid_files_cannot_replace_source_units(self):
+        chapter, before, correction = self.ownership_chapter(["[[exercise-1]]"])
+        self.link_answers(correction, ["exercise-1#^q-1", "exercise-1#^q-2"])
+        original = chapter / "exercices" / "exercise-1.md"
+        (chapter / "aides").mkdir()
+        shutil.copyfile(original, chapter / "aides" / "exercise-1.md")
+        original.unlink()
+        with self.assertRaisesRegex(EnrichError, "Original files removed"):
+            validate(chapter, before)
+
     def test_small_representative_chapter_and_preservation(self):
         report = validate(self.chapter, self.before)
         self.assertEqual((report["questions"], report["supplied_answers"],

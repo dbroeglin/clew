@@ -135,6 +135,9 @@ The validator checks the pre-edit inventory, supplied-content projection,
 unchanged frontmatter/files, retained existing blocks, unique IDs/anchors,
 question/answer agreement, and precise course links in each aid. It reports
 counts and questions lacking supplied corrections; these are not errors.
+Correction `exercises` references must identify at most one whole exercise
+note, and every answer must target that owner. Without a declared association,
+the unit's resolved answer links must still agree on one exercise.
 Exit `0` means a completed check; exit `1` reports a concrete error to stderr.
 It never writes notes or repairs failures.
 
