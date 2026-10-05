@@ -65,6 +65,14 @@ uniquely among selected notes. Selectors:
 - `note#^block`: an existing standalone block anchor.
 - `note#Exact heading`: that heading and content until the next same/higher-level
   heading. Duplicate headings are ambiguous; select a block or range instead.
+  After an exact match fails, doubled backslashes before a TeX command (for
+  example, `\\subset`) are matched as the equivalent single command backslash
+  in a heading reference, and inline emphasis delimiters are ignored. Displayed
+  source text is unchanged.
+- `note#Bold marker`: an exact standalone bold marker (for example,
+  `**Remarque 3**`) and the following content until the next heading or
+  standalone bold marker. Use this only for current notes that present
+  course items as marker lines rather than Markdown headings.
 - `note#L12-L20`: physical one-based inclusive UTF-8 source lines, including
   frontmatter in numbering. Both boundaries must be parser-safe and outside
   frontmatter. Do not split a paragraph, callout, table, code fence, or formula.

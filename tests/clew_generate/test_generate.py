@@ -406,6 +406,36 @@ class GenerateTests(unittest.TestCase):
                         "corrections": ["cours#Sous-espace"], "hints": ["cours#Exemple"]}})
         self.assertEqual(len(self.model()["questions"][0]["corrections"]), 1)
 
+    def test_heading_references_normalize_doubled_tex_command_backslashes(self):
+        path = self.root / "cours.md"
+        path.write_text(
+            "# Cas où $f(I)\\\\subset I$\n\nTexte actuel.\n",
+            encoding="utf-8")
+        library = Library([path])
+        self.assertEqual(
+            library.notes[0].select(r"Cas où $f(I)\subset I$"),
+            "# Cas où $f(I)\\\\subset I$\n\nTexte actuel.")
+
+    def test_heading_references_ignore_inline_emphasis_delimiters(self):
+        path = self.root / "cours.md"
+        path.write_text(
+            "## Proposition 24 *Croissances comparées*\n\nTexte actuel.\n",
+            encoding="utf-8")
+        library = Library([path])
+        self.assertEqual(
+            library.notes[0].select("Proposition 24 Croissances comparées"),
+            "## Proposition 24 *Croissances comparées*\n\nTexte actuel.")
+
+    def test_bold_marker_reference_selects_the_marked_course_excerpt(self):
+        path = self.root / "cours.md"
+        path.write_text(
+            "**Remarque 3**\n\nContenu de la remarque.\n\n**Proposition 2**\n\nSuite.",
+            encoding="utf-8")
+        library = Library([path])
+        self.assertEqual(
+            library.notes[0].select("Remarque 3"),
+            "**Remarque 3**\n\nContenu de la remarque.")
+
     def test_shared_context_stays_in_source_order_and_code_markers_survive(self):
         path = self.root / "exercice-1.md"
         path.write_text(path.read_text(encoding="utf-8").replace(

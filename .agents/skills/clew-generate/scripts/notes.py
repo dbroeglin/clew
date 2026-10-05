@@ -21,6 +21,24 @@ def require(condition: bool, message: str) -> None:
         raise GenerateError(message)
 
 
+def normalized_heading_reference(value: str) -> str:
+    value = re.sub(r"(?<!\\)\\\\([A-Za-z]+)", r"\\\1", value)
+    return re.sub(r"(?<!\\)(\*{1,3}|_{1,3})(.+?)\1", r"\2", value)
+
+
+def bold_marker_span(body: str, marker: str) -> tuple[int, int] | None:
+    lines = body.splitlines()
+    match = re.compile(rf"^\*\*{re.escape(marker)}\*\*\s*$")
+    starts = [index for index, line in enumerate(lines) if match.fullmatch(line)]
+    if len(starts) != 1:
+        return None
+    start = starts[0]
+    for index in range(start + 1, len(lines)):
+        if re.fullmatch(r"^\*\*.+?\*\*\s*$", lines[index]) or re.match(r"^#{1,6}\s", lines[index]):
+            return start, index
+    return start, len(lines)
+
+
 def local_path(path: Path) -> Path:
     path = Path(os.path.abspath(path))
     for item in [*reversed(path.parents), path]:
@@ -117,6 +135,15 @@ class Note:
         for index, token in enumerate(tokens):
             if token.type == "heading_open" and tokens[index + 1].content == fragment:
                 matches.append((index, token))
+        if not matches:
+            normalized = normalized_heading_reference(fragment)
+            for index, token in enumerate(tokens):
+                if (token.type == "heading_open"
+                        and normalized_heading_reference(tokens[index + 1].content) == normalized):
+                    matches.append((index, token))
+        marker_span = bold_marker_span(self.body, fragment) if not matches else None
+        if marker_span:
+            return marker_span
         require(len(matches) == 1, f"Missing or ambiguous heading: {self.id}#{fragment}")
         index, token = matches[0]
         start = token.map[0]
