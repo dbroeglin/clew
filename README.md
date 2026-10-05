@@ -155,6 +155,11 @@ uv run --package clew-ingest --locked --no-sync python -B ".agents\skills\clew-i
 
 Review the confirmed placement, any parent directories to create, boundaries,
 matches, evidence, exact output paths, and issues.
+Inspection exposes a parser-backed outline of headings, numbered peers, and
+ordered items. Normal checks block whole-sheet aggregation, question/answer
+files, and missing structural parts. The `structure` report shows unit ownership,
+block counts/addresses, evidence, and exact scoped review reasons for course
+grouping or ambiguous candidates; these are not automatic semantic decisions.
 Only after approval, execute using the returned plan hash:
 
 ```powershell

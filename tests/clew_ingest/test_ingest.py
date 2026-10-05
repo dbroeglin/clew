@@ -124,6 +124,272 @@ class IngestTests(unittest.TestCase):
         edit(data)
         return Plan.model_validate(data)
 
+    def headed_plan(self):
+        data = self.plan().model_dump()
+        texts = {
+            "feuille": ("<!-- page: 1 -->\n\n# Exercises\n\n## Exercise 1\n\n"
+                        "Let $A=1+1$ and $B=A+1$.\n\n"
+                        "1. Compute $A$.\n\n2. Using $A$, compute $B$.\n\n"
+                        "## BONUS\n\nUse addition in the next exercise.\n\n"
+                        "### Exercise 2\n\nLet $C=2+2$ and $D=2C$.\n\n"
+                        "1. Compute $C$.\n\n2. Compute $D$.\n"),
+            "corrige": ("<!-- page: 1 -->\n\n# Corrections\n\n## Exercise 7\n\n"
+                        "Use the definitions of $A$ and $B$.\n\n"
+                        "1. $A=2$.\n\n2. $B=3$.\n\n"
+                        "### Exercise 9\n\nUse the definitions of $C$ and $D$.\n\n"
+                        "1. $C=4$.\n\n2. $D=8$.\n"),
+        }
+        documents = {}
+        for source in data["sources"]:
+            if source["id"] in texts:
+                path = Path(source["bundle"]) / "document.md"
+                path.write_bytes(texts[source["id"]].encode())
+                source["fingerprint"] = load_bundle(path.parent).fingerprint
+                documents[source["id"]] = MarkdownSource(texts[source["id"]])
+        notes = [data["notes"][0]]
+        relationships = []
+        for kind, source in (("exercise", "feuille"), ("correction", "corrige")):
+            document = documents[source]
+            cues = (("1. Compute $A$.", "2. Using $A$, compute $B$.",
+                     "1. Compute $C$.", "2. Compute $D$.") if kind == "exercise" else
+                    ("1. $A=2$.", "2. $B=3$.", "1. $C=4$.", "2. $D=8$."))
+            starts = [next(index + 1 for index, line in enumerate(document.lines)
+                           if line.strip() == cue) for cue in cues]
+            split = next(index + 1 for index, line in enumerate(document.lines)
+                         if line.strip() == ("## BONUS" if kind == "exercise" else "### Exercise 9"))
+            for number in (1, 2):
+                first, second = starts[(number - 1) * 2:number * 2]
+                note_id = f"algebre-{kind}-{number}"
+                prefix = "q" if kind == "exercise" else "r"
+                parts = [
+                    {"source": source, "start": 1 if number == 1 else split, "end": first - 1},
+                    {"source": source, "start": first, "end": second - 1,
+                     "role": "question" if kind == "exercise" else "answer",
+                     "id": prefix + "-1", "label": "1."},
+                    {"source": source, "start": second,
+                     "end": split - 1 if number == 1 else len(document.lines),
+                     "role": "question" if kind == "exercise" else "answer",
+                     "id": prefix + "-2", "label": "2."},
+                ]
+                notes.append({"id": note_id, "type": kind, "title": f"{kind} {number}",
+                              "title_origin": "agent", "order": number * 10, "parts": parts})
+                evidence = [{"source": source, "start": first, "end": second - 1}]
+                relationships.append({
+                    "rel": "course" if kind == "exercise" else "correction",
+                    "origin": note_id,
+                    "target": "algebre-cours" if kind == "exercise" else f"algebre-exercise-{number}",
+                    "evidence": evidence})
+                if kind == "correction":
+                    for block in (1, 2):
+                        part = parts[block]
+                        relationships.append({
+                            "rel": "question", "origin": f"{note_id}#^r-{block}",
+                            "target": f"algebre-exercise-{number}#^q-{block}",
+                            "evidence": [{key: part[key] for key in ("source", "start", "end")}]})
+        data.update(notes=notes, relationships=relationships)
+        return Plan.model_validate(data)
+
+    def test_unit_outline_and_report_preserve_bonus_context_and_numbering_drift(self):
+        plan = self.headed_plan()
+        report, bundles = check(plan)
+        self.assertEqual(report["issues"], [])
+        structure = report["structure"]
+        self.assertEqual(len(structure["units"]), 4)
+        self.assertEqual([note["question_count"] for note in structure["notes"]], [0, 2, 2, 0, 0])
+        self.assertEqual([note["answer_count"] for note in structure["notes"]], [0, 0, 0, 2, 2])
+        self.assertEqual([unit["label"] for unit in structure["units"] if unit["type"] == "correction"],
+                         ["Exercise 7", "Exercise 9"])
+        self.assertTrue(all(unit["safe_start"] and unit["safe_end"] for unit in structure["units"]))
+        self.assertIn("BONUS", [row["label"] for row in bundles["feuille"].inventory()["outline"]])
+        result = materialize(plan, report["plan_sha256"])
+        self.assertEqual(result["status"], "validated")
+        second = (Path(plan.destination) / "exercices" / "algebre-exercise-2.md").read_text()
+        self.assertIn("BONUS", second)
+        self.assertNotIn("BONUS", (Path(plan.destination) / "exercices" / "algebre-exercise-1.md").read_text())
+        self.assertIn("[[algebre-exercise-1#^q-1]]",
+                      (Path(plan.destination) / "corriges" / "algebre-correction-1.md").read_text())
+
+    def test_all_text_exercise_and_correction_plans_are_blocked(self):
+        plan = self.headed_plan()
+        for kind in ("exercise", "correction"):
+            data = plan.model_dump()
+            for note in data["notes"]:
+                if note["type"] == kind:
+                    for part in note["parts"]:
+                        part.update(role="text")
+                        part.pop("id", None)
+                        part.pop("label", None)
+            data["relationships"] = [edge for edge in data["relationships"]
+                                     if edge["rel"] not in {"question", "needs"}]
+            with self.subTest(kind=kind), self.assertRaisesRegex(ValueError, "needs anchored"):
+                check(Plan.model_validate(data))
+        self.assertFalse(Path(plan.destination).exists())
+
+    def test_token_wrapper_cannot_hide_multi_exercise_or_correction_aggregation(self):
+        plan = self.headed_plan()
+        for kind, source, role, block in (("exercise", "feuille", "question", "q-whole"),
+                                           ("correction", "corrige", "answer", "r-whole")):
+            data = plan.model_dump()
+            first, second = [note for note in data["notes"] if note["type"] == kind]
+            first["parts"] = [{"source": source, "start": 1,
+                               "end": len(load_bundle(Path(next(item["bundle"] for item in data["sources"]
+                                                               if item["id"] == source))).markdown.lines),
+                               "role": role, "id": block}]
+            data["notes"].remove(second)
+            data["relationships"] = [edge for edge in data["relationships"]
+                                     if edge["rel"] not in {"question", "needs"}
+                                     and edge["origin"] != second["id"]]
+            for edge in data["relationships"]:
+                if edge["target"] == second["id"]:
+                    edge["target"] = first["id"]
+            with self.subTest(kind=kind), self.assertRaisesRegex(ValueError, "aggregates independent"):
+                check(Plan.model_validate(data))
+        self.assertFalse(Path(plan.destination).exists())
+
+    def test_question_and_answer_per_note_over_splitting_is_blocked(self):
+        plan = self.headed_plan()
+        for kind in ("exercise", "correction"):
+            data = plan.model_dump()
+            note = next(note for note in data["notes"] if note["id"] == f"algebre-{kind}-1")
+            child = copy.deepcopy(note)
+            child.update(id=note["id"] + "-fragment", order=15, parts=[note["parts"].pop()])
+            data["notes"].append(child)
+            address = f"{note['id']}#^{child['parts'][0]['id']}"
+            if kind == "exercise":
+                data["relationships"] = [edge for edge in data["relationships"] if edge["target"] != address]
+            else:
+                for edge in data["relationships"]:
+                    if edge["origin"] == address:
+                        edge["origin"] = f"{child['id']}#^{child['parts'][0]['id']}"
+                data["relationships"].append({
+                    "rel": "correction", "origin": child["id"], "target": "algebre-exercise-1",
+                    "evidence": [{"source": "corrige", "start": child["parts"][0]["start"],
+                                 "end": child["parts"][0]["end"]}]})
+            with self.subTest(kind=kind), self.assertRaisesRegex(ValueError, "is split between notes"):
+                check(Plan.model_validate(data))
+
+    def test_internal_questions_cannot_be_left_plain_or_bundled_without_review(self):
+        plan = self.headed_plan()
+        for plain in (True, False):
+            data = plan.model_dump()
+            note = next(note for note in data["notes"] if note["id"] == "algebre-exercise-1")
+            if plain:
+                part = note["parts"][2]
+                part.update(role="text")
+                part.pop("id")
+                part.pop("label")
+            else:
+                note["parts"][1]["end"] = note["parts"].pop()["end"]
+            data["relationships"] = [edge for edge in data["relationships"]
+                                     if edge["target"] != "algebre-exercise-1#^q-2"]
+            with self.subTest(plain=plain), self.assertRaisesRegex(ValueError, "structure-block-group:feuille:"):
+                check(Plan.model_validate(data))
+
+    def test_course_peers_need_scoped_reasons_despite_different_heading_depths(self):
+        plan = self.plan()
+        source = Path(plan.sources[0].bundle)
+        text = ("<!-- page: 1 -->\n\n# 4. Functions\n\n## 4.1 Limits\n\n"
+                "First statement.\n\n#### 4.2 Continuity\n\nSecond statement.\n")
+        (source / "document.md").write_bytes(text.encode())
+        data = plan.model_dump()
+        data["sources"][0]["fingerprint"] = load_bundle(source).fingerprint
+        with self.assertRaisesRegex(ValueError, "structure-course-group:cours:4"):
+            check(Plan.model_validate(data))
+        data["issues"] = [{"code": "structure-course-group:cours:4", "note": "algebre-cours",
+                           "message": "cours:5-11 gives two coupled cases of the same result; keep them together."}]
+        report = check(Plan.model_validate(data))[0]
+        self.assertEqual(len(report["structure"]["exceptions"]), 1)
+        data["issues"][0]["code"] = "structure-course-group"
+        with self.assertRaisesRegex(ValueError, "structure-course-group:cours:4"):
+            check(Plan.model_validate(data))
+
+    def test_unnumbered_course_peers_are_reviewed_without_size_cutoffs(self):
+        plan = self.plan()
+        source = Path(plan.sources[0].bundle)
+        text = "<!-- page: 1 -->\n\n# Course\n\n## Limits\n\nFirst.\n\n## Continuity\n\nSecond.\n"
+        (source / "document.md").write_bytes(text.encode())
+        data = plan.model_dump()
+        data["sources"][0]["fingerprint"] = load_bundle(source).fingerprint
+        with self.assertRaisesRegex(ValueError, "structure-course-group:cours:heading-3-2"):
+            check(Plan.model_validate(data))
+
+    def test_false_unit_candidates_need_exact_scoped_explanations(self):
+        plan = self.plan()
+        source = Path(plan.sources[0].bundle)
+        text = "<!-- page: 1 -->\n\n## Exercise 1\n\nA quoted worked example in the lecture.\n"
+        (source / "document.md").write_bytes(text.encode())
+        data = plan.model_dump()
+        data["sources"][0]["fingerprint"] = load_bundle(source).fingerprint
+        data["notes"][0]["parts"][0]["end"] = len(MarkdownSource(text).lines)
+        with self.assertRaisesRegex(ValueError, "candidate cours:3"):
+            check(Plan.model_validate(data))
+        data["issues"] = [{"code": "structure-candidate:cours:3", "note": "algebre-cours",
+                           "message": "cours:3-5 is a worked example inside the lecture, not an independent exercise."}]
+        changed = Plan.model_validate(data)
+        report = check(changed)[0]
+        self.assertEqual(report["structure"]["units"], [])
+        self.assertEqual(materialize(changed, report["plan_sha256"])["status"], "needs_review")
+
+    def test_unheaded_question_list_cannot_cross_notes_without_source_review(self):
+        plan = self.plan()
+        data = plan.model_dump()
+        note = data["notes"][1]
+        child = copy.deepcopy(note)
+        child.update(id="algebre-fragment", order=20, parts=[note["parts"].pop()])
+        data["notes"].append(child)
+        data["relationships"] = [edge for edge in data["relationships"]
+                                 if edge["rel"] != "needs" and edge["target"] != "algebre-exercice#^q-image"]
+        with self.assertRaisesRegex(ValueError, "Unheaded source list"):
+            check(Plan.model_validate(data))
+
+    def test_unused_blank_and_unscoped_structure_waivers_are_errors(self):
+        plan = self.plan()
+        for issue in ({"code": "structure-course-group:cours:missing", "note": "algebre-cours",
+                       "message": "Unused source scope."},
+                      {"code": "structure-course-group", "message": "Everything is coherent."},
+                      {"code": "structure-candidate:cours:3", "note": "algebre-cours", "message": " "}):
+            data = plan.model_dump()
+            data["issues"] = [issue]
+            with self.subTest(issue=issue), self.assertRaisesRegex(ValueError, "[Ss]tructure exceptions"):
+                check(Plan.model_validate(data))
+
+    def test_cli_structure_gate_does_not_create_even_approved_parent_directories(self):
+        data = self.plan().model_dump()
+        data["placement"].update(parent="fresh/maths", create_parent=True)
+        data["destination"] = str(self.root / "fresh" / "maths" / "blocked")
+        for part in data["notes"][1]["parts"]:
+            part.update(role="text")
+            part.pop("id", None)
+            part.pop("label", None)
+        data["relationships"] = [edge for edge in data["relationships"]
+                                 if edge["rel"] not in {"question", "needs"}]
+        plan = Plan.model_validate(data)
+        path = self.root / "bad-plan.json"
+        path.write_text(plan.model_dump_json(), encoding="utf-8")
+        result = subprocess.run([sys.executable, "-B", str(SCRIPTS / "write_ingest.py"),
+                                 str(path), "--plan-sha256", plan_hash(plan)],
+                                capture_output=True, encoding="utf-8")
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("needs anchored question", result.stderr)
+        self.assertFalse((self.root / "fresh").exists())
+
+    def test_genuine_unsafe_exercise_boundaries_are_not_aggregation_exceptions(self):
+        text = ("<!-- page: 1 -->\n\n> ## Exercise 1\n>\n> First problem.\n>\n"
+                "> ## Exercise 2\n>\n> Second problem.\n")
+        source = self.bundle("unsafe-exercises", text)
+        plan = Plan.model_validate({
+            "schema_version": 2, "ingest_id": "unsafe", "title": "Unsafe units",
+            "destination": str(self.root / "courses" / "unsafe"), "placement": self.placement(),
+            "sources": [{"id": "sheet", "bundle": str(source), "fingerprint": load_bundle(source).fingerprint}],
+            "notes": [{"id": "unsafe-exercise", "type": "exercise", "title": "Problems",
+                       "title_origin": "agent", "order": 1,
+                       "parts": [{"source": "sheet", "start": 1, "end": len(MarkdownSource(text).lines),
+                                  "role": "question", "id": "q-all"}]}],
+            "relationships": [], "issues": []})
+        with self.assertRaisesRegex(ValueError, "parser-unsafe"):
+            check(plan)
+        self.assertFalse(Path(plan.destination).exists())
+
     def test_separate_sources_collision_safe_copies_links_and_offline_validation(self):
         plan = self.plan()
         report, bundles = check(plan)
@@ -201,8 +467,8 @@ class IngestTests(unittest.TestCase):
             "destination": str(self.root / "courses" / "out"), "placement": self.placement(),
             "sources": [{"id": "cours", "bundle": str(root), "fingerprint": load_bundle(root).fingerprint}],
             "notes": [{"id": "partial-course", "type": "course", "title": "Course only",
-                       "title_origin": "source", "order": 1,
-                       "parts": [{"source": "cours", "start": 1, "end": 3}]}],
+                      "title_origin": "source", "order": 1,
+                      "parts": [{"source": "cours", "start": 1, "end": 3}]}],
             "relationships": [], "issues": []})
         result = materialize(plan, plan_hash(plan))
         self.assertEqual(result["status"], "needs_review")
@@ -480,7 +746,9 @@ class IngestTests(unittest.TestCase):
                        "title_origin": "agent", "order": 1,
                        "parts": [{"source": "sheet", "start": 1, "end": len(MarkdownSource(text).lines),
                                   "role": "question", "id": "q-one"}]}],
-            "relationships": [], "issues": []})
+            "relationships": [], "issues": [
+               {"code": "structure-block-group:sheet:1", "note": "rich-exercise",
+                "message": "sheet:13-16 is a list of conditions inside one composite question; preserve it."}]})
         result = materialize(plan, plan_hash(plan))
         self.assertEqual(result["status"], "needs_review")
         self.assertEqual((Path(plan.destination) / "sources" / "sheet" / "document.md").read_bytes(),
@@ -793,6 +1061,41 @@ class VaultInventoryTests(unittest.TestCase):
 
 
 class MarkdownTests(unittest.TestCase):
+    def test_outline_has_source_ranges_numbered_parents_and_nested_items(self):
+        text = ("# 4. Functions\n\n## 4.1 Limits\n\nFirst.\n\n"
+                "#### 4.6 Derivatives\n\nSecond.\n\n## **Exercise 1**\n\n"
+                "1. First question.\n\n   1. Nested subquestion.\n\n2. Second question.\n")
+        source = MarkdownSource(text)
+        rows = source.outline
+        root = next(row for row in rows if row["number"] == [4])
+        peers = [row for row in rows if row["number"] in ([4, 1], [4, 6])]
+        self.assertEqual([row["parent"] for row in peers], [root["start"], root["start"]])
+        self.assertEqual([row["level"] for row in peers], [2, 4])
+        self.assertEqual([row["label"] for row in rows if row["kind"] == "exercise"], ["**Exercise 1**"])
+        self.assertEqual([row["level"] for row in rows if row["kind"] == "item"], [1, 2, 1])
+        for row in rows:
+            self.assertEqual(row["safe_start"], row["start"] - 1 in source.boundaries)
+            self.assertEqual(row["safe_end"], row["end"] in source.boundaries)
+        self.assertEqual(source.select(1, len(source.lines)), text)
+
+    def test_outline_ignores_code_math_and_reports_unsafe_quoted_candidates(self):
+        text = ("```\n## Exercise 70\n```\n\n$$\n# Exercise 80\n$$\n\n"
+                "> Shared preface.\n>\n> ## Exercise 1\n>\n> Statement.\n")
+        source = MarkdownSource(text)
+        units = [row for row in source.outline if row["kind"] == "exercise"]
+        self.assertEqual([row["label"] for row in units], ["Exercise 1"])
+        self.assertFalse(units[0]["safe_start"])
+        self.assertFalse(units[0]["safe_end"])
+
+    def test_outline_recognizes_french_corrections_without_number_matching(self):
+        source = MarkdownSource("## Exercice 33\n\nStatement.\n\n"
+                                "#### Corrig\u00e9 de l'exercice 34\n\nAnswer.\n\n"
+                                "## Solution 2\n\nAnother answer.\n")
+        self.assertEqual([row["kind"] for row in source.outline],
+                         ["exercise", "exercise", "correction"])
+        self.assertEqual([row["label"] for row in source.outline],
+                         ["Exercice 33", "Corrig\u00e9 de l'exercice 34", "Solution 2"])
+
     def test_complete_ordered_list_items_are_safe_question_cuts(self):
         source = MarkdownSource("1. First question.\n\n2. Second question.\n")
         self.assertEqual(source.select(1, 2), "1. First question.\n\n")

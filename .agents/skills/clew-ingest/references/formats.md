@@ -118,6 +118,28 @@ Issues contain `code`, `message`, and optional `note`. Include semantic uncertai
 explicitly. Import issues and structural missing-link findings are also emitted.
 Do not add relationships merely to avoid warnings.
 
+### Scoped structuring review
+
+Normal checks reject aggregation, exercise/correction-per-question fragmentation,
+and absent structural parts. The outline exposes candidates, not verified
+pedagogical units. Source-specific review uses existing issues with a required
+`note` and nonblank `message`, bound to the exact scope:
+
+| Code | Reviewed scope |
+| --- | --- |
+| `structure-candidate:<source>:<start>` | A misleading exercise/correction heading, or an unheaded ordered list crossing notes that needs an explicit source-unit interpretation. `start` is the candidate's one-based line. |
+| `structure-course-group:<source>:<family>` | Peer topics retained in one course/section note. Numbered family is the parent prefix, such as `4` for `4.1`/`4.6`, or `root` for top-level numbers. Unnumbered family is `heading-<parent-line-or-root>-<heading-level>`. |
+| `structure-block-group:<source>:<start>` | Internal question/answer candidates retained in one structural part, or a contextual list kept plain. `start` is that plan part's first line. |
+
+For example, `{"code":"structure-course-group:cours:4",
+"note":"algebre-fonctions","message":"cours:120-190 contains the statement and
+two cases of one proof; keep their numbered headings together."}` explains only
+that source family in that note. Read the actual passages; do not generate
+waivers automatically. Unknown, unused, duplicate, unscoped, or blank structure
+exceptions are errors. A reason is review evidence, not mechanical proof of
+semantic truth. No exception waives missing question/answer blocks or permits
+grouping real independent exercises or splitting one into question notes.
+
 ## Persisted notes and ownership
 
 All course and section notes share `courses/`. Exercises and corrections use
@@ -189,7 +211,11 @@ approved ingest in a new destination from the original Import bundles.
 ## Reports and commands
 
 Inspector: JSON `bundles` with fingerprints, metadata, hashes, zero-based safe
-boundaries, page markers, and local references.
+boundaries, page markers, local references, and `outline` candidates. Outline
+rows have `kind`, original `label`, one-based inclusive `start`/`end`,
+`safe_start`/`safe_end`, hierarchy `level`/`parent`, and parsed `number` where
+available. Ordered items also expose their heading `context`. Candidate ranges
+do not authorize a cut; protected quote/list/formula boundaries still apply.
 
 Vault inspector: read-only JSON `vault`, `scope`, `obsidian_marker`,
 `directories` (relative paths, Markdown counts/sample paths, `has_ingest_record`),
@@ -202,6 +228,12 @@ An Obsidian installation or `.obsidian` marker is not required.
 Writer `--check`: JSON exact paths, `plan_sha256`, `requires_approval: true`, and
 review issues, plus `placement` and exact `create_directories` for any missing
 parents. This is read-only, including when parent creation is approved.
+`structure` shows candidate unit spans and owning notes, exact planned parts,
+question/answer counts and full addresses, relationships/evidence, scoped
+exceptions, and `requires_agent_review: true`. Heading-to-heading unit spans
+can contain shared introductions assigned to the following note; actual plan
+parts remain authoritative. Both check and write use these structuring gates,
+as does read-only persisted validation.
 
 Writer `--plan-sha256 HASH`: binds execution to that plan, creates only approved
 missing containers and a new root,
