@@ -226,6 +226,8 @@ uv run --package clew-enrich --locked --no-sync python -B ".agents\skills\clew-e
 Validation checks supplied lines, formulas, indentation, numbering and shared
 instructions after removing only documented structural additions. It checks
 unique anchors/IDs, question/answer agreement, and precise course targets.
+Correction associations and all answer links must agree on one owning exercise,
+even when another exercise has the same local question anchor.
 Courses, sources, index, ingest record, and existing aid files must stay unchanged;
 only new Markdown aid notes/directories under `aides/` are allowed.
 Failures identify the cause and never repair notes or recapture the baseline.
@@ -238,7 +240,8 @@ does not call that validator. See [ADR-0007](docs/adr/0007-course-linked-questio
 
 The [small English synthetic chapter](tests/clew_enrich/fixtures/chapter) and
 [enriched overlay](tests/clew_enrich/fixtures/enriched) contain one short course,
-two exercises/four questions, three supplied answers, six hints, and three
+two exercise notes/four questions, two correction-unit notes/three supplied
+answers, six hints, and three
 explanations. They illustrate current-note topology, not a complete retained
 Import/Ingest archive. No private teaching material is included.
 
@@ -258,6 +261,10 @@ optional aids, and existing metadata/relationships automatically. When only a
 vault/container and course name are known, `inspect_notes.py --list-chapters`
 lists chapter titles for the skill to select. Retained `sources/` documents and
 hidden configuration are excluded; arbitrary explicit notes remain supported.
+Selections from one exercise remain one owning exercise view, with internal
+questions and selected context in source order. Aliased/overlapping selections
+are rejected. Supplied-answer panels keep their correction-unit context without
+adding unselected answers; Generate never splits source notes.
 
 Expandable exercises display methods, progressive hints, inline supplied
 corrections, supplied-answer explanations, and contextual course excerpts when
@@ -322,6 +329,9 @@ local wheels from the installed, locked runtime distributions, retaining their
 licenses and rebuilding wheel records; it requires neither registry access nor
 repository files at runtime. These fixtures remain outside the skill and are
 removed with the test's temporary directory.
+The synthetic `tests/clew_ingest/test_pipeline.py` verifies isolated-process
+Ingest, Enrich, and Generate handoffs, including native internal structure before
+optional aids and current-note publication without a producer record.
 
 Generate tests include a synthetic three-exercise/six-question chapter and an
 independent copied-skill UV environment using temporary wheels built from the

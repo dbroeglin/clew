@@ -48,6 +48,9 @@ class EnrichmentPublicationTests(unittest.TestCase):
 
     def test_chapter_only_layout_reuses_all_note_links(self):
         model = self.model()
+        self.assertEqual([exercise["address"] for exercise in model["exercises"]],
+                         ["sequences-demo-exercise-1", "sequences-demo-exercise-2"])
+        self.assertEqual([len(exercise["questions"]) for exercise in model["exercises"]], [2, 2])
         self.assertEqual(len(model["questions"]), 4)
         self.assertEqual([len(q["hints"]) for q in model["questions"]], [1, 2, 2, 1])
         self.assertEqual([len(q["explanations"]) for q in model["questions"]], [1, 1, 1, 0])
@@ -57,27 +60,30 @@ class EnrichmentPublicationTests(unittest.TestCase):
         self.assertIn("Replacing", model["questions"][0]["explanations"][0])
         segments = model["exercises"][0]["segments"]
         self.assertIn("Justify each answer.", segments[0]["html"])
-        self.assertIn("Consider the sequence", segments[3]["html"])
+        self.assertIn("Consider the sequence", model["exercises"][1]["segments"][0]["html"])
         self.assertEqual(sum("Justify each answer." in str(segment) for segment in segments), 1)
         self.assertNotIn("question::", str(model))
 
-    def test_without_enrichment_preserves_the_ordinary_worksheet(self):
+    def test_without_enrichment_preserves_each_ordinary_exercise_unit(self):
         shutil.rmtree(self.chapter)
         shutil.copytree(FIXTURES / "chapter", self.chapter)
         model = self.model()
-        self.assertEqual(len(model["questions"]), 1)
-        self.assertFalse(model["questions"][0]["hints"])
-        self.assertFalse(model["questions"][0]["explanations"])
-        self.assertIn("Exercise 2", model["questions"][0]["html"])
+        self.assertEqual(len(model["exercises"]), 2)
+        self.assertEqual(len(model["questions"]), 2)
+        self.assertTrue(all(not question["hints"] and not question["explanations"]
+                            for question in model["questions"]))
+        self.assertIn("Exercise 1", model["questions"][0]["html"])
+        self.assertNotIn("Exercise 2", model["questions"][0]["html"])
+        self.assertIn("Exercise 2", model["questions"][1]["html"])
 
     def test_explicit_suppression_and_selected_answer_filtering(self):
-        address = "sequences-demo-exercises#^q-ex1-1"
+        address = "sequences-demo-exercise-1#^q-ex1-1"
         self.modify(questions={address: {"explanations": []}})
         self.assertFalse(self.model()["questions"][0]["explanations"])
         self.modify(questions={address: {"corrections": []}})
         self.assertFalse(self.model()["questions"][0]["explanations"])
         self.assertTrue(self.model()["questions"][0]["hints"])
-        self.modify(questions={address: {"corrections": ["sequences-demo-corrections#Exercise 1"]}})
+        self.modify(questions={address: {"corrections": ["sequences-demo-correction-1#Exercise 1"]}})
         self.assertEqual(len(self.model()["questions"][0]["explanations"]), 1)
 
     def test_invalid_explanation_mappings_fail_explicitly(self):
@@ -87,11 +93,11 @@ class EnrichmentPublicationTests(unittest.TestCase):
         with self.assertRaisesRegex(GenerateError, "correction/question mismatch"):
             self.model()
         path.write_text(original, encoding="utf-8")
-        self.modify(questions={"sequences-demo-exercises#^q-ex1-1": {
+        self.modify(questions={"sequences-demo-exercise-1#^q-ex1-1": {
             "explanations": ["sequences-demo-aid-ex1-2#^explanation-1"]}})
         with self.assertRaisesRegex(GenerateError, "another question"):
             self.model()
-        self.modify(questions={"sequences-demo-exercises#^q-ex2-2": {
+        self.modify(questions={"sequences-demo-exercise-2#^q-ex2-2": {
             "explanations": ["sequences-demo-aid-ex1-1#^explanation-1"]}})
         with self.assertRaisesRegex(GenerateError, "require a selected supplied correction"):
             self.model()
@@ -128,7 +134,8 @@ class EnrichmentPublicationTests(unittest.TestCase):
             page.route("https://**/*", lambda route: (requests.append(route.request.url), route.abort()))
             page.goto((self.root / "sequences.html").as_uri())
             page.wait_for_function("!!window.MathJax?.startup?.document")
-            page.get_by_role("button", name="Commencer l'exercice").click()
+            page.get_by_role("button", name="Commencer l'exercice").first.click()
+            self.assertEqual(page.locator(".exercise").count(), 2)
             questions = page.locator(".question")
             self.assertEqual(questions.count(), 4)
             self.assertEqual(page.locator('[data-help="explanations"]').count(), 3)
@@ -150,6 +157,7 @@ class EnrichmentPublicationTests(unittest.TestCase):
             self.assertEqual(page.locator("#panel-title").inner_text(), "Geometric sequences")
             self.assertNotIn("Passing to the limit", page.locator("#panel-content").inner_text())
             page.set_viewport_size({"width": 390, "height": 844})
+            page.locator(".exercise").nth(1).evaluate("node => node.open = true")
             questions.nth(3).get_by_role("button", name="Indices", exact=True).click()
             page.locator("#panel-content").get_by_role("link", name="limit relation").click()
             self.assertEqual(page.locator("#panel-title").inner_text(), "Passing to the limit")

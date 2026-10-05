@@ -44,6 +44,18 @@ then publish. Both questions have correction controls; neither has a method or
 hint button without selected existing help. Adding a help note to `notes`
 enables its matching aids on the next run.
 
+For a partial exercise, replace the whole-note default with:
+
+```json
+"exercises": ["exercice#^q-2", "exercice#^q-1"]
+```
+
+This is still one exercise view, with its two questions in source order. Select
+necessary shared instructions too, or prefer the whole exercise. An
+`exercice#Exact heading` or safe range containing both anchored questions also
+keeps two question views inside that one exercise. Never select the whole note
+and one of its children together: their overlap is an error.
+
 A help note can also provide an anchored `[!explanation]` callout, with
 `question: "[[exercice#^q-1]]"` and `correction: "[[corrige#^r-1]]"` in
 frontmatter. Generate attaches it to that selected supplied answer and offers

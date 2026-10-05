@@ -52,6 +52,9 @@ specify the role; chapter-discovered notes inherit their directory role.
 At least one course or exercise is required. Unselected notes can
 still provide correction/help/excerpt targets; listing a note does not imply
 displaying its entire body.
+Exercise groups follow their first appearance in `exercises`; selected parts
+inside each group follow source order, even if question selectors were listed
+in another order.
 
 References accept frontmatter `id`, filename stem, filename, absolute path, or
 an existing wikilink `[[id#^block|label]]`. Relative paths within ordinary
@@ -69,7 +72,9 @@ uniquely among selected notes. Selectors:
 `questions` maps published question addresses to optional overrides:
 `corrections`, `hints`, `explanations`, and `courses` arrays, plus `method` as a
 selector or null.
-Arrays preserve order. Explicit empty arrays suppress auto-selected material;
+Aid/course arrays preserve order. Correction panels follow the first appearance
+of each supplied correction unit, with selected answers in source order inside
+that panel. Explicit empty arrays suppress auto-selected material;
 `method: null` suppresses automatic methods. Unused overrides are errors.
 Mappings are semantic agent decisions; the script checks references, not their
 pedagogical truth. Explanations require a selected correction. When selecting
@@ -88,6 +93,11 @@ exercise view. A heading/range containing several anchored question blocks
 retains those questions and its selected context. Duplicate/overlapping question
 selections are errors, including whole-note plus child-block selection.
 Prefer one whole-note selector per exercise for native output.
+Overlaps are checked by source spans, including selector aliases and shared
+context. A context-only selection in a structured exercise needs selected
+question blocks from that same note; it does not invent another question.
+The derived model's exercise `address` is the owning note ID; each question
+`address` contains that ID and its existing local block anchor.
 
 Store one source exercise per exercise note and one supplied correction unit
 per correction note; keep all subquestions/answers and shared context inside.
@@ -106,6 +116,17 @@ default contextual links; explicit question `courses` narrows them to excerpts.
 Supplied-answer targets must agree with the correction unit's exercise
 association. Selected shared correction context remains available with the
 answers rather than disappearing through answer-only selection.
+The `exercises` association is an array resolving to at most one whole exercise
+note. With no declared association, linked answers must still share one owner.
+Explicit correction selections cannot point to another exercise's unit or a
+known answer for another question. Unlinked supplied answers produce visible
+warnings, not invented matches.
+
+Automatic and explicit answer-block selections include the correction unit's
+non-answer context once per panel, interleaved with the selected answers in
+source order. Whole-note/heading/range selections keep their selected context.
+Other answers are not added merely to supply context. Separate supplied
+correction variants remain separate panels.
 
 Remove only recognized frontmatter, exact `clew-part` structural comments,
 known structural field lines, callout wrappers, and standalone anchors from

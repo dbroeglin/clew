@@ -37,8 +37,10 @@ def fixture(root: Path) -> Path:
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aO1cAAAAASUVORK5CYII="))
     (root / "original.pdf").write_bytes(b"%PDF-1.4\n")
     notes = [course.name]
-    answer = ['---\nid: corrige\ntype: correction\n---\n']
     for number, count in [(1, 2), (2, 1), (3, 3)]:
+        answer = [f'---\nid: corrige-{number}\ntype: correction\n'
+                  f'exercises: ["[[ex-{number}]]"]\n---\n'
+                  f'Shared correction context {number}.\n\n']
         filename = f"exercice-{number}.md"
         notes.append(filename)
         text = (f'---\nid: ex-{number}\ntype: exercise\ntitle: Exercice {number}\n'
@@ -51,12 +53,13 @@ def fixture(root: Path) -> Path:
                      f'> Énoncé {number}-{question} : $x_{question}^2$.\n\n'
                      f'^q-{question}\n<!-- /clew-part:{question} -->\n\n')
             answer.append(f'> [!reponse] Réponse {question}\n'
-                          f'> [src:: corrige; pages 1] [question:: [[ex-{number}#^q-{question}]]]\n'
+                          f'> [src:: corrige-{number}; pages 1] [question:: [[ex-{number}#^q-{question}]]]\n'
                           f'> Correction {number}-{question} : $\\frac{{1}}{{2}}$.\n\n'
                           f'^r-{number}-{question}\n\n')
         (root / filename).write_text(text, encoding="utf-8")
-    (root / "corrige.md").write_text("".join(answer), encoding="utf-8")
-    notes.append("corrige.md")
+        correction = f"corrige-{number}.md"
+        (root / correction).write_text("".join(answer), encoding="utf-8")
+        notes.append(correction)
     (root / "aides.md").write_text(
         '---\nid: aides\ntype: help\nquestion: "[[ex-1#^q-1]]"\n---\n'
         '> [!method]\n> Méthode distincte du corrigé.\n\n^methode\n\n'
@@ -93,6 +96,10 @@ class GenerateTests(unittest.TestCase):
 
     def test_six_questions_fidelity_and_optional_aids(self):
         model = self.model()
+        self.assertEqual([e["address"] for e in model["exercises"]], ["ex-1", "ex-2", "ex-3"])
+        self.assertEqual([q["address"] for q in model["questions"]],
+                         ["ex-1#^q-1", "ex-1#^q-2", "ex-2#^q-1",
+                          "ex-3#^q-1", "ex-3#^q-2", "ex-3#^q-3"])
         self.assertEqual([len(e["questions"]) for e in model["exercises"]], [2, 1, 3])
         self.assertEqual(len(model["questions"]), 6)
         self.assertEqual(len(model["questions"][0]["hints"]), 3)
@@ -120,6 +127,159 @@ class GenerateTests(unittest.TestCase):
         path.write_text(path.read_text(encoding="utf-8").replace("Énoncé 1-1", "Énoncé édité"),
                         encoding="utf-8")
         self.assertIn("Énoncé édité", self.model()["questions"][0]["html"])
+
+    def question_range(self, number=1):
+        lines = (self.root / "exercice-1.md").read_text(encoding="utf-8").splitlines()
+        start = lines.index(f"> [!question] Question {number}") + 1
+        end = lines.index(f"^q-{number}") + 1
+        if end < len(lines) and lines[end] == f"<!-- /clew-part:{number} -->":
+            end += 1
+        return f"ex-1#L{start}-L{end}"
+
+    def test_disjoint_question_selectors_group_by_exercise_and_source_order(self):
+        self.modify(exercises=["ex-1#^q-2", "[[exercice-1#^q-1|First]]", "ex-2#^q-1"])
+        model = self.model()
+        self.assertEqual([e["address"] for e in model["exercises"]], ["ex-1", "ex-2"])
+        self.assertEqual([len(e["questions"]) for e in model["exercises"]], [2, 1])
+        self.assertEqual([q["address"] for q in model["questions"]],
+                         ["ex-1#^q-1", "ex-1#^q-2", "ex-2#^q-1"])
+        self.assertIn("Correction 1-1", model["questions"][0]["corrections"][0])
+        self.assertNotIn("Correction 2-1", model["questions"][0]["corrections"][0])
+        self.assertEqual(len(model["questions"][0]["hints"]), 3)
+
+    def test_heading_and_range_containers_keep_internal_questions_and_context(self):
+        path = self.root / "exercice-1.md"
+        text = path.read_text(encoding="utf-8").replace("Contexte commun 1.", "## Container\n\nContexte commun 1.")
+        text = text.replace("<!-- clew-part:2 -->", "Intermediate instruction.\n\n<!-- clew-part:2 -->")
+        path.write_text(text, encoding="utf-8")
+        start = text.splitlines().index("## Container") + 1
+        for selector in ("ex-1#Container", f"ex-1#L{start}-L{len(text.splitlines())}"):
+            with self.subTest(selector=selector):
+                self.modify(exercises=[selector], questions={"ex-1#^q-2": {"hints": []}})
+                model = self.model()
+                self.assertEqual([q["address"] for q in model["questions"]],
+                                 ["ex-1#^q-1", "ex-1#^q-2"])
+                segments = model["exercises"][0]["segments"]
+                self.assertIn("Contexte commun 1", segments[0]["html"])
+                self.assertEqual(segments[1]["question"], "question-1")
+                self.assertIn("Intermediate instruction", segments[2]["html"])
+                self.assertEqual(segments[3]["question"], "question-2")
+                self.assertEqual(len(model["exercises"]), 1)
+
+    def test_question_range_uses_its_canonical_internal_address(self):
+        self.modify(exercises=[self.question_range()],
+                    questions={"ex-1#^q-1": {"hints": []}})
+        model = self.model()
+        self.assertEqual(model["questions"][0]["address"], "ex-1#^q-1")
+        self.assertTrue(model["questions"][0]["corrections"])
+        self.assertFalse(model["questions"][0]["hints"])
+
+    def test_whole_child_alias_heading_and_range_overlaps_are_rejected(self):
+        path = self.root / "exercice-1.md"
+        path.write_text(path.read_text(encoding="utf-8").replace(
+            "Contexte commun 1.", "## Container\n\nContexte commun 1."), encoding="utf-8")
+        cases = [
+            ["ex-1", "ex-1#^q-1"],
+            ["ex-1#^q-1", "exercice-1.md#^q-1"],
+            ["ex-1#Container", "ex-1#^q-2"],
+            [self.question_range(), "ex-1#^q-1"],
+            ["ex-1", "[[exercice-1]]"],
+        ]
+        for selectors in cases:
+            with self.subTest(selectors=selectors):
+                self.modify(exercises=selectors)
+                with self.assertRaisesRegex(GenerateError, "Duplicate/overlapping exercise selection"):
+                    self.model()
+
+    def test_disjoint_context_and_question_selections_keep_one_unit(self):
+        path = self.root / "exercice-1.md"
+        path.write_text(path.read_text(encoding="utf-8").replace(
+            "Contexte commun 1.", "Selected instructions.\n\n^instructions"), encoding="utf-8")
+        self.modify(exercises=["ex-1#^q-2", "ex-1#^instructions", self.question_range()])
+        model = self.model()
+        self.assertEqual(len(model["exercises"]), 1)
+        segments = model["exercises"][0]["segments"]
+        self.assertIn("Selected instructions", segments[0]["html"])
+        self.assertEqual([segment["question"] for segment in segments if "question" in segment],
+                         ["question-1", "question-2"])
+        self.modify(exercises=["ex-1#^instructions"])
+        with self.assertRaisesRegex(GenerateError, "contains no questions"):
+            self.model()
+
+    def test_unit_link_resolves_when_only_internal_questions_are_selected(self):
+        path = self.root / "exercice-1.md"
+        path.write_text(path.read_text(encoding="utf-8").replace(
+            "Énoncé 1-1", "[[ex-1|Owning exercise]] : Énoncé 1-1"), encoding="utf-8")
+        self.modify(exercises=["ex-1#^q-1"])
+        self.assertIn("Owning exercise", self.model()["questions"][0]["html"])
+
+    def test_correction_context_is_preserved_once_per_selected_unit(self):
+        path = self.root / "corrige-1.md"
+        path.write_text(path.read_text(encoding="utf-8").replace(
+            "[[ex-1#^q-2]]", "[[ex-1#^q-1]]"), encoding="utf-8")
+        question = self.model()["questions"][0]
+        self.assertEqual(len(question["corrections"]), 1)
+        panel = question["corrections"][0]
+        self.assertEqual(panel.count("Shared correction context 1."), 1)
+        self.assertLess(panel.index("Shared correction context"), panel.index("Correction 1-1"))
+        self.assertLess(panel.index("Correction 1-1"), panel.index("Correction 1-2"))
+
+    def test_supplied_correction_variants_remain_separate_panels(self):
+        variant = self.root / "variant.md"
+        text = (self.root / "corrige-1.md").read_text(encoding="utf-8")
+        variant.write_text(text.replace("id: corrige-1\n", "id: variant\n"), encoding="utf-8")
+        data = json.loads(self.layout.read_text(encoding="utf-8"))
+        self.modify(notes=[*data["notes"], variant.name])
+        panels = self.model()["questions"][0]["corrections"]
+        self.assertEqual(len(panels), 2)
+        self.assertTrue(all(panel.count("Shared correction context 1.") == 1 for panel in panels))
+
+    def test_unlinked_supplied_answer_is_warned_not_auto_matched(self):
+        path = self.root / "corrige-2.md"
+        path.write_text(path.read_text(encoding="utf-8").replace(
+            " [question:: [[ex-2#^q-1]]]", ""), encoding="utf-8")
+        self.modify(exercises=["ex-2"])
+        report = generate(self.layout, check=True)
+        self.assertIn("Unmatched supplied answer: corrige-2#^r-2-1", report["warnings"])
+        self.assertFalse(self.model()["questions"][0]["corrections"])
+
+    def test_empty_explicit_correction_cannot_create_an_empty_control(self):
+        path = self.root / "corrige-1.md"
+        path.write_text('---\nid: corrige-1\ntype: correction\nexercises: ["[[ex-1]]"]\n---\n',
+                        encoding="utf-8")
+        self.modify(questions={"ex-1#^q-1": {"corrections": ["corrige-1"]}})
+        with self.assertRaisesRegex(GenerateError, "Empty correction selection"):
+            self.model()
+
+    def test_wrong_but_resolvable_correction_owner_is_rejected(self):
+        path = self.root / "corrige-1.md"
+        path.write_text(path.read_text(encoding="utf-8").replace(
+            "[[ex-1#^q-1]]", "[[ex-2#^q-1]]"), encoding="utf-8")
+        with self.assertRaisesRegex(GenerateError, "different exercise than its correction unit"):
+            self.model()
+
+    def test_undeclared_correction_cannot_combine_exercise_owners(self):
+        path = self.root / "corrige-1.md"
+        text = path.read_text(encoding="utf-8").replace('exercises: ["[[ex-1]]"]\n', "")
+        path.write_text(text.replace("[[ex-1#^q-2]]", "[[ex-2#^q-1]]"), encoding="utf-8")
+        with self.assertRaisesRegex(GenerateError, "different exercise than its correction unit"):
+            self.model()
+
+    def test_explicit_correction_selector_must_belong_to_the_published_exercise(self):
+        self.modify(questions={"ex-2#^q-1": {"corrections": ["corrige-1#^r-1-1"]}})
+        with self.assertRaisesRegex(GenerateError, "belongs to another exercise"):
+            self.model()
+        self.modify(questions={"ex-1#^q-2": {"corrections": ["corrige-1#^r-1-1"]}})
+        with self.assertRaisesRegex(GenerateError, "Correction/question mismatch"):
+            self.model()
+
+    def test_duplicate_unit_ids_cannot_be_hidden_by_filename_selectors(self):
+        path = self.root / "duplicate.md"
+        path.write_text("---\nid: ex-1\ntype: exercise\n---\nA different exercise.", encoding="utf-8")
+        data = json.loads(self.layout.read_text(encoding="utf-8"))
+        self.modify(notes=[*data["notes"], path.name], exercises=["exercice-1.md", "duplicate.md"])
+        with self.assertRaisesRegex(GenerateError, "Duplicate learning-note IDs"):
+            self.model()
 
     def test_template_tokens_in_content_are_not_expanded(self):
         self.modify(title="{{DATA}}")
@@ -156,14 +316,15 @@ class GenerateTests(unittest.TestCase):
             (chapter / role).mkdir()
         for filename, role in [("cours.md", "courses"), ("exercice-1.md", "exercices"),
                                ("exercice-2.md", "exercices"), ("exercice-3.md", "exercices"),
-                               ("corrige.md", "corriges")]:
+                               ("corrige-1.md", "corriges"), ("corrige-2.md", "corriges"),
+                               ("corrige-3.md", "corriges")]:
             shutil.copyfile(self.root / filename, chapter / role / filename)
         for filename in ("figure.png", "original.pdf"):
             shutil.copyfile(self.root / filename, chapter / "courses" / filename)
         shutil.copyfile(self.root / "aides.md", chapter / "aides.md")
         (chapter / "index.md").write_text(
             '---\ntype: ingest\nid: algebre\ntitle: "Révision algèbre"\n---\n'
-            '[[cours]]\n[[ex-1]]\n[[corrige]]\n', encoding="utf-8")
+            '[[cours]]\n[[ex-1]]\n[[corrige-1]]\n[[corrige-2]]\n[[corrige-3]]\n', encoding="utf-8")
         (chapter / "ingest.json").write_text("Not consulted by Generate", encoding="utf-8")
         (chapter / "sources" / "document.md").write_text(
             "---\n: deliberately malformed frontmatter\n---\n", encoding="utf-8")
@@ -180,7 +341,7 @@ class GenerateTests(unittest.TestCase):
         chapter = self.chapter_fixture()
         for selected in (chapter, chapter / "index.md"):
             library = Library([selected])
-            self.assertEqual(len(library.notes), 6)
+            self.assertEqual(len(library.notes), 8)
             self.assertEqual(library.chapters[0]["title"], "Révision algèbre")
             exercises = [note.id for note in library.notes if note.metadata.get("type") == "exercise"]
             self.assertEqual(exercises, ["ex-2", "ex-3", "ex-1"])
@@ -340,6 +501,7 @@ class GenerateTests(unittest.TestCase):
                          "Set CLEW_TEST_BROWSER=1 for local browser checks.")
     def test_browser_offline_file_and_interactions(self):
         from playwright.sync_api import sync_playwright
+        self.modify(exercises=["ex-1#^q-2", "ex-1#^q-1", "ex-2", "ex-3"])
         assets = self.root / "edited-assets"
         shutil.copytree(SKILL / "assets", assets)
         template = assets / "template.html"

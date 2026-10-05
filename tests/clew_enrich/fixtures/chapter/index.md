@@ -13,8 +13,10 @@ title: Sequences - synthetic example
 
 ## Exercises
 
-- [[sequences-demo-exercises]]
+- [[sequences-demo-exercise-1]]
+- [[sequences-demo-exercise-2]]
 
 ## Corrections
 
-- [[sequences-demo-corrections]]
+- [[sequences-demo-correction-1]]
+- [[sequences-demo-correction-2]]

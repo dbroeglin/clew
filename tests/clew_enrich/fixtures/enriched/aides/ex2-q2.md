@@ -2,7 +2,7 @@
 schema_version: 1
 id: sequences-demo-aid-ex2-2
 type: help
-question: "[[sequences-demo-exercises#^q-ex2-2]]"
+question: "[[sequences-demo-exercise-2#^q-ex2-2]]"
 ---
 
 > [!hint]

@@ -117,13 +117,13 @@ class EnrichTests(unittest.TestCase):
                           report["hints"], report["explanations"]), (4, 3, 6, 3))
         self.assertEqual(len(report["new_aids"]), 4)
         self.assertEqual(report["questions_without_correction"],
-                         ["sequences-demo-exercises#^q-ex2-2"])
+                         ["sequences-demo-exercise-2#^q-ex2-2"])
         self.assertLessEqual(sum(path.stat().st_size for path in FIXTURES.rglob("*.md")), 12_000)
         self.assertFalse(any(ord(char) > 127 for path in self.chapter.rglob("*.md")
                              for char in path.read_text(encoding="utf-8")))
 
     def test_source_changes_and_blank_line_losses_are_rejected(self):
-        path = "exercices/sequences-demo-exercises.md"
+        path = "exercices/sequences-demo-exercise-1.md"
         for old, new in [("u_n=7(2/5)^n", "u_n=8(2/5)^n"),
                          ("Justify each answer.", ""),
                          ("> 2. Determine", "> 3. Determine"),
@@ -137,12 +137,12 @@ class EnrichTests(unittest.TestCase):
                 (self.chapter / path).write_text(original, encoding="utf-8")
 
     def test_formula_indentation_and_frontmatter_are_preserved(self):
-        self.edit("corriges/sequences-demo-corrections.md", ">    $$", "> $$")
+        self.edit("corriges/sequences-demo-correction-2.md", ">    $$", "> $$")
         with self.assertRaisesRegex(EnrichError, "Supplied text/formatting changed"):
             validate(self.chapter, self.before)
-        shutil.copyfile(FIXTURES / "enriched" / "corriges" / "sequences-demo-corrections.md",
-                        self.chapter / "corriges" / "sequences-demo-corrections.md")
-        self.edit("exercices/sequences-demo-exercises.md", "status: draft", "status: complete")
+        shutil.copyfile(FIXTURES / "enriched" / "corriges" / "sequences-demo-correction-2.md",
+                        self.chapter / "corriges" / "sequences-demo-correction-2.md")
+        self.edit("exercices/sequences-demo-exercise-1.md", "status: draft", "status: complete")
         with self.assertRaisesRegex(EnrichError, "frontmatter changed"):
             validate(self.chapter, self.before)
 
@@ -243,13 +243,13 @@ class EnrichTests(unittest.TestCase):
             validate(self.chapter, second)
         shutil.copyfile(FIXTURES / "enriched" / "aides" / "ex1-q1.md",
                         self.chapter / "aides" / "ex1-q1.md")
-        self.edit("exercices/sequences-demo-exercises.md", "Exercise 1 - Question 1",
+        self.edit("exercices/sequences-demo-exercise-1.md", "Exercise 1 - Question 1",
                   "Different label")
         with self.assertRaisesRegex(EnrichError, "Existing block changed"):
             validate(self.chapter, second)
 
     def test_source_fields_survive_added_question_links(self):
-        path = self.chapter / "corriges" / "sequences-demo-corrections.md"
+        path = self.chapter / "corriges" / "sequences-demo-correction-1.md"
         old = ('---\nid: solutions\ntype: correction\n---\n'
                '> [!reponse] Answer\n> [src:: original; pages 1]\n> Supplied text.\n>\n\n^answer\n\n')
         new = old.replace("[src:: original; pages 1]",
@@ -260,7 +260,7 @@ class EnrichTests(unittest.TestCase):
                             Note(path, new.replace("pages 1", "pages 2"), "correction").projection())
 
     def test_existing_plain_block_anchor_is_reused(self):
-        path = self.chapter / "exercices" / "sequences-demo-exercises.md"
+        path = self.chapter / "exercices" / "sequences-demo-exercise-1.md"
         old = "1. Supplied question.\n\n^existing\n\nNext instruction.\n"
         new = "> [!question] Question\n> 1. Supplied question.\n\n^existing\n\nNext instruction.\n"
         self.assertEqual(Note(path, old, "exercise").projection(),

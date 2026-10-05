@@ -113,6 +113,12 @@ Prefer whole exercise selectors for native notes. When selecting only questions
 or headings, retain their owning exercise and necessary selected context.
 Overlapping/duplicate question selections are errors; resolve them in the layout,
 not by silently suppressing source content.
+Exercise groups follow first selection appearance; their selected internal parts
+stay in source order. Selecting context alone does not invent a question.
+Answer links and explicit correction selections must agree with the unit's
+exercise owner. Answer-block panels keep that correction unit's non-answer
+context once, without adding unselected answers; heading/range panels keep
+their selected context. Unlinked supplied answers are reported as warnings.
 
 Ingest question/answer callouts and block IDs work directly. Ordinary supported
 Obsidian notes also work through explicit whole-note, heading, block, or safe

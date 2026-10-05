@@ -1,25 +1,14 @@
 ---
 schema_version: 1
-id: sequences-demo-exercises
+id: sequences-demo-exercise-2
 type: exercise
-title: Sequence worksheet
-order: 10
+title: Recurrent sequence
+order: 20
 status: draft
-corrections: ["[[sequences-demo-corrections]]"]
+corrections: ["[[sequences-demo-correction-2]]"]
 ---
 
 <!-- clew-part:0 -->
-
-# Sequence worksheet
-
-## Exercise 1
-
-For every $n\in\mathbb{N}$, let $u_n=7(2/5)^n$.
-Justify each answer.
-
-1. Show that $(u_n)$ is geometric and identify its common ratio.
-
-2. Determine the limit of $(u_n)$.
 
 ## Exercise 2
 
