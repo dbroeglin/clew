@@ -41,7 +41,9 @@ this includes:
 - Executable code and other runtime assets.
 - Direct dependency declarations and supported runtime versions.
 - Configuration templates that contain no credentials.
-- Skill-specific tests, evaluations, fixtures, licenses, and provenance.
+- Workflow evaluations, licenses, and provenance. The original decision also
+  bundled script tests and fixtures; that clause is superseded by ADR-0004,
+  which places them in repository-owned `tests/<skill_name>/` suites.
 - Commands that work when the skill is hosted by Clew and enough information to
   adapt or run them when the skill directory is copied elsewhere.
 
@@ -121,9 +123,11 @@ but add a new ADR or an explicit supersession note when a later decision changes
 the operative architecture.
 
 This ADR supersedes the repository-root dependency ownership, configuration
-template ownership, and root test-location decisions in ADR-0002. ADR-0002's PDF
-Import behavior, safety gates, artifact contract, and pinned implementation
-provenance remain accepted.
+template ownership, and root test-location decisions in
+[ADR-0002](0002-pdf-import-skill-and-project-runtime.md). ADR-0002's PDF Import
+behavior, safety gates, artifact contract, and pinned implementation provenance
+remain accepted; [ADR-0005](0005-conservative-import-and-latex-leakage-review.md)
+later permits prompt and review-check changes to that baseline.
 
 ## Consequences
 
@@ -132,8 +136,9 @@ provenance remain accepted.
 - Runtime rules may appear both in an ADR and in a skill, but with distinct
   purposes: rationale in the ADR and complete operational instructions in the
   skill.
-- Skill directories become larger because they include their maintenance and
-  validation assets.
+- Skill directories include their runtime validation assets and workflow
+  evaluations; executable script tests and fixtures remain outside them per
+  ADR-0004.
 - Clew retains one lockfile and virtual environment for efficient development,
   while standalone hosts may resolve a different compatible lock.
 - Adding a skill requires workspace integration and combined dependency

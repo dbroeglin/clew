@@ -23,9 +23,12 @@ transcription errors.
 
 ## Decision
 
-Partially supersede ADR-0002's restriction on modifying the upstream page prompt
-and Markdown content checks. Preserve its other safety, artifact, and execution
-contracts.
+Partially supersede
+[ADR-0002](0002-pdf-import-skill-and-project-runtime.md)'s restriction on
+modifying the upstream page prompt and Markdown content checks. Preserve its
+other safety and artifact contracts, with runtime ownership governed by
+[ADR-0003](0003-autonomous-portable-skills.md) and downstream retention/test
+ownership governed by [ADR-0004](0004-faithful-multi-bundle-ingest.md).
 
 Require the page-reconciliation model to make the smallest necessary,
 image-evidenced corrections, preserving already-correct OCR text, source

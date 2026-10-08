@@ -6,6 +6,12 @@
 > Later refinement: [ADR-0008](0008-exercise-unit-pipeline-contract.md)
 > establishes exercise-level note ownership and internal question/answer
 > structure, with explicit source-unit review in normal plan checks.
+>
+> **Later stages:** [ADR-0006](0006-current-note-offline-html-generation.md)
+> implements Generate and [ADR-0007](0007-course-linked-question-enrichment.md)
+> implements additive Enrich. Neither replaces this faithful Ingest contract.
+> Its validator checks the original snapshot; subsequent edits/aids are changes,
+> not grounds to rewrite `ingest.json` or require re-ingestion before publication.
 
 ## Context
 
@@ -106,8 +112,9 @@ external original-bundle locations.
 
 ### Script tests belong to the repository
 
-Keep executable Python tests and fixtures outside every skill directory:
-`tests/clew_ingest/` and `tests/clew_import/`. Workflow evaluations may remain
+Keep executable Python tests and fixtures outside every skill directory, under
+repository-owned `tests/<skill_name>/` suites (`tests/clew_ingest/` and
+`tests/clew_import/` for the skills covered here). Workflow evaluations may remain
 inside the skill. Update development commands accordingly.
 
 This partially supersedes ADR-0003's script-test bundling requirement. Skills
@@ -129,5 +136,6 @@ to operate; the repository verifies portability through its external test suite.
   conversion diagnostics; the original bundles preserve those.
 - Portable skills omit development script tests; maintainers use this repository
   to run them. Workflow evals and runtime format references remain distributable.
-- HTML, incremental updates, cross-ingest linking, cleanup automation, and Enrich
-  remain future work. ADR-0001's stage boundaries are not superseded.
+- HTML and Enrich were deferred here and are subsequently implemented by
+  ADR-0006 and ADR-0007. Incremental Ingest updates, cross-ingest linking, and
+  cleanup automation remain deferred. ADR-0001's stage boundaries are unchanged.

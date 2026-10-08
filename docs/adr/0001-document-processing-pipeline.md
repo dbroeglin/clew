@@ -1,7 +1,11 @@
-# ADR 0001: Document processing pipeline
+# ADR-0001: Document processing pipeline
 
 - Status: Accepted
 - Date: 2026-10-04
+
+> **Current scope:** Later ADRs implement parts of this initial direction; see
+> [Current refinements](#current-refinements). Non-PDF conversion and broader
+> enrichment described below are not implemented.
 
 ## Context
 
@@ -50,7 +54,8 @@ services, a particular execution framework, or specific conversion tools.
 ### 1. Import: convert and preserve
 
 Import accepts PDF, TeX, Word, and PowerPoint source documents and converts them
-into Markdown suitable for downstream processing.
+into Markdown suitable for downstream processing in the intended architecture.
+The first implementation is PDF-only, as scoped by ADR-0002.
 
 - Retain the original source document in the Obsidian vault so that content
   produced by Ingest can reference it.
@@ -159,3 +164,21 @@ Use subsequent ADRs to refine these contracts or change the pipeline. If a later
 decision replaces this one, mark this ADR as superseded and link to its successor
 rather than rewriting the historical rationale. Acceptance of this initial
 direction does not freeze its implementation or the deferred choices.
+
+### Current refinements
+
+The following decisions resolve parts of the initial deferred list without
+superseding the four-stage pipeline:
+
+| Contract | Operative decisions |
+| --- | --- |
+| PDF conversion, retained bundles, discovery, and failure gates | [ADR-0002](0002-pdf-import-skill-and-project-runtime.md), with runtime ownership refined by [ADR-0003](0003-autonomous-portable-skills.md) and transcription/review refined by [ADR-0005](0005-conservative-import-and-latex-leakage-review.md). |
+| Vault placement, note/field schemas, source references, fidelity, and ownership | [ADR-0004](0004-faithful-multi-bundle-ingest.md); Ingest retains a source subset, not the complete Import bundle. |
+| First enrichment scope, provenance, and preservation checks | [ADR-0007](0007-course-linked-question-enrichment.md); additive aids and structural anchors, not generated exercises/answers or a revision-history framework. |
+| Current-note publication, offline assets, discovery, and interactions | [ADR-0006](0006-current-note-offline-html-generation.md), extended by [ADR-0007](0007-course-linked-question-enrichment.md). |
+| Note granularity and question/answer ownership across stages | [ADR-0008](0008-exercise-unit-pipeline-contract.md); one note per exercise/correction unit with anchored internal questions/answers, grouped by owning exercise in HTML. |
+
+Non-PDF conversion, broader enrichment, incremental Ingest updates, general
+revision tracking, and automated cleanup/orchestration remain deferred.
+The current user workflow is in the [README](../../README.md); runtime and
+development details are in the [skills reference](../skills.md).

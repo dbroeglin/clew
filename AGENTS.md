@@ -31,6 +31,12 @@ platform capability, external service, or host integration must be explicit.
 
 ## Documentation integrity
 
+Keep the root README focused on the end-user workflow and calling skills.
+Put runtime setup, artifact contracts, direct script commands, limitations, and
+development checks in [the skills reference](docs/skills.md). Portable skills
+must still contain their complete operating instructions; the reference is not
+a runtime dependency.
+
 For every task and pull request, assess documentation impact before considering
 the work complete. Update all affected public documentation, contributor
 guidance, skill instructions, examples, commands, and ADR index/status links in

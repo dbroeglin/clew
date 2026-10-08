@@ -8,11 +8,14 @@
 > convention to supplied-answer explanations and aid-to-course panel links.
 > [ADR-0008](0008-exercise-unit-pipeline-contract.md) groups question selections
 > by owning exercise and separates note granularity from HTML presentation.
+> The current-note contract remains unchanged: Generate does not require
+> either Ingest's snapshot validation or Enrich's local comparison baseline.
 
 ## Context
 
-ADR-0001 separates optional learning enrichment from repeatable publication.
-Import and faithful Ingest exist, but Enrich does not. A separately authored
+[ADR-0001](0001-document-processing-pipeline.md) separates optional learning
+enrichment from repeatable publication. At the time of this decision, Import
+and faithful Ingest existed, but Enrich did not. A separately authored
 HTML mock demonstrates expandable exercises, question methods and progressive
 hints, inline supplied corrections, and contextual course excerpts.
 
@@ -108,7 +111,8 @@ unresolved semantic relationships still require explicit agent decisions.
 
 - A current course can be published without rerunning any previous stage.
 - Agent decisions remain explicit without a large plan/approval system.
-- Enrich can adopt a minimal aid convention later; Generate works without it.
+- Generate works without enrichment; ADR-0007 subsequently adopts and extends
+  its minimal aid convention.
 - Unsupported Obsidian features require an explicit selection/content decision.
 - The offline runtime increases HTML size; selected content/figures only are
   embedded rather than entire imported sources.
@@ -116,7 +120,8 @@ unresolved semantic relationships still require explicit agent decisions.
 - Mathematical correctness is not mechanically proven; browser errors and
   representative inspection complement static selection checks.
 - Ingest's existing immutable-output validator is unchanged and intentionally
-  not used by Generate. Future Enrich ownership/revision semantics remain open.
+  not used by Generate. ADR-0007 defines additive Enrich preservation; general
+  aid revision and history semantics remain deferred.
 - HTML-first view markup is maintainable without a framework; changes to
   behavioral hooks or native controls require coordinated JavaScript updates.
 - Normal Ingest chapters can be selected by folder/index rather than by note

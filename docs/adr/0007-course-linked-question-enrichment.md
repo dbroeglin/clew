@@ -9,9 +9,13 @@
 
 ## Context
 
-ADR-0001 separates faithful Ingest, optional Enrich, and repeatable Generate.
-ADR-0006 already publishes optional question-addressed help notes, but does not
-define an Enrich implementation or supplied-answer explanations.
+[ADR-0001](0001-document-processing-pipeline.md) separates faithful Ingest,
+optional Enrich, and repeatable Generate.
+[ADR-0006](0006-current-note-offline-html-generation.md) already publishes
+optional question-addressed help notes, but does not define an Enrich
+implementation or supplied-answer explanations. This record implements that
+first enrichment scope and refines Generate without superseding either stage
+boundary.
 
 The first Enrich increment should be deliberately small: question-specific
 hints and explanations of supplied answers, both linked to existing course

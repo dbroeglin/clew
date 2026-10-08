@@ -1,15 +1,20 @@
 # ADR-0002: PDF Import skill and project-level Python runtime
 
-- Status: Accepted
+- Status: Accepted; partially superseded by ADR-0003, ADR-0004, and ADR-0005
 - Date: 2026-10-04
 
 > **Supersession note:** [ADR-0003](0003-autonomous-portable-skills.md)
 > supersedes this record's repository-root ownership of dependency declarations,
-> configuration templates, and tests. Its PDF Import behavior, safety gates,
-> artifact contract, and implementation provenance remain accepted.
-> [ADR-0004](0004-faithful-multi-bundle-ingest.md) subsequently places script tests
-> outside skills and refines downstream vault retention to a source subset.
-> Import still produces and preserves complete bundles.
+> configuration templates, and tests;
+> [ADR-0004](0004-faithful-multi-bundle-ingest.md) places script tests outside
+> skills and refines downstream vault retention to a source subset;
+> [ADR-0005](0005-conservative-import-and-latex-leakage-review.md) permits
+> conservative prompt and review-check changes. PDF Import behavior, safety
+> gates, the complete-bundle artifact contract, and implementation provenance
+> remain accepted. Inline notes
+> mark the affected sections; their original commands are historical. For
+> current setup, use the [skills reference](../skills.md#pdf-import) or the
+> portable [Import instructions](../../.agents/skills/clew-import/SKILL.md).
 > [ADR-0005](0005-conservative-import-and-latex-leakage-review.md) supersedes the
 > restriction on changing the upstream page prompt and Markdown content checks:
 > conservative transcription instructions and non-mutating LaTeX leakage review
@@ -112,6 +117,9 @@ The caller selects its location. A bundle placed in a vault already retains its
 source there; a bundle produced outside a vault must be preserved as a unit when
 subsequently placed in the vault. The exact vault layout and that downstream
 placement workflow remain deferred, not silently implemented by this skill.
+This downstream whole-bundle rule is superseded by ADR-0004: Ingest copies the
+PDF, unchanged Markdown, and referenced figures into its own retained subset;
+the complete external Import bundle remains unchanged.
 
 ### Directory discovery and proposed execution plan
 
@@ -175,6 +183,11 @@ for the updated plan rather than silently using the old authorization.
 
 ### Project-level UV runtime
 
+This subsection records the original runtime ownership and commands, superseded
+by ADR-0003. Current skills declare dependencies locally; Clew setup uses
+`uv sync --all-packages --locked`, and commands select `--package clew-import`.
+Standalone copies use their own UV project.
+
 Create a repository-root `pyproject.toml` with Python `>=3.11` and
 `[tool.uv] package = false`. Declare the script's direct runtime dependencies
 using the upstream version ranges:
@@ -205,6 +218,12 @@ Python, installing ad hoc dependencies, or regenerating the lockfile during an
 import. UV loads `.env`; do not add dotenv loading to the conversion script.
 
 ### Configuration and execution preflight
+
+ADR-0003 supersedes the template location and repository-only assumptions below:
+the template is now bundled in the skill, while real `.env` values belong to the
+execution host. Configuration, authentication, cloud approval, and error-handling
+rules remain applicable. Read-only discovery uses an already-installed environment
+with `--no-sync`; missing setup requires separate approval.
 
 Provide a root `.env.example` documenting endpoint configuration and Entra ID
 authentication without real credentials. Ignore `.env` and local environment
@@ -274,6 +293,12 @@ there is no automatic retry loop. A setup or configuration failure does not
 authorize deletion of any conversion output.
 
 ### Implementation acceptance
+
+The pinned-baseline comparison below records initial acceptance, not a
+requirement to undo later approved changes. ADR-0005 adds conservative prompt
+instructions and non-mutating LaTeX leakage review. Tests now live in
+`tests/clew_import/` per ADR-0004; use current workspace commands from the skills
+reference.
 
 Before considering the implementation ready, verify the copied script differs
 from the pinned upstream baseline only in the agreed source-preservation change.

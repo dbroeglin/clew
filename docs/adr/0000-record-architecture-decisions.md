@@ -46,10 +46,18 @@ Use this discovery path for progressive disclosure:
 New ADRs start as Proposed and become Accepted when agreed upon, or Rejected if
 not adopted. Keep accepted decisions as historical records rather than rewriting
 their rationale to reflect a different choice. If a decision changes, add a new
-ADR, mark the old one Superseded, and link both records to each other and from the
-index. Use Deprecated when a decision no longer applies and has no replacement.
+ADR and link both records to each other and from the index. Mark the old one
+Superseded when replaced in full. When only part is replaced, keep it Accepted
+with a partial-supersession status qualifier and a note identifying the replaced
+clauses and their successors. Match the record's status in the index.
+Use Deprecated when a decision no longer applies and has no replacement.
+
 Clarifications and factual corrections may be made to existing records without
-changing their original intent.
+changing their original intent. When later ADRs implement previously deferred
+work without replacing a decision, add refinement links rather than marking the
+earlier ADR obsolete. Distinguish historical context and superseded examples
+from current operating instructions; use the skill contracts and skills
+reference for current commands.
 
 ## Consequences
 
