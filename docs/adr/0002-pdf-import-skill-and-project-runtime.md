@@ -1,6 +1,6 @@
 # ADR-0002: PDF Import skill and project-level Python runtime
 
-- Status: Accepted; partially superseded by ADR-0003, ADR-0004, and ADR-0005
+- Status: Accepted; partially superseded by ADR-0003, ADR-0004, ADR-0005, and ADR-0009
 - Date: 2026-10-04
 
 > **Supersession note:** [ADR-0003](0003-autonomous-portable-skills.md)
@@ -9,7 +9,10 @@
 > [ADR-0004](0004-faithful-multi-bundle-ingest.md) places script tests outside
 > skills and refines downstream vault retention to a source subset;
 > [ADR-0005](0005-conservative-import-and-latex-leakage-review.md) permits
-> conservative prompt and review-check changes. PDF Import behavior, safety
+> conservative prompt and review-check changes;
+> [ADR-0009](0009-direct-markdown-page-transcription.md) replaces structured page
+> responses and self-reported fixes with direct Markdown, retaining structured
+> figure classification. Other PDF Import behavior, safety
 > gates, the complete-bundle artifact contract, and implementation provenance
 > remain accepted. Inline notes
 > mark the affected sections; their original commands are historical. For
@@ -78,6 +81,8 @@ moving upstream `main` later.
 Apart from source preservation and its manifest reference, retain the script's
 CLI, prompts, models, extraction logic, validations, diagnostics, and exit
 semantics. Any further functional change requires separate agreement.
+ADR-0009 supersedes this restriction for the page-response envelope and
+fixes/confidence reporting; figure classification remains structured.
 
 ### Retained source and artifact contract
 
@@ -298,7 +303,8 @@ The pinned-baseline comparison below records initial acceptance, not a
 requirement to undo later approved changes. ADR-0005 adds conservative prompt
 instructions and non-mutating LaTeX leakage review. Tests now live in
 `tests/clew_import/` per ADR-0004; use current workspace commands from the skills
-reference.
+reference. ADR-0009 additionally replaces the page-response envelope with direct
+Markdown while retaining strict figure validation.
 
 Before considering the implementation ready, verify the copied script differs
 from the pinned upstream baseline only in the agreed source-preservation change.

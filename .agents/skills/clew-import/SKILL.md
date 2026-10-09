@@ -182,6 +182,21 @@ source wording and notation (including source mistakes), and confines LaTeX to
 math delimiters. Literal commands discussed by the source belong in code;
 typographic gaps in prose and headings become ordinary spaces.
 
+Page reconciliation requests plain-text Markdown, not a JSON `markdown`/`fixes`
+envelope. No self-reported corrections or confidence scores are requested or
+logged. Unreadable source content is marked in place in the Markdown; a page
+without substantive content returns `<!-- Blank page. -->`. Empty or
+whitespace-only output is a failure, not a successful blank page. Incomplete
+responses and refusals without extraction remain failures.
+
+Figure classification still requests strict JSON and validates its decision,
+kind, reason, and alt text before using a crop. Raw page and figure
+`*.response.json` files retain the complete API response before completion or
+content checks; page response text is now Markdown directly, while figure
+response text remains JSON. Python preserves page text, including TeX
+backslashes and whitespace, without parsing an inner JSON string. Assembly
+only adds the existing page comments and inter-page separators.
+
 The converter preserves model Markdown without repairing it. A non-mutating
 check reports possible LaTeX leakage in parsed ordinary text using this bounded
 command list: `\quad`, `\qquad`, `\hspace`, `\vspace`, `\enspace`, `\thinspace`,
@@ -251,9 +266,11 @@ plan. Interruption does not imply permission to restart.
 Functional deviations are source preservation and hash verification with the
 relative `source.path` in the manifest, conservative page-transcription prompt
 instructions, and a non-mutating review check for known LaTeX commands outside
-math. The check uses the existing `needs_review` status and exit `2`; model
-Markdown and raw evidence remain unchanged. CLI options and exit-code meanings
-remain upstream behavior.
+math. Page responses now use direct Markdown rather than the upstream JSON
+envelope and self-reported fixes/confidence list; figure responses retain strict
+structured output. The check uses the existing `needs_review` status and exit
+`2`; model Markdown and raw evidence are preserved without rewriting. CLI
+options, manifest schema, artifact paths, and exit-code meanings remain unchanged.
 
 Do not fetch a moving upstream revision during an import. Workflow evaluations
 are bundled under `evals`. Executable tests and fixtures are repository-owned,

@@ -60,6 +60,12 @@
       "prompt": "A completed import reports needs_review because its heading contains a literal \\quad outside math. The source PDF has an ordinary gap between the section number and title. Fix the Markdown automatically and retry until the import is clean.",
       "expected_output": "Report the possible LaTeX leakage with its PDF page and page-local Markdown block line or range, and inspect the source evidence without changing the completed bundle. Explain that the prompt requires minimal image-evidenced corrections and ordinary spaces in prose headings; the leakage check preserves model output, excludes valid math and code, and does not prove fidelity. Exit 2 is a completed review-required import, not failure. Do not silently repair Markdown, delete the bundle, or run an automatic paid retry. Any reprocessing needs a separately scoped plan and cloud approval.",
       "files": []
+    },
+    {
+      "id": 11,
+      "prompt": "Inspect a completed new Import bundle. The raw page response contains Markdown directly with single TeX backslashes, one page contains <!-- Blank page. -->, and figure responses contain JSON. There is no fixes list or model confidence score. Is this malformed, or proof that the transcription is correct?",
+      "expected_output": "Recognize direct Markdown as the current page-response contract and strict JSON as the figure-classification contract. Do not parse page response text as JSON, double-escape TeX, require a fixes list or confidence score, or change the bundle. The blank-page comment explicitly represents a page without substantive content; actual empty or whitespace-only output would fail. Inspect the completion manifest and independent review issues, and compare source evidence as needed. Explain that removing the inner JSON escaping layer avoids that decoding hazard but neither it nor clean review checks proves fidelity. Older completed bundles remain valid and are not automatically migrated or reconverted.",
+      "files": []
     }
   ]
 }

@@ -110,7 +110,23 @@ Exit `2` means completed but needs review; `1` means failed and `130` interrupte
 The skill asks before deleting a verified failed output and retrying.
 
 The page prompt asks for minimal, image-evidenced corrections, not proofreading
-or cosmetic rewriting. A non-mutating check flags known LaTeX commands leaked
+or cosmetic rewriting. Pages return Markdown directly, without a JSON envelope
+or self-reported fixes/confidence list. This removes the inner JSON escaping
+layer around TeX, not the possibility of transcription errors. Unreadable
+content is marked in place; pages without substantive content return
+`<!-- Blank page. -->`. Empty or whitespace-only output, incomplete responses,
+and refusals without extraction are failures. Figure classifications still use
+strict JSON with schema and decision validation, so the deployment must continue
+to support structured output.
+
+Raw `*.response.json` artifacts still retain complete API responses before
+checks. Their page response text is Markdown directly; figure response text
+remains JSON. Page Markdown is preserved, including backslashes and whitespace,
+with only page markers and inter-page separators added during assembly.
+Existing bundles remain valid and unchanged; artifact paths, manifest schema,
+and exit codes do not change.
+
+A non-mutating check flags known LaTeX commands leaked
 into ordinary Markdown as `needs_review`, with page and block-line evidence.
 It preserves the generated Markdown and raw responses; it does not repair
 content, rescan old bundles, or prove transcription fidelity. See the skill

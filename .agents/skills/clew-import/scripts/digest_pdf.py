@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from types import TracebackType
-from typing import Literal, TypeVar
+from typing import Literal
 from urllib.parse import urlsplit
 
 import pymupdf
@@ -65,9 +65,10 @@ Do not normalize spelling, accents, punctuation, terminology, or mathematical
 notation when they faithfully reproduce the source. Preserve source mistakes
 and unusual wording; do not silently proofread the author.
 
-Return Markdown ready to use, plus a fixes list. Python preserves your Markdown
-without rewriting text or reconstructing formulas. It may flag apparent LaTeX
-commands outside math for human review; this is not a source-fidelity check.
+Return only Markdown ready to use, without a JSON envelope, explanatory preamble,
+or surrounding code fence. Python preserves your Markdown without rewriting text
+or reconstructing formulas. It may flag apparent LaTeX commands outside math for
+human review; this is not a source-fidelity check.
 
 Write inline mathematics as $...$ and display mathematics as $$...$$, with
 correct LaTeX. Use Markdown for prose, headings, lists, and tables. HTML tables
@@ -96,7 +97,9 @@ examples, captions, and footnotes. Do not summarize, translate, solve exercises,
 or correct the author's mathematical claims. Correct OCR against the image,
 not against what you think the author ought to have written. Omit mechanical
 running headers/footers and page-number furniture. Never invent unreadable
-content; represent remaining uncertainty honestly and explain it in fixes.
+content; mark remaining uncertainty honestly at its source position in Markdown.
+If the page has no substantive content, return <!-- Blank page. --> rather than
+an empty response.
 
 Use supplied figure asset paths directly in Markdown image links at the
 appropriate source positions. These paths are relative to the final document.
@@ -105,19 +108,12 @@ path is unavailable for publication: note that if relevant, but do not invent
 an image path. Text, tables, and equations in rejected graphic crops must still
 be transcribed from the page image.
 
-For each substantive correction, report a concise description and your
-confidence from 0 to 1 that the correction is faithful to the source. Related
-formatting fixes may be grouped. Use an empty fixes list if nothing needed
-correction. These are self-reported estimates for display, not validation
-scores, and Python will not check them or apply a threshold.
-
 Before returning, check that every substantive change is supported by the
 page image, that correct source text and notation have not been gratuitously
 rewritten, and that no LaTeX commands have leaked into ordinary Markdown text.
 Check headings as well as paragraphs, lists, and table cells. Keep genuine
-math within math delimiters and literal source commands in code. Describe
-substantive corrections in fixes; do not claim that your self-check proves
-the transcription is error-free.
+math within math delimiters and literal source commands in code. Do not claim
+that your self-check proves the transcription is error-free.
 
 Process only this page. Do not split it into course files or plan a content
 structure; that happens separately after the entire document has been processed.
@@ -347,16 +343,6 @@ class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
 
-class ReportedFix(StrictModel):
-    description: str
-    confidence: float
-
-
-class PageExtraction(StrictModel):
-    markdown: str
-    fixes: list[ReportedFix]
-
-
 class FigureDecision(StrictModel):
     decision: Literal["keep", "discard", "review"]
     kind: Literal[
@@ -556,19 +542,16 @@ def render_page_image(pdf: pymupdf.Document, number: int, dpi: int) -> bytes:
     return pixmap.tobytes("png")
 
 
-Model = TypeVar("Model", bound=BaseModel)
-
-
 def analyze_image(
     client: OpenAI,
     deployment: str,
     prompt: str,
     context: dict[str, object],
     png: bytes,
-    schema: type[Model],
+    schema: type[StrictModel] | None,
     response_path: Path,
     max_output_tokens: int,
-) -> Model:
+) -> str:
     response = client.responses.create(
         model=deployment,
         store=False,
@@ -588,7 +571,7 @@ def analyze_image(
             "name": schema.__name__,
             "strict": True,
             "schema": schema.model_json_schema(),
-        }},
+        } if schema is not None else {"type": "text"}},
     )
     # Persist even refused/truncated responses before validating their content.
     write_json(response_path, response.model_dump(mode="json"))
@@ -597,9 +580,9 @@ def analyze_image(
             f"OpenAI response was {response.status!r}; inspect {response_path}. "
             "For token exhaustion, increase --max-output-tokens within the deployment limit."
         )
-    if not response.output_text:
+    if not response.output_text.strip():
         raise DigestionError(f"OpenAI returned no extraction (possibly a refusal); see {response_path}.")
-    return schema.model_validate_json(response.output_text)
+    return response.output_text
 
 
 def validate_figure_decision(decision: FigureDecision) -> None:
@@ -756,11 +739,11 @@ def digest_pdf(
                     f"OpenAI: classifying {figure_id} on page {region_pages[0]}",
                     raw.with_suffix(".response.json"),
                 )
-                decision = analyze_image(
+                decision = FigureDecision.model_validate_json(analyze_image(
                     openai_client, deployment, FIGURE_PROMPT,
                     {"caption": caption, "nearby_markdown": context[:12000]},
                     png, FigureDecision, raw.with_suffix(".response.json"), max_output_tokens,
-                )
+                ))
             run.update(f"Validating classification for {figure_id}", run.artifact)
             validate_figure_decision(decision)
             figure = Figure(figure_id, source_id, region_pages, caption, decision)
@@ -810,18 +793,13 @@ def digest_pdf(
                         for figure in page_figures
                     ],
                 },
-                png, PageExtraction, raw.with_suffix(".response.json"), max_output_tokens,
+                png, None, raw.with_suffix(".response.json"), max_output_tokens,
             )
             run.update(f"Collecting authoritative Markdown for page {number}", raw.with_suffix(".response.json"))
-            for issue in review_latex_leakage(extracted.markdown, number):
+            for issue in review_latex_leakage(extracted, number):
                 issues.append(issue)
                 LOG.warning("%s", issue)
-            combined.append(f"<!-- page: {number} -->\n\n{extracted.markdown}")
-            for fix in extracted.fixes:
-                LOG.info(
-                    "Page %d fix (model confidence %s): %s",
-                    number, fix.confidence, fix.description,
-                )
+            combined.append(f"<!-- page: {number} -->\n\n{extracted}")
             page_records.append({
                 "number": number,
                 "raw_image": f"raw/pages/{stem}.png",

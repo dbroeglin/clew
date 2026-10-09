@@ -3,6 +3,11 @@
 - Status: Accepted
 - Date: 2026-10-04
 
+> **Refinement:** [ADR-0009](0009-direct-markdown-page-transcription.md) changes
+> page responses to direct Markdown and removes self-reported fixes/confidence.
+> This record's conservative transcription and non-mutating review remain in
+> force.
+
 ## Context
 
 Inspection of a completed mathematics import found nine headings containing
