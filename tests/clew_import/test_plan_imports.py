@@ -84,6 +84,16 @@ class PlanningTests(unittest.TestCase):
                          [str(first.with_suffix("")), str(second.with_suffix(""))])
         self.assertTrue(plan["requires_approval"])
         self.assertEqual(plan["preflight_blockers"], [])
+        self.assertEqual(
+            plan["vision_settings"],
+            {
+                "page_render_dpi": 200,
+                "openai_image_detail": "high",
+                "page_reasoning_effort": "high",
+                "figure_reasoning_effort": "model_default",
+                "reference_pricing_model": "gpt-6.1-sol",
+            },
+        )
         for entry in entries:
             self.assertEqual(entry["classification"], "convert")
             self.assertEqual(entry["argv"][0:4], ["uv", "run", "--locked", "--env-file"])

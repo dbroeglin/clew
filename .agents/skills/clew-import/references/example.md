@@ -137,8 +137,7 @@ Correction ^corr-01
 >
 > 1. The limit is $0$.
 >
-> [Question](../Exercise-sheet/sheet.md#^ex-01-q-01)
-> [PDF p. 1](solutions.pdf#page=1)
+> [Question](../Exercise-sheet/sheet.md#^ex-01-q-01) · [PDF p. 1](solutions.pdf#page=1)
 
 ^ex-01-r-01
 
@@ -148,7 +147,8 @@ Correction ^corr-01
 %% /clew:unit corr-01 %%
 ```
 
-The generated correction footer is one paragraph even when shown wrapped here.
+The generated correction footer keeps both links on one quoted line. Keep one
+blank quoted line before that footer and no quoted blank lines after it.
 Every linked answer must target a question owned by that correction's linked
 exercise. Several supplied correction variants may legitimately target the
 same question. No missing answer is generated.

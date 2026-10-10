@@ -53,6 +53,8 @@ The converter retains the original PDF, Markdown, figures, and diagnostics.
 It checks formula rendering locally, reviews pages against their source, and
 can make bounded corrective transcription attempts within the approved run.
 Unresolved findings remain visible; source mistakes are not proofread away.
+At completion it reports returned model-token usage and a clearly labeled
+reference price estimate; this is not the final Azure charge.
 Completed bundles normally sit beside their PDFs in same-basename folders.
 You can stop here and prepare them later.
 

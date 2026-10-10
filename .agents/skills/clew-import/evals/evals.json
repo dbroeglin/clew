@@ -180,6 +180,12 @@
       "prompt": "Prepare whole notes without clutter: use Obsidian comments, reviews at the end, compact PDF links, and ordinary relationship links.",
       "expected_output": "Use standalone %% Clew bookkeeping comments and a final review appendix with anchor/source-line locations. Navigate sections by existing headings without generated section block IDs. Put one compact starting-page PDF link at each section entry and at the end of exercise/correction units and learning callouts. Use plain Exercise correction-to-exercise and Question answer-to-question links on separate footer lines before PDF provenance, without duplicated prefixes or Dataview wrappers. Derive question/answer ownership from enclosing scopes without redundant parent backlinks. Preserve source content and immutable baselines; validate destination roles, kinds and ownership. Do not migrate or overwrite an existing prepared chapter.",
       "files": []
+    },
+    {
+      "id": 31,
+      "prompt": "Plan and complete a GPT-6.1-Sol import. Does the plan disclose the high reasoning effort and 200-DPI/high-detail image settings? At the end, report the Azure invoice from the OpenAI list-price estimate.",
+      "expected_output": "Disclose 200 DPI, high image detail, high reasoning effort for transcription/review, and model-default effort for figure classification. Explain that DPI is not model-independent and is separate from Document Intelligence high-resolution OCR. At completion, persist and display returned input/cached/output/reasoning token usage and an explicitly labeled GPT-6.1-Sol OpenAI list-price reference estimate. Report Document Intelligence pages and add-on use separately; do not claim the estimate is an Azure invoice or include unobserved retries/cache-write premiums. If usage is absent or the response model differs, show the estimate as unavailable rather than zero or an incorrect rate.",
+      "files": []
     }
   ]
 }

@@ -87,10 +87,68 @@ class PageReviewTests(unittest.TestCase):
             self.assertNotIn("previous_response_id", call.kwargs)
             self.assertFalse(call.kwargs["store"])
             self.assertEqual(call.kwargs["model"], "vision")
+            self.assertEqual(call.kwargs["reasoning"], {"effort": "high"})
         self.assertEqual(
             calls[0].kwargs["input"][1]["content"][1],
             calls[1].kwargs["input"][1]["content"][1],
         )
+
+    def test_actual_usage_and_reference_cost_are_persisted(self) -> None:
+        usage = {
+            "input_tokens": 1000,
+            "input_tokens_details": {"cached_tokens": 200},
+            "output_tokens": 100,
+            "output_tokens_details": {"reasoning_tokens": 25},
+            "total_tokens": 1100,
+        }
+        manifest, openai = self.digest([
+            response("Transcribed page", usage=usage),
+        ], page_review=False)
+        cost = manifest["costs"]
+        self.assertEqual(openai.responses.create.call_count, 1)
+        self.assertEqual(cost["openai"]["input_tokens"], 1000)
+        self.assertEqual(cost["openai"]["cached_input_tokens"], 200)
+        self.assertEqual(cost["openai"]["output_tokens"], 100)
+        self.assertEqual(cost["openai"]["reasoning_tokens"], 25)
+        self.assertAlmostEqual(cost["openai"]["estimated_cost_usd"], 0.00262)
+        self.assertTrue(cost["openai"]["estimate_complete"])
+        self.assertEqual(cost["document_intelligence"]["pages_processed"], 1)
+        self.assertIsNone(cost["document_intelligence"]["estimated_cost_usd"])
+        persisted = json.loads((self.output / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(persisted["costs"], cost)
+        self.assertEqual(openai.responses.create.call_args.kwargs["reasoning"], {"effort": "high"})
+
+    def test_missing_usage_does_not_claim_a_complete_price_estimate(self) -> None:
+        manifest, _ = self.digest([
+            response("Transcribed page"),
+        ], page_review=False)
+        cost = manifest["costs"]["openai"]
+        self.assertEqual(cost["missing_usage_records"], 1)
+        self.assertIsNone(cost["estimated_cost_usd"])
+        self.assertFalse(cost["estimate_complete"])
+
+    def test_reference_estimate_is_suppressed_for_a_different_response_model(self) -> None:
+        usage = {
+            "input_tokens": 100,
+            "output_tokens": 10,
+        }
+        manifest, _ = self.digest([
+            response("Transcribed page", usage=usage, model="gpt-4o"),
+        ], page_review=False)
+        cost = manifest["costs"]["openai"]
+        self.assertEqual(cost["estimate_status"], "model_mismatch")
+        self.assertIsNone(cost["estimated_cost_usd"])
+        self.assertEqual(cost["models_reported"], ["gpt-4o"])
+
+    def test_reference_estimate_is_suppressed_when_response_model_is_unreported(self) -> None:
+        usage = {"input_tokens": 100, "output_tokens": 10}
+        manifest, _ = self.digest([
+            response("Transcribed page", usage=usage, model=""),
+        ], page_review=False)
+        cost = manifest["costs"]["openai"]
+        self.assertEqual(cost["estimate_status"], "model_unreported")
+        self.assertIsNone(cost["estimated_cost_usd"])
+        self.assertEqual(cost["models_reported"], [])
 
     def test_feedback_revision_is_full_markdown_and_judged_independently_again(self) -> None:
         initial = r"Hint: $u_n=un-an^2$." + "\n\nKeep this paragraph."

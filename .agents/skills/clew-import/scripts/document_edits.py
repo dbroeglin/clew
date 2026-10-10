@@ -111,6 +111,11 @@ def verify_projection(actual: str, original: str, changes: list[Change]) -> None
         elif change.kind == "page-marker":
             require(re.fullmatch(r"[ \t]*<!-- page: [1-9][0-9]* -->[ \t]*(?:\r\n|\r|\n)?", before)
                     is not None, "Page-marker edit removes substantive content.")
+        elif change.kind == "callout-spacing":
+            raw = before.rstrip("\r\n")
+            require(not after and (not raw.strip()
+                                   or re.fullmatch(r" {0,3}>[ \t]*", raw) is not None),
+                    "Callout spacing edit removes nonblank source content.")
         elif change.kind == "link-destination":
             if links is None:
                 links = MarkdownSource(original).links
@@ -391,14 +396,20 @@ def compile_document(document: Document, bundle: Bundle, path: str,
             field_text = ">" + nl
             callout_kind = "reponse" if operation.kind == "answer" else operation.kind
             original_callout = CALLOUT.fullmatch(source.lines[start].rstrip("\r\n")) if first.kind == "quote" else None
+            body_start = start
+            callout_end = first.end
             if original_callout:
                 require(original_callout[1].lower() in {callout_kind, operation.kind},
                         "Do not reclassify an existing source callout silently.")
-                require(all(line.startswith(">") for line in source.lines[start:first.end]),
+                while (callout_end > start
+                       and not source.lines[callout_end - 1].startswith(">")
+                       and not source.lines[callout_end - 1].strip()):
+                    callout_end -= 1
+                require(all(line.startswith(">") for line in source.lines[start:callout_end]),
                         "Existing callout needs explicit quoting for safe structural edits.")
                 add(source.offsets[start + 1], field_text, (10, 0))
+                body_start = start + 1
             else:
-                body_start = start
                 if first.kind == "heading":
                     require(first.end - first.start <= 2, "Multiline heading cannot become a callout title safely.")
                     raw = source.lines[start].rstrip("\r\n")
@@ -425,13 +436,30 @@ def compile_document(document: Document, bundle: Bundle, path: str,
                     if first.kind == "item":
                         label += " " + first.label
                     add(a, f"> [!{callout_kind}] {label}{nl}" + field_text, (60, 0))
+            content_end = callout_end if original_callout else end
+            terminal_blank_lines = []
+            for line in range(content_end - 1, body_start - 1, -1):
+                if line in source.markers:
+                    break
+                raw = source.lines[line].rstrip("\r\n")
+                empty = (re.fullmatch(r" {0,3}>[ \t]*", raw) is not None
+                         if original_callout else not raw.strip())
+                if not empty:
+                    break
+                terminal_blank_lines.append(line)
+            trimmed_lines = set(terminal_blank_lines[1:])
+            for line in trimmed_lines:
+                add(source.offsets[line], "", kind="callout-spacing",
+                    end=source.offsets[line + 1])
+            if not original_callout:
                 for line in range(body_start, end):
-                    if line not in source.markers:
+                    if line not in source.markers and line not in trimmed_lines:
                         add(source.offsets[line], "> ", kind="quote-prefix")
-            footer_position = source.offsets[first.end] if original_callout else b
+            footer_position = source.offsets[callout_end] if original_callout else b
             ending = "" if footer_position == 0 or source.text[footer_position - 1] in "\r\n" else nl
-            footer = "".join("> " + field + nl for field in fields)
-            add(footer_position, ending + ">" + nl + footer + "> " + pdf_links(start, end) + nl, (10, 0))
+            separator = "" if terminal_blank_lines else ">" + nl
+            footer = " · ".join([*fields, pdf_links(start, end)])
+            add(footer_position, ending + separator + "> " + footer + nl, (10, 0))
             if existing is None:
                 standalone(b, operation.id)
         elif isinstance(operation, Anchor):

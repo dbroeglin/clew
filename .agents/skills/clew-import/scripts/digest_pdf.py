@@ -45,6 +45,12 @@ from math_render import MathRenderError, VERSION as MATHJAX_VERSION, check_math,
 LOG = logging.getLogger("ingestion")
 DI_API_VERSION = "2024-11-30"
 MAX_PAGE_RETRIES = 2
+PAGE_REASONING_EFFORT = "high"
+REFERENCE_PRICING_MODEL = "gpt-6.1-sol"
+REFERENCE_INPUT_USD_PER_MILLION = 2.0
+REFERENCE_CACHED_INPUT_USD_PER_MILLION = 0.1
+REFERENCE_OUTPUT_USD_PER_MILLION = 10.0
+REFERENCE_PRICING_DATE = "2026-10-10"
 DIAGNOSTIC_RETRY_DELAYS = (0.1, 0.2, 0.4, 0.8, 1.6)
 KEEP_KINDS = {
     "chart", "diagram", "map", "scientific_image", "instructional_photo", "screenshot"
@@ -451,6 +457,117 @@ class PageReview(StrictModel):
     findings: list[PageFinding]
 
 
+@dataclass
+class UsageTotals:
+    api_calls: int = 0
+    usage_records: int = 0
+    missing_usage_records: int = 0
+    input_tokens: int = 0
+    cached_input_tokens: int = 0
+    output_tokens: int = 0
+    reasoning_tokens: int = 0
+    models: set[str] = field(default_factory=set)
+    by_kind: dict[str, dict[str, int]] = field(default_factory=dict)
+
+    def record(self, kind: str, response: object) -> None:
+        self.api_calls += 1
+        model = getattr(response, "model", None)
+        if isinstance(model, str) and model:
+            self.models.add(model)
+        usage = getattr(response, "usage", None)
+        if isinstance(usage, BaseModel):
+            data = usage.model_dump(mode="json")
+        elif isinstance(usage, Mapping):
+            data = usage
+        else:
+            self.missing_usage_records += 1
+            return
+
+        input_tokens = data.get("input_tokens")
+        output_tokens = data.get("output_tokens")
+        input_details = data.get("input_tokens_details")
+        output_details = data.get("output_tokens_details")
+        cached_tokens = input_details.get("cached_tokens", 0) if isinstance(input_details, Mapping) else 0
+        reasoning_tokens = (
+            output_details.get("reasoning_tokens", 0) if isinstance(output_details, Mapping) else 0
+        )
+        counts = (input_tokens, cached_tokens, output_tokens, reasoning_tokens)
+        if any(type(value) is not int or value < 0 for value in counts):
+            self.missing_usage_records += 1
+            return
+        if cached_tokens > input_tokens or reasoning_tokens > output_tokens:
+            self.missing_usage_records += 1
+            return
+
+        self.usage_records += 1
+        self.input_tokens += input_tokens
+        self.cached_input_tokens += cached_tokens
+        self.output_tokens += output_tokens
+        self.reasoning_tokens += reasoning_tokens
+        group = self.by_kind.setdefault(kind, {
+            "calls": 0, "input_tokens": 0, "cached_input_tokens": 0, "output_tokens": 0,
+        })
+        group["calls"] += 1
+        group["input_tokens"] += input_tokens
+        group["cached_input_tokens"] += cached_tokens
+        group["output_tokens"] += output_tokens
+
+    def report(self, *, document_pages: int, high_resolution_ocr: bool) -> dict[str, object]:
+        usage_complete = self.missing_usage_records == 0 and self.usage_records == self.api_calls
+        model_matches = bool(self.models) and all(
+            model == REFERENCE_PRICING_MODEL or model.startswith(REFERENCE_PRICING_MODEL + "-")
+            for model in self.models
+        )
+        complete = usage_complete and model_matches
+        uncached_input = self.input_tokens - self.cached_input_tokens
+        estimated_cost = (
+            (
+                uncached_input * REFERENCE_INPUT_USD_PER_MILLION
+                + self.cached_input_tokens * REFERENCE_CACHED_INPUT_USD_PER_MILLION
+                + self.output_tokens * REFERENCE_OUTPUT_USD_PER_MILLION
+            ) / 1_000_000
+            if complete else None
+        )
+        return {
+            "openai": {
+                "pricing_model": REFERENCE_PRICING_MODEL,
+                "pricing_basis": f"OpenAI standard API list rates as of {REFERENCE_PRICING_DATE}; reference estimate, not Azure billing.",
+                "rates_usd_per_million_tokens": {
+                    "input": REFERENCE_INPUT_USD_PER_MILLION,
+                    "cached_input": REFERENCE_CACHED_INPUT_USD_PER_MILLION,
+                    "output": REFERENCE_OUTPUT_USD_PER_MILLION,
+                },
+                "api_calls": self.api_calls,
+                "usage_records": self.usage_records,
+                "missing_usage_records": self.missing_usage_records,
+                "models_reported": sorted(self.models),
+                "input_tokens": self.input_tokens,
+                "cached_input_tokens": self.cached_input_tokens,
+                "output_tokens": self.output_tokens,
+                "reasoning_tokens": self.reasoning_tokens,
+                "calls_by_kind": self.by_kind,
+                "estimated_cost_usd": estimated_cost,
+                "estimate_complete": complete,
+                "estimate_status": (
+                    "complete" if complete else
+                    "model_unreported" if not self.models else
+                    "model_mismatch" if not model_matches else "missing_usage"
+                ),
+            },
+            "document_intelligence": {
+                "pages_processed": document_pages,
+                "high_resolution_ocr": high_resolution_ocr,
+                "estimated_cost_usd": None,
+                "note": "Page/add-on usage is reported; Azure charge is not estimated because rates vary by region and agreement.",
+            },
+            "limitations": [
+                "Azure pricing can differ from OpenAI list rates.",
+                "SDK transport retries may add billed requests without a returned usage record.",
+                "The estimate does not include cache-write premiums or Document Intelligence charges.",
+            ],
+        }
+
+
 def unexpected_controls(text: str) -> set[int]:
     return {
         ord(character) for character in text
@@ -676,12 +793,15 @@ def analyze_image(
     schema: type[StrictModel] | None,
     response_path: Path,
     max_output_tokens: int,
+    usage_totals: UsageTotals,
+    usage_kind: str,
+    reasoning_effort: str | None = None,
 ) -> str:
-    response = client.responses.create(
-        model=deployment,
-        store=False,
-        max_output_tokens=max_output_tokens,
-        input=[
+    request: dict[str, object] = {
+        "model": deployment,
+        "store": False,
+        "max_output_tokens": max_output_tokens,
+        "input": [
             {
                 "type": "message", "role": "system",
                 "content": [{"type": "input_text", "text": prompt}],
@@ -691,13 +811,17 @@ def analyze_image(
                 {"type": "input_image", "image_url": image_url(png), "detail": "high"},
             ]},
         ],
-        text={"format": {
+        "text": {"format": {
             "type": "json_schema",
             "name": schema.__name__,
             "strict": True,
             "schema": schema.model_json_schema(),
         } if schema is not None else {"type": "text"}},
-    )
+    }
+    if reasoning_effort is not None:
+        request["reasoning"] = {"effort": reasoning_effort}
+    response = client.responses.create(**request)
+    usage_totals.record(usage_kind, response)
     # Persist even refused/truncated responses before validating their content.
     write_json(response_path, response.model_dump(mode="json"))
     if response.status != "completed":
@@ -722,6 +846,7 @@ def reconcile_page(
     page_review: bool,
     page_number: int,
     math_context: list[dict[str, object]],
+    usage_totals: UsageTotals,
 ) -> tuple[str, dict[str, object] | None, list[str], list[dict[str, object]]]:
     canonical = raw.with_suffix(".response.json")
     attempts: list[dict[str, object]] = []
@@ -735,6 +860,7 @@ def reconcile_page(
         markdown = analyze_image(
             client, deployment, PAGE_PROMPT if attempt == 1 else PAGE_REVISION_PROMPT,
             transcription_context, png, None, response_path, max_output_tokens,
+            usage_totals, "page_transcription", PAGE_REASONING_EFFORT,
         )
         saved_markdown = raw.with_name(f"{attempt_stem}.md")
         if page_review:
@@ -758,6 +884,7 @@ def reconcile_page(
             client, deployment, PAGE_REVIEW_PROMPT,
             {**context, "candidate_markdown": markdown, "local_format_issues": format_issues},
             png, PageReview, review_path, max_output_tokens,
+            usage_totals, "page_review", PAGE_REASONING_EFFORT,
         ))
         validate_page_review(review)
         attempts.append({
@@ -823,6 +950,7 @@ def digest_pdf(
     diagnostics: RunDiagnostics | None = None,
 ) -> dict[str, object]:
     run = diagnostics or RunDiagnostics(source, output, pages=pages)
+    usage_totals = UsageTotals()
     run.update("Preflight: validating input and output paths")
     ensure_new_output(output)
     if not source.is_file():
@@ -959,6 +1087,7 @@ def digest_pdf(
                     openai_client, deployment, FIGURE_PROMPT,
                     {"caption": caption, "nearby_markdown": context[:12000]},
                     png, FigureDecision, raw.with_suffix(".response.json"), max_output_tokens,
+                    usage_totals, "figure_classification",
                 ))
             run.update(f"Validating classification for {figure_id}", run.artifact)
             validate_figure_decision(decision)
@@ -1011,6 +1140,7 @@ def digest_pdf(
                 },
                 png, raw, max_output_tokens, run, page_review=page_review, page_number=number,
                 math_context=math_context,
+                usage_totals=usage_totals,
             )
             run.update(f"Collecting authoritative Markdown for page {number}", raw.with_suffix(".response.json"))
             for issue in page_issues:
@@ -1045,9 +1175,14 @@ def digest_pdf(
                 "max_output_tokens": max_output_tokens,
                 "page_review": page_review,
                 "max_page_retries": MAX_PAGE_RETRIES if page_review else 0,
+                "page_reasoning_effort": PAGE_REASONING_EFFORT,
+                "figure_reasoning_effort": "model_default",
                 "mathjax_version": MATHJAX_VERSION,
                 "markdown_format": "commonmark+tables+dollarmath",
             },
+            "costs": usage_totals.report(
+                document_pages=len(wanted), high_resolution_ocr=high_resolution_ocr,
+            ),
             "pages": page_records,
             "figures": [figure.record() for figure in figures],
             "issues": issues,
@@ -1065,6 +1200,51 @@ def digest_pdf(
         run.status = "needs_review" if issues else "extracted"
         run.update("Complete", output / "manifest.json")
         return manifest
+
+
+def log_cost_summary(costs: object) -> None:
+    if not isinstance(costs, dict):
+        LOG.warning("Cost summary is missing from the completion manifest.")
+        return
+    openai = costs.get("openai")
+    document_intelligence = costs.get("document_intelligence")
+    if not isinstance(openai, dict) or not isinstance(document_intelligence, dict):
+        LOG.warning("Cost summary is incomplete; inspect manifest.json.")
+        return
+    LOG.info(
+        "OpenAI usage: %s response(s); %s input tokens (%s cached), %s output tokens "
+        "(%s reasoning).",
+        openai.get("api_calls"), openai.get("input_tokens"), openai.get("cached_input_tokens"),
+        openai.get("output_tokens"), openai.get("reasoning_tokens"),
+    )
+    estimate = openai.get("estimated_cost_usd")
+    if openai.get("estimate_complete") is True and isinstance(estimate, (int, float)):
+        LOG.info(
+            "OpenAI reference estimate: $%.6f (%s public list rates; not an Azure bill).",
+            estimate, openai.get("pricing_model"),
+        )
+    else:
+        if openai.get("estimate_status") in {"model_mismatch", "model_unreported"}:
+            LOG.warning(
+                "OpenAI reference estimate unavailable: response model(s) are missing or do not match %s.",
+                openai.get("pricing_model"),
+            )
+        else:
+            LOG.warning(
+                "OpenAI reference estimate unavailable: usage was missing or invalid for %s of %s response(s).",
+                openai.get("missing_usage_records"), openai.get("api_calls"),
+            )
+    LOG.info(
+        "Document Intelligence usage: %s page(s); high-resolution OCR add-on: %s. "
+        "Its Azure charge is not estimated.",
+        document_intelligence.get("pages_processed"),
+        "enabled" if document_intelligence.get("high_resolution_ocr") else "disabled",
+    )
+    limitations = costs.get("limitations")
+    if isinstance(limitations, list):
+        for limitation in limitations:
+            if isinstance(limitation, str):
+                LOG.info("Cost estimate limitation: %s", limitation)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -1111,6 +1291,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     )
                     run.update("Closing Azure clients", args.output / "manifest.json")
             run.update("Complete", args.output / "manifest.json")
+        log_cost_summary(manifest.get("costs"))
         if manifest["status"] == "needs_review":
             LOG.warning("Digest needs review: %s", args.output / "manifest.json")
             return 2

@@ -128,7 +128,12 @@ The generated `[Exercise](../Exercise-sheet/sheet.md#^ex-01)`
 is a visible structural relationship link. A match needs nonempty source
 evidence. Python checks evidence location and ownership, not semantic truth.
 It appears in the correction footer before its PDF link. Relationship links
-occupy their own lines with exactly the label `Exercise` or `Question`.
+use exactly the labels `Exercise` or `Question`. For a callout, put the
+relationship and PDF links together on the final quoted line, in that order,
+separated by ` · `; a callout without a relationship has only its PDF link.
+Keep one blank quoted line between the callout content and its footer. Collapse
+additional consecutive blank quote lines at that boundary, but preserve blank
+lines within the supplied body. Do not add quoted blank lines after the links.
 The validator uses that convention and checks the destination's
 document role, target kind, and ownership; filenames alone are not proof.
 No prefix, metadata wrapper, or plugin is required.
@@ -186,8 +191,9 @@ Supplied answers declare the local correction owner and an optional question:
 }
 ```
 
-Answers render as `[!reponse]` with a verified `[Question](...)` footer link.
-Questions render as `[!question]` with only their compact PDF footer link.
+Answers render as `[!reponse]` with a verified `[Question](...)` link followed
+by ` · ` and the PDF link on the same final quoted line. Questions render as
+`[!question]` with only their compact PDF footer link.
 Ownership comes from the unique enclosing exercise/correction scope, not a
 redundant parent backlink. All matches must agree with the correction's exercise
 association.
@@ -217,9 +223,13 @@ source text. Each section entry gets one compact
 Exercise/correction units instead place it on their final line, with any
 correction-to-exercise relationship before it; their entry anchors stay at
 the beginning for navigation and ownership.
-Each learning callout gets the same compact link at the end of its quoted body,
-after any verified question-target link and before its native block anchor,
-not above the supplied content.
+Each learning callout ends with one quoted footer line containing its PDF link
+and, for a matched answer, the verified question link first, separated by
+` · `. Keep exactly one blank quoted line between the supplied content and the
+footer. Remove only additional consecutive empty quote lines at that terminal
+boundary; preserve body-internal spacing and do not add empty quoted lines
+after the footer. The footer remains inside the callout, before its native block
+anchor, not above the supplied content.
 Do not list every covered page or repeat links at page breaks. Full coverage
 remains recoverable from the plan's selectors and immutable source baseline.
 Never use printed page labels or range fragments.

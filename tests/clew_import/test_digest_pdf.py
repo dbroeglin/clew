@@ -79,10 +79,18 @@ def png_bytes(color: str = "blue") -> bytes:
         return buffer.getvalue()
 
 
-def response(value: ingestion.StrictModel | str, status: str = "completed") -> Mock:
+def response(
+    value: ingestion.StrictModel | str,
+    status: str = "completed",
+    *,
+    usage: dict[str, object] | None = None,
+    model: str = "gpt-6.1-sol",
+) -> Mock:
     text = value.model_dump_json() if isinstance(value, ingestion.StrictModel) else value
-    result = Mock(status=status, output_text=text)
-    result.model_dump.return_value = {"status": status, "output_text": text}
+    result = Mock(status=status, output_text=text, usage=usage, model=model)
+    result.model_dump.return_value = {
+        "status": status, "output_text": text, "usage": usage, "model": model,
+    }
     return result
 
 
@@ -790,6 +798,11 @@ class PipelineTests(unittest.TestCase):
         saved = json.loads((self.output / "manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(saved["figures"][1]["decision"], "discard")
         self.assertEqual(saved["figures"][0]["caption"], "Source caption")
+        self.assertEqual(saved["configuration"]["page_reasoning_effort"], "high")
+        self.assertEqual(saved["configuration"]["figure_reasoning_effort"], "model_default")
+        self.assertEqual(saved["costs"]["openai"]["api_calls"], 4)
+        self.assertEqual(saved["costs"]["document_intelligence"]["pages_processed"], 2)
+        self.assertTrue(saved["costs"]["document_intelligence"]["high_resolution_ocr"])
         run = json.loads((self.output / "run.json").read_text(encoding="utf-8"))
         self.assertEqual(run["schema_version"], 1)
         self.assertEqual(run["status"], "extracted")
@@ -811,6 +824,7 @@ class PipelineTests(unittest.TestCase):
         for index, call in enumerate(openai.responses.create.call_args_list):
             self.assertFalse(call.kwargs["store"])
             if index < 2:
+                self.assertNotIn("reasoning", call.kwargs)
                 self.assertEqual(call.kwargs["text"]["format"]["type"], "json_schema")
                 self.assertTrue(call.kwargs["text"]["format"]["strict"])
                 self.assertEqual(call.kwargs["text"]["format"]["name"], "FigureDecision")
@@ -819,6 +833,7 @@ class PipelineTests(unittest.TestCase):
                     ingestion.FigureDecision.model_json_schema(),
                 )
             else:
+                self.assertEqual(call.kwargs["reasoning"], {"effort": "high"})
                 self.assertEqual(call.kwargs["text"]["format"], {"type": "text"})
             self.assertEqual(call.kwargs["model"], "vision-deployment")
             self.assertTrue(all(item["type"] == "message" for item in call.kwargs["input"]))
@@ -899,7 +914,7 @@ class PipelineTests(unittest.TestCase):
         raw_path = self.root / "page.response.json"
         extracted = ingestion.analyze_image(
             client, "vision", ingestion.PAGE_PROMPT, {"page_number": "0001"},
-            png_bytes(), None, raw_path, 16000,
+            png_bytes(), None, raw_path, 16000, ingestion.UsageTotals(), "page_transcription",
         )
         self.assertEqual(extracted, markdown)
         raw = json.loads(raw_path.read_text(encoding="utf-8"))
@@ -997,6 +1012,7 @@ class PipelineTests(unittest.TestCase):
             ingestion.analyze_image(
                 client, "vision", ingestion.PAGE_PROMPT if schema is None else ingestion.PAGE_REVIEW_PROMPT,
                 {"page_number": "0001"}, png_bytes(), schema, self.root / "response.json", 16000,
+                ingestion.UsageTotals(), "page_review",
             )
         send.assert_called_once()
         request = send.call_args.args[0]
@@ -1399,6 +1415,26 @@ class CliTests(unittest.TestCase):
             self.assertLogs("ingestion", "WARNING"),
         ):
             self.assertEqual(ingestion.main(["source.pdf", "--output", "unused"]), 2)
+
+    def test_successful_cli_run_displays_usage_and_reference_cost(self) -> None:
+        usage = {
+            "input_tokens": 1000,
+            "input_tokens_details": {"cached_tokens": 100},
+            "output_tokens": 100,
+            "output_tokens_details": {"reasoning_tokens": 20},
+        }
+        document, openai = clients(
+            di_result(["One", "Two"]),
+            [response("One", usage=usage), response("Two", usage=usage)],
+        )
+        code, logs = self.configured_main(document, openai, "--no-page-review")
+        self.assertEqual(code, 0)
+        self.assertIn("OpenAI usage: 2 response(s)", logs)
+        self.assertIn("OpenAI reference estimate:", logs)
+        self.assertIn("Document Intelligence usage: 2 page(s)", logs)
+        self.assertIn("not an Azure bill", logs)
+        saved = json.loads((self.output / "manifest.json").read_text(encoding="utf-8"))
+        self.assertAlmostEqual(saved["costs"]["openai"]["estimated_cost_usd"], 0.00562)
 
     def test_real_digest_latex_review_returns_exit_2_and_preserves_artifacts(self) -> None:
         page = page_result("# 1 \\quad Title\n\n$x\\quad y$")
