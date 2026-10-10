@@ -12,7 +12,11 @@ dev = ["playwright>=1.50,<2"]
 package = false
 
 [tool.uv.workspace]
-members = [".agents/skills/*"]
+members = [
+    ".agents/skills/clew-enrich",
+    ".agents/skills/clew-generate",
+    ".agents/skills/clew-import",
+]
 
 [[tool.uv.index]]
 url = "https://pypi.org/simple/"
