@@ -4,8 +4,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from formats import Plan
-from ingest_io import contained, no_redirect, relative_path, require
+from document_formats import Plan
+from document_io import contained, no_redirect, relative_path, require
 
 RESERVED = {".obsidian", ".git", ".github", ".agents"}
 
@@ -23,9 +23,10 @@ def placement_parent(plan: Plan) -> Path:
     selected = contained(vault, parent.as_posix(), exists=False)
     ancestor = selected
     while ancestor.is_relative_to(vault):
-        marker = no_redirect(ancestor / "ingest.json")
-        require(not os.path.lexists(marker),
-                f"Placement is inside an existing or unrecognized ingest root: {ancestor}. "
+        legacy = no_redirect(ancestor / "ingest.json")
+        marker = no_redirect(ancestor / ".clew")
+        require(not os.path.lexists(marker) and not os.path.lexists(legacy),
+                f"Placement is inside an existing or unrecognized owned root: {ancestor}. "
                 "Choose a sibling learning-material container.")
         if ancestor == vault:
             break

@@ -11,6 +11,12 @@ description: >-
 
 # Clew Enrich
 
+**Compatibility:** This version consumes the legacy exercise-per-note format
+described below. New `clew-import` whole-document chapters (`type: document`,
+`.clew/preparation.json`) are not supported yet. Do not treat a complete
+exercise sheet as one exercise or run enrichment on the new layout; that
+consumer refactor is separate work.
+
 This first increment adds only short progressive hints and explanations of
 existing supplied answers. Both must point to precise passages of the selected
 course. Work on current notes, including human edits. Do not require unchanged

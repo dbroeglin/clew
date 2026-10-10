@@ -10,6 +10,12 @@ description: >-
 
 # Clew Generate
 
+**Compatibility:** This version consumes the legacy exercise-per-note format
+described below. New `clew-import` whole-document chapters (`type: document`,
+`.clew/preparation.json`) are not supported yet. Do not publish a complete
+exercise sheet as one exercise; support for document-internal units is a
+separate consumer refactor.
+
 Read current notes and publish a derived HTML view. Do not require unchanged
 Ingest output, `ingest.json`, approval hashes, or an installed producer skill.
 Human edits are valid input. Never change source notes, rewrite questions,

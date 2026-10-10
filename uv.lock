@@ -12,7 +12,6 @@ members = [
     "clew-enrich",
     "clew-generate",
     "clew-import",
-    "clew-ingest",
 ]
 
 [[package]]
@@ -396,6 +395,7 @@ dependencies = [
     { name = "pillow" },
     { name = "pydantic" },
     { name = "pymupdf" },
+    { name = "pyyaml" },
 ]
 
 [package.metadata]
@@ -408,23 +408,7 @@ requires-dist = [
     { name = "pillow", specifier = ">=11.3,<13" },
     { name = "pydantic", specifier = ">=2.11,<3" },
     { name = "pymupdf", specifier = ">=1.26,<2" },
-]
-
-[[package]]
-name = "clew-ingest"
-version = "1.0.0"
-source = { virtual = ".agents/skills/clew-ingest" }
-dependencies = [
-    { name = "markdown-it-py" },
-    { name = "mdit-py-plugins" },
-    { name = "pydantic" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "markdown-it-py", specifier = ">=3,<5" },
-    { name = "mdit-py-plugins", specifier = ">=0.4,<1" },
-    { name = "pydantic", specifier = ">=2.11,<3" },
+    { name = "pyyaml", specifier = ">=6,<7" },
 ]
 
 [[package]]
@@ -603,7 +587,7 @@ wheels = [
 name = "httpx2-jsfetch"
 version = "1.0"
 source = { registry = "https://packagefeedproxy.microsoft.io/pypi/simple/" }
-sdist = { url = "https://ms-feed-25.pkgs.visualstudio.com/6f084628-a36d-42cb-934d-057357e379dc/_packaging/49d7402f-07bb-4b18-a9ce-086e6e98a554/pypi/download/httpx2-jsfetch/1/httpx2_jsfetch-1.0.tar.gz", hash = "sha256:70a0e3eabfef7cce5ad9c629f7d01ca05e418f586646f4ddf14782e4c1454c60", size = 6872, upload-time = "2026-08-07T00:13:07Z" }
+sdist = { url = "https://ms-feed-25.pkgs.visualstudio.com/6f084628-a36d-42cb-934d-057357e379dc/_packaging/49d7402f-07bb-4b18-a9ce-086e6e98a554/pypi/download/httpx2-jsfetch/1/httpx2_jsfetch-1.0.tar.gz", hash = "sha256:70a0e3eabfef7cce5ad9c629f7d01ca05e418f586646f4ddf14782e4c1454c60", size = 6872, upload-time = "2026-10-05T01:12:25Z" }
 wheels = [
     { url = "https://ms-feed-25.pkgs.visualstudio.com/6f084628-a36d-42cb-934d-057357e379dc/_packaging/49d7402f-07bb-4b18-a9ce-086e6e98a554/pypi/download/httpx2-jsfetch/1/httpx2_jsfetch-1.0-py3-none-any.whl", hash = "sha256:cb916b707601e69a07721aabc8f3f6659be3a6893bc1ff5c6f9e02241df2da32", size = 6382, upload-time = "2026-08-16T09:43:07Z" },
 ]

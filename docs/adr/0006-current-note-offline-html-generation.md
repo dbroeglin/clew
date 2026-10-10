@@ -3,13 +3,10 @@
 - Status: Accepted
 - Date: 2026-10-04
 
-> Later refinement: [ADR-0007](0007-course-linked-question-enrichment.md)
-> defines the first Enrich implementation and extends this publication
-> convention to supplied-answer explanations and aid-to-course panel links.
-> [ADR-0008](0008-exercise-unit-pipeline-contract.md) groups question selections
-> by owning exercise and separates note granularity from HTML presentation.
-> The current-note contract remains unchanged: Generate does not require
-> either Ingest's snapshot validation or Enrich's local comparison baseline.
+> **Implemented scope:** Generate currently consumes legacy exercise-per-note
+> chapters. New Import whole-document output is not supported; its consumer
+> refactor is deferred. Publication does not require a producer snapshot or
+> Enrich comparison baseline.
 
 ## Context
 
@@ -119,8 +116,8 @@ unresolved semantic relationships still require explicit agent decisions.
 - Source PDF links can break when the HTML moves, without affecting reading.
 - Mathematical correctness is not mechanically proven; browser errors and
   representative inspection complement static selection checks.
-- Ingest's existing immutable-output validator is unchanged and intentionally
-  not used by Generate. ADR-0007 defines additive Enrich preservation; general
+- Import's preparation validator is intentionally not used by Generate.
+  ADR-0007 defines additive Enrich preservation; general
   aid revision and history semantics remain deferred.
 - HTML-first view markup is maintainable without a framework; changes to
   behavioral hooks or native controls require coordinated JavaScript updates.
