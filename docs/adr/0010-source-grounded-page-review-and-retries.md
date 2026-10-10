@@ -27,6 +27,12 @@ with at most two corrective attempts and retained evidence. A separate
 deployment, live reprocessing, or modification of completed bundles is not
 part of this change.
 
+The user later requested higher reasoning effort and an end-of-import cost
+display. Their current model is GPT-6.1-Sol. Image-render DPI is a distinct
+setting from the provider's model-specific image resizing/tokenization and from
+Document Intelligence's paid high-resolution OCR add-on. Azure rates also vary
+from public OpenAI list rates and by resource region/contract.
+
 ## Decision
 
 Combine [ADR-0005](0005-conservative-import-and-latex-leakage-review.md)'s
@@ -80,6 +86,16 @@ Approval for the scoped cloud plan includes this bounded in-run work, never
 output deletion/restart or unbounded retries. Do not automatically reprocess
 old completed bundles because defaults changed.
 
+For GPT-6.1-Sol, set `reasoning.effort=high` on initial/corrective page
+transcription and page judging. Leave reasoning effort unset for the simpler
+figure-classification task. Record both settings in the plan and manifest.
+Reasoning effort options vary by model, so deployments changed to another model
+must recheck supported values. Keep the existing 200-DPI page rendering and
+`detail: high` image input: model documentation provides no universal optimal
+DPI, and image resizing/token costs depend on model/detail. Treat DPI as a
+legibility control, not as a replacement for the distinct Document Intelligence
+`ocrHighResolution` paid add-on.
+
 Retain all candidate Markdown, complete candidate responses, and complete judge
 responses in numbered `raw/pages/page-NNNN.attempt-AA.*` artifacts. On completion,
 the canonical `page-NNNN.response.json` contains the selected final candidate.
@@ -88,6 +104,14 @@ records with artifact references and findings. Existing downstream Markdown,
 source, page numbers, canonical references, and exit contracts remain supported.
 The planner validates attempt-artifact presence and scope when review metadata
 exists, while historical completed bundles remain valid without it.
+
+After conversion, aggregate Responses API usage returned for all transcription,
+review, and figure-classification calls. Print and persist token counts plus an
+estimate at GPT-6.1-Sol OpenAI standard list rates; label it as a reference, not
+an Azure charge. Report Document Intelligence page/add-on usage separately
+without a dollar amount. Missing usage makes the reference estimate incomplete;
+do not substitute zero. Azure contract/region pricing, cache-write premiums, and
+unobserved SDK transport retries are outside the estimate.
 
 Keep complete operating instructions and evals inside the portable Import
 skill; keep offline executable tests under `tests/clew_import/`. Update the
@@ -103,6 +127,9 @@ skills reference and end-user workflow documentation in the same change.
   cloud inputs and charges.
 - Reviewing all pages increases paid calls even when no correction is needed.
   The bound makes additional work explicit and finite.
+- Higher page reasoning effort may increase latency and token usage. The
+  end-of-run estimate exposes returned usage but cannot represent the exact
+  Azure bill or charges from retries whose responses did not return usage.
 - All attempts remain auditable; corrections replace candidates by selection,
   not by silently patching historical evidence.
 - The loop does not solve cross-page semantic matching, author mistakes, or

@@ -80,12 +80,33 @@ fixes/confidence. Structured JSON remains for figure classification and judging.
 Original wording, notation and author mistakes are preserved; unreadable content
 is marked honestly. Blank pages use `<!-- Blank page. -->`; empty output fails.
 
+Pages render at 200 DPI and use image `detail: high`; there is no documented
+model-independent optimal DPI. Image resizing/token accounting varies by model
+and detail setting, so 200 DPI remains a practical default rather than a
+guaranteed optimum. Document Intelligence's paid `ocrHighResolution` add-on is a
+separate feature for small text in large/dense documents. For GPT-6.1-Sol, page
+transcription and review use high reasoning effort; figure classification keeps
+the deployment default. Recheck supported effort values when changing models.
+
 Default fresh source-grounded page judging uses the same deployment. Each page
 has initial transcription/judge calls and at most two corrective pairs:
 2-6 logical OpenAI page requests, plus figures and SDK transport retries.
 `--no-page-review` explicitly disables judging/corrective calls, not local checks.
 Corrective attempts are part of the approved bounded conversion, not permission
 to restart or delete a failed output.
+
+At completion, the CLI and schema-3 manifest report Responses API token usage and
+an explicitly labeled GPT-6.1-Sol OpenAI standard list-price estimate, based on
+returned usage (including cached input when reported). This is not an Azure
+invoice; cache-write premiums and SDK retries may be absent. Document
+Intelligence processed-page count and high-resolution OCR use are reported
+separately, without a dollar estimate because Azure rates vary by region and
+contract. Missing per-response usage makes the OpenAI estimate incomplete,
+never zero; a response model that does not match GPT-6.1-Sol also suppresses the
+estimate, as does a response that omits its model. See the
+[OpenAI GPT-6.1-Sol pricing](https://developers.openai.com/api/docs/models/gpt-6.1-sol)
+and [image-cost calculator](https://developers.openai.com/api/docs/guides/image-cost-calculator),
+plus the [reasoning-effort guide](https://developers.openai.com/api/docs/guides/reasoning).
 
 Non-mutating LaTeX-leakage and unexpected-control checks complement offline
 MathJax 3.2.2 TeX/SVG checking. MathJax uses base/ams/newcommand/configmacros and
