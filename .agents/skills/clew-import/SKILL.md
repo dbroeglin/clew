@@ -1,20 +1,31 @@
 ---
 name: clew-import
 description: >-
-  Import local PDFs into faithful Markdown, LaTeX, figures, and retained-source
-  bundles. Use when asked to import or convert a PDF, inspect a local directory
-  for PDFs needing conversion, plan document imports, or retry a failed Clew
-  import. Recursively discover sources, propose exact UV commands, and wait for
-  approval before cloud conversion or failed-output cleanup. PDF-only; not
-  Obsidian ingestion, learning-content enrichment, or HTML generation.
+  Convert local PDFs and prepare their whole Markdown documents for Obsidian
+  with stable anchors, callouts, PDF-page links, and supplied-answer matches.
+  Use for PDF conversion, directory import planning, organizing completed
+  conversion bundles in a vault, or validating prepared documents. One portable
+  skill, two resumable steps: paid conversion and deterministic local
+  preparation. Preserve source content; no splitting, OCR repair during
+  preparation, learning-content enrichment, or HTML generation.
 ---
 
 # Clew Import
 
-Convert a local PDF, or PDFs discovered recursively in a local directory, into
-faithful retained-source bundles for later document processing. Preserve source
-content and meaning: do not summarize, translate, correct the author's claims,
-organize Obsidian notes, enrich learning material, or generate HTML.
+Convert local PDFs, then prepare their **whole** converted Markdown for Obsidian.
+These are two resumable steps in this one skill. A conversion-only request stops
+after step A. A preparation request can start with explicitly selected completed
+conversion bundles without reconversion or cloud configuration. Never summarize,
+translate, solve exercises, correct author claims, generate aids, or publish HTML.
+
+Step A preserves the existing converter below. Step B uses source selectors and
+local Python, not LLM-authored replacement Markdown. Read
+[the preparation contract](references/preparation.md) and
+[the worked example](references/example.md) before planning step B.
+Do not import runtime code from a sibling skill or require repository ADRs/tests.
+Enrich and Generate currently consume the older exercise-per-note layout, not
+this skill's new whole-document output; do not run them on it as a supported
+handoff. Their refactors are separate work.
 
 The executable is `scripts/digest_pdf.py` relative to this skill. Python
 dependencies and supported Python versions are declared in this skill's
@@ -32,7 +43,9 @@ the execution project root's untracked `.env`; use this skill's `.env.example`
 as the complete template. Never require repository ADRs or other documentation
 to operate this skill.
 
-## 1. Inspect without changing anything
+## Step A: PDF conversion
+
+### 1. Inspect without changing anything
 
 Confirm the input location. If it was not supplied, ask for one. Default outputs
 are beside their PDFs: `chapter_1.pdf` -> `chapter_1`, including nested PDFs.
@@ -157,7 +170,7 @@ Recheck source identity and output ownership before execution or cleanup. Warn
 that deleting a synchronized failed-output directory can propagate that deletion
 to other devices and people. Approval for conversion is not deletion approval.
 
-## 2. Propose the exact plan and get approval
+### 2. Propose the exact plan and get approval
 
 Show the execution project directory, every candidate and classification,
 source-to-output mapping, review issues, and preflight blockers. Include **all**
@@ -196,7 +209,7 @@ deployment or service is used. Approval for that bounded plan covers its
 in-run page corrections, not deleting/restarting an import, retrying failures,
 or reprocessing completed bundles. Do not add your own retries after the bound.
 
-## 3. Execute the approved commands
+### 3. Execute the approved commands
 
 Run sequentially from the execution project root with its UV environment:
 
@@ -385,13 +398,13 @@ unrecognized delimiters can prevent extraction and still need source review.
 `source/<original-filename>` contains a byte-identical copy of the entire input
 PDF, even for a selected-page import. `document.md`, `figures`, `raw`,
 `manifest.json`, and `run.json` remain together. No input PDF is moved or changed.
-Later Ingest can copy a retained subset into its own output: the original PDF,
-unchanged imported Markdown, and referenced figures, with source metadata.
+Step B can copy a retained subset into its own output: the original PDF,
+unchanged imported Markdown baseline, and referenced figures, with source metadata.
 Raw extraction evidence and diagnostics remain in this untouched complete bundle;
-the subset must not be presented as a complete Import bundle. This skill does
-not structure Obsidian notes or remove external bundles after ingestion.
+the subset must not be presented as a complete conversion bundle. Do not remove
+external bundles after preparation.
 
-## 4. Failure: explicit delete-and-retry gate
+### 4. Failure: explicit delete-and-retry gate
 
 On failure, stop the batch. Show the failed command, relevant error, and
 diagnostic locations. Do not expose configuration or SDK credentials in a
@@ -428,6 +441,178 @@ output. Correct diagnosed settings only with agreement. Each repeated failure
 requires a fresh delete-and-retry approval; never implement an automatic loop.
 If retry is declined, leave artifacts intact and ask how to handle the remaining
 plan. Interruption does not imply permission to restart.
+
+## Step B: Whole-document Obsidian preparation
+
+### 1. Inspect selected bundles and the identified vault
+
+Require explicitly selected completed bundle paths and a user-identified vault.
+Do not scan unrelated locations for a vault or select neighboring bundles
+automatically. Read all selected `document.md` files and review their figures,
+headings, exercises, questions, supplied answers, and conversion issues.
+
+```powershell
+uv run --package clew-import --locked --no-sync python -B ".agents\skills\clew-import\scripts\inspect_bundles.py" "C:\courses\cours" "C:\courses\exercices" "C:\courses\corriges"
+uv run --package clew-import --locked --no-sync python -B ".agents\skills\clew-import\scripts\inspect_vault.py" "C:\vault"
+```
+
+Local commands need the installed Python environment only: no `.env`, Azure
+credentials, Node process, Obsidian, plugin, or network. Missing setup is a
+separate visible host-approved step. Use `--no-sync` during inspection.
+Standalone copies omit `--package` and use their local `scripts` paths.
+
+The bundle inspector checks retained PDF hashes and actual page counts, imported
+coverage, page/figure evidence, local asset declarations, and additive review/math
+artifacts when present. `needs_review` is completed but unverified material:
+carry its issues into preparation, including visible warnings. Missing,
+incomplete, malformed, redirected, or changed sources are blockers.
+The read-only Markdown inventory exposes fingerprint-bound `b-N` selectors,
+one-based source line ranges, safe blocks, headings, original page numbers, and
+existing anchors. Selectors are temporary addresses for this exact source,
+not permanent Obsidian IDs. Do not invent offsets or treat parser safety as
+proof of a sensible semantic boundary.
+
+Read relevant existing vault notes yourself to understand placement conventions.
+The inventory lists paths/sample counts, not their meaning. Review omitted
+subtrees with `--within`, `--depth`, and `--max-directories` if necessary.
+Choose one new chapter under a suitable non-root vault parent, outside earlier
+owned roots. Do not impose a fixed subject/level hierarchy. Include placement
+rationale and any exact missing parent containers to create in the concrete plan.
+Resolve genuine ambiguity with one focused user question; one final preparation
+approval covers placement and writing, not an additional placement-only ceremony.
+
+### 2. Choose structural operations, never rewrite source prose
+
+Create **one complete editable Markdown note per PDF**, retaining source order,
+introductions, shared instructions, proofs, equations, figures, numbering,
+supplied mistakes, and repeated-looking passages. Mixed sources stay in one
+document. No line-coverage partition or source-note splitting is needed.
+
+Role is based on source content, not filenames alone. Recognized documents use
+`Course-<basename>`, `Exercise-<basename>`, or `Correction-<basename>` folders;
+unknown/mixed documents use the original PDF basename. Each contains the
+basename `.md`, original PDF filename, and referenced `figures/`. Case-insensitive
+collisions or nonportable basenames require an explicitly approved folder/name
+decision; never silently suffix or rename. The private `.clew/baselines/` keeps
+immutable original Markdown. The record is `.clew/preparation.json`, not a
+legacy `ingest.json`.
+
+Use only the contract's typed operations:
+
+- `unit`: mark a section, exercise, or supplied correction scope. Sections start
+  at existing headings and use heading links, with no generated block anchor.
+  Exercises/corrections get native entry anchors; matches require source evidence.
+- `callout`: wrap a selected definition/theorem/property/lemma/proposition/
+  corollary/example/remark/proof or question/answer with its source-derived
+  title and exact body. Questions identify their owning exercise; answers
+  identify their correction and, when verified, their target question.
+- `anchor`: add or reuse an ID on one safe block.
+- `heading`: change only a selected heading's structural level.
+
+Python additionally inserts metadata, compact original-PDF-page provenance,
+required destination-only PDF/self-link remaps, and end-of-document review
+warnings. Each section entry links to its starting page as `PDF p. N`;
+exercise/correction units and learning callouts put that link on their final
+line, after any verified cross-document relationship links. Exercise/correction
+entry anchors remain at the beginning; question/answer ownership comes from their
+enclosing unit scopes, not redundant parent backlinks. Do not
+repeat provenance at page breaks or list every covered page. Generated
+bookkeeping uses standalone Obsidian `%%` comments; source comments are retained
+unchanged. Correction units link to `[Exercise](...)`; matched answers link to
+`[Question](...)` on their own footer lines, without duplicated prefixes or
+metadata wrappers. The validator checks their labels, destination kinds and
+ownership without a plugin. Only this generated format is supported. The agent
+authors selectors, IDs, relationships/evidence, and review reasons, **not**
+replacement source Markdown. Generic text replacement, OCR repair, deletion,
+reordering, blanket regex classification, and whole-tree reserialization are
+not operations.
+
+Keep genuine headings for whole-section navigation; do not generate section
+block IDs. Section IDs in `%%` scope markers are private structural identities,
+not link targets. Use stable block IDs for precise statements/questions/answers
+and exercise/correction entries. An exercise/correction entry anchor targets a
+navigation point, not a native embed of every following paragraph.
+Question/answer callouts stay independently addressable at top level: native
+Obsidian does not support links to parts inside enclosing callouts/quotes/tables.
+If content cannot be addressed safely, preserve the coherent passage and report
+it with a scoped warning instead of corrupting syntax.
+
+IDs are unique within their document, ASCII letters/digits/dashes, assigned once,
+and independent of line numbers/title hashes. Reuse existing IDs; do not
+renumber them when visible source labels change. Match corrections from supplied
+statements/reasoning, never positions or numbering alone. Uncertain answers and
+corrections remain unlinked, with a visible warning in the document's final
+review appendix identifying the affected anchor or original Markdown line.
+Do not invent missing material or infer course prerequisites.
+
+### 3. Preview and approve the exact local preparation
+
+Author a version-1 plan outside the bundles and intended output, in the host's
+planning storage. Read the complete contract/example first.
+
+```powershell
+uv run --package clew-import --locked --no-sync python -B ".agents\skills\clew-import\scripts\prepare_documents.py" "C:\plans\preparation.json" --check
+```
+
+Show the full source set/roles, placement/rationale, folder/file list, operations
+and boundaries, exercise/question/answer ownership, matches/evidence, visible
+warnings, exact diffs, command, and returned `plan_sha256`. Obtain **one explicit
+approval** for that concrete preparation. General implementation approval or
+cloud-conversion approval is not permission to write user notes.
+Hard errors block approval/execution; review-only findings are disclosed and
+inserted as generated `[!warning] Clew review` callouts in the final review
+appendix of affected notes and
+summarized in the index. Never hide findings to obtain a clean report.
+
+### 4. Execute the approved plan and validate persisted output
+
+```powershell
+uv run --package clew-import --locked --no-sync python ".agents\skills\clew-import\scripts\prepare_documents.py" "C:\plans\preparation.json" --plan-sha256 "<approved hash>"
+uv run --package clew-import --locked --no-sync python -B ".agents\skills\clew-import\scripts\validate_documents.py" "C:\vault\Maths\chapter" --fidelity
+```
+
+The hash binds the source/operation/output contract; it is not proof of permission.
+Changed sources, plan, or an existing output root require a fresh plan, not
+automatic overwrite or hash updates. Only a new owned chapter and explicitly
+approved missing parent containers may be created. All notes, PDFs, figures,
+index, baselines, and record live under that root. No source bundle is modified.
+Copy only retained PDFs and referenced figures, not Azure config or raw evidence.
+
+The writer checks candidate structure/links and independent exact source
+projection before writing, then checks persisted fidelity before marking complete.
+A failure preserves its exact partial root and `writing` record; stop, report it,
+and never delete/retry/merge automatically. Any removal needs separate scoped
+approval. Removing the exact prepared root removes its own files; shared approved
+parent containers and original conversion bundles must not be deleted.
+
+### 5. Validate current notes after manual edits
+
+```powershell
+uv run --package clew-import --locked --no-sync python -B ".agents\skills\clew-import\scripts\validate_documents.py" "C:\vault\Maths\chapter"
+```
+
+Default validation accepts manual prose edits and checks current schemas,
+anchors, unit structure/ownership, reference syntax, local notes/figures, and PDF
+page bounds. Immutable baselines/PDFs/retained assets remain checked.
+Moving the entire chapter preserves its relative links and needs no external
+bundle. After a deliberate per-document folder rename, keep the note/PDF/figures
+together and update relative links; default validation locates documents by ID.
+`--fidelity` intentionally reports changes since the original prepared snapshot,
+including document relocation; it never recaptures baselines or restores notes.
+
+The validator aggregates coded errors/review findings with paths, one-based
+locations, affected IDs/targets, and actionable diagnostics. It is read-only.
+External URLs are reported as not remotely verified, never fetched or claimed
+working. A syntactic pass cannot prove theorem boundaries, semantic matches,
+mathematical correctness, or Obsidian visual layout.
+
+Preparation/validation helpers exit `0` for clean checks, `2` for review-only,
+and `1` for errors. A completed prepared root requires version 1 and
+`status: complete`; an exit code alone is not completion. The existing step-A
+planner/converter exits keep their documented separate meanings.
+Report the chapter root/index, one-note-per-PDF count, roles, validation mode,
+and all unresolved warnings. Enrich/Generate support for this new format remains
+deferred; existing legacy note archives are neither migrated nor modified.
 
 ## Provenance and maintenance
 

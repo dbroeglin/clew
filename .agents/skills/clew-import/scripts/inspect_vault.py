@@ -4,7 +4,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from ingest_io import command, contained, no_redirect, require
+from document_io import command, contained, no_redirect, require
 
 
 def inspect(vault: Path, *, within: str | None = None, depth: int = 4,
@@ -38,9 +38,15 @@ def inspect(vault: Path, *, within: str | None = None, depth: int = 4,
                 folders.append(child)
             elif child.is_file() and child.suffix.lower() == ".md":
                 notes.append(reference(child))
+        legacy = any(child.name.casefold() == "ingest.json" for child in children)
+        prepared = no_redirect(path / ".clew" / "preparation.json").is_file()
         directories.append({"path": reference(path), "markdown_count": len(notes),
-                            "has_ingest_record": any(child.name.casefold() == "ingest.json" for child in children),
+                            "has_owned_root": legacy or prepared,
                             "markdown_samples": notes[:samples]})
+        if legacy or prepared:
+            omitted.extend({"path": reference(child), "reason": "owned document root"}
+                           for child in folders)
+            return
         for child in folders:
             if level == depth:
                 omitted.append({"path": reference(child), "reason": "depth limit"})

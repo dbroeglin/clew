@@ -1,7 +1,7 @@
 [project]
 name = "clew-import"
 version = "1.0.0"
-description = "Faithful PDF import into retained-source Markdown bundles."
+description = "Faithful PDF conversion and source-preserving Obsidian document preparation."
 requires-python = ">=3.11"
 dependencies = [
     "azure-ai-documentintelligence>=1.0.2,<2",
@@ -12,6 +12,7 @@ dependencies = [
     "pillow>=11.3,<13",
     "pydantic>=2.11,<3",
     "pymupdf>=1.26,<2",
+    "pyyaml>=6,<7",
 ]
 
 [tool.uv]

@@ -134,6 +134,46 @@ def artifact(output: Path, reference: object) -> Path:
 
 def bundle_marker(directory: Path) -> tuple[bool, str | None]:
     """Identify bundles for traversal exclusion, even when their source is stale."""
+    private = directory / ".clew"
+    legacy = directory / "ingest.json"
+    if os.path.lexists(private):
+        try:
+            if is_link(private) or not private.is_dir():
+                raise InspectionError("Prepared-root metadata redirects or is not a directory.")
+            record = read_object(private / "preparation.json")
+            documents = record.get("documents")
+            if (
+                type(record.get("schema_version")) is not int or record["schema_version"] != 1
+                or record.get("status") not in {"writing", "complete"}
+                or not isinstance(record.get("plan"), dict)
+                or not isinstance(documents, list) or not documents
+            ):
+                raise InspectionError("Unrecognized prepared-document ownership record.")
+            for document in documents:
+                if (
+                    not isinstance(document, dict) or not isinstance(document.get("path"), str)
+                    or not isinstance(document.get("pdf"), str)
+                    or Path(document["pdf"]).name != document["pdf"]
+                    or PureWindowsPath(document["pdf"]).name != document["pdf"]
+                    or not document["pdf"].lower().endswith(".pdf")
+                ):
+                    raise InspectionError("Invalid prepared-document PDF identity.")
+            return True, None
+        except (InspectionError, OSError) as error:
+            return False, str(error)
+    if os.path.lexists(legacy):
+        try:
+            record = read_object(legacy)
+            if (
+                type(record.get("schema_version")) is not int or record["schema_version"] not in {1, 2, 3}
+                or record.get("status") not in {"writing", "complete"}
+                or not isinstance(record.get("plan"), dict)
+                or not isinstance(record.get("sources"), dict) or not record["sources"]
+            ):
+                raise InspectionError("Unrecognized legacy ingest ownership record.")
+            return True, None
+        except InspectionError as error:
+            return False, str(error)
     manifest_path, report_path = directory / "manifest.json", directory / "run.json"
     if manifest_path.exists():
         try:

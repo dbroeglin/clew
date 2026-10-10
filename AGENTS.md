@@ -8,7 +8,9 @@ not a requirement to load every ADR.
 
 When adding or revising a decision, follow
 [ADR-0000](docs/adr/0000-record-architecture-decisions.md) and update the index in
-the same change.
+the same change. Revise existing relevant records in place to describe the
+current coherent design; use Git history for prior states rather than adding
+supersession chains for revisions.
 
 ## Autonomous skills
 
@@ -19,7 +21,7 @@ templates, workflow evals, licenses, and provenance inside the skill as applicab
 
 Keep executable script tests and fixtures **outside skill directories**, under
 repository-owned `tests/<skill_name>/` suites, as specified by
-[ADR-0004](docs/adr/0004-faithful-multi-bundle-ingest.md). Test location is a
+[ADR-0003](docs/adr/0003-autonomous-portable-skills.md). Test location is a
 development concern, not a runtime dependency. Workflow evaluations may remain
 inside the skill. Do not bundle script tests to make a skill portable.
 

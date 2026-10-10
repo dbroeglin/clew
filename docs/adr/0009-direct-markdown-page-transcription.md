@@ -1,9 +1,9 @@
 # ADR-0009: Direct Markdown page transcription
 
-- Status: Accepted; refined by ADR-0010
+- Status: Accepted
 - Date: 2026-10-09
 
-> **Refinement:** [ADR-0010](0010-source-grounded-page-review-and-retries.md)
+> **Related contract:** [ADR-0010](0010-source-grounded-page-review-and-retries.md)
 > adds independent page judging, bounded corrective candidates, and retained
 > attempt evidence. The selected candidate remains direct Markdown without
 > inner JSON decoding or Python string repairs; figure classification stays
@@ -29,10 +29,9 @@ faithfulness.
 
 ## Decision
 
-Partially supersede [ADR-0002](0002-pdf-import-skill-and-project-runtime.md)'s
-pinned models and response-format restriction for page transcription. Refine
-[ADR-0005](0005-conservative-import-and-latex-leakage-review.md) without changing
-its conservative transcription or independent, non-mutating leakage review.
+Use direct page text with the conservative transcription and independent,
+non-mutating review rules in
+[ADR-0005](0005-conservative-import-and-latex-leakage-review.md).
 
 Request plain-text output for page reconciliation. The model returns only
 Markdown, without a JSON envelope, explanatory preamble, surrounding code

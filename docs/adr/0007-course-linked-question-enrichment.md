@@ -3,9 +3,9 @@
 - Status: Accepted
 - Date: 2026-10-04
 
-> Later refinement: [ADR-0008](0008-exercise-unit-pipeline-contract.md)
-> fixes source exercise/correction units and checks supplied-answer ownership.
-> Question-scoped help notes remain auxiliary additions, not source units.
+> **Implemented scope:** Enrich currently consumes legacy exercise-per-note
+> chapters. New Import whole-document output is not supported; its consumer
+> refactor is deferred. Help notes remain auxiliary additions.
 
 ## Context
 
@@ -14,8 +14,7 @@ optional Enrich, and repeatable Generate.
 [ADR-0006](0006-current-note-offline-html-generation.md) already publishes
 optional question-addressed help notes, but does not define an Enrich
 implementation or supplied-answer explanations. This record implements that
-first enrichment scope and refines Generate without superseding either stage
-boundary.
+first enrichment scope and Generate's legacy-note enrichment convention.
 
 The first Enrich increment should be deliberately small: question-specific
 hints and explanations of supplied answers, both linked to existing course
@@ -67,8 +66,7 @@ copied into fixtures. Update the affected skill contracts and documentation.
 - Stable links survive unrelated line insertions without a mapping ledger.
 - Enrich changes source-note structure, not supplied teaching content; generated
   prose remains separate and identifiable.
-- Ingest's exact-snapshot validator intentionally reports later edits/new aids.
-  Do not change it or rewrite `ingest.json` to hide the new stage.
+- Producer records must not be rewritten to hide subsequent enrichment edits.
 - Generate still reads current notes without earlier-stage validation or hashes.
 - Existing human aids are preserved. Aid revisions, broader enrichment,
   generated answers/exercises, and revision history remain future decisions.

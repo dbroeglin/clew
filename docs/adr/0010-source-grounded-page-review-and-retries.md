@@ -1,9 +1,9 @@
 # ADR-0010: Source-grounded page review and bounded retries
 
-- Status: Accepted; refined by ADR-0011
+- Status: Accepted
 - Date: 2026-10-10
 
-> **Refinement:** [ADR-0011](0011-npm-workspace-and-offline-import-mathjax.md)
+> **Related runtime:** [ADR-0011](0011-npm-workspace-and-offline-import-mathjax.md)
 > adds an executed offline MathJax checker and root npm workspace. Executed
 > render errors also trigger corrections within the existing two-attempt
 > budget, even when the judge misses them. The original prohibition on a
@@ -29,10 +29,10 @@ part of this change.
 
 ## Decision
 
-Partially supersede [ADR-0005](0005-conservative-import-and-latex-leakage-review.md)'s
-prohibition on model corrective retries during an import, and refine
-[ADR-0009](0009-direct-markdown-page-transcription.md)'s raw evidence and selection
-contract. Its direct Markdown page output remains in force. Existing failure,
+Combine [ADR-0005](0005-conservative-import-and-latex-leakage-review.md)'s
+conservative transcription with
+[ADR-0009](0009-direct-markdown-page-transcription.md)'s direct page text.
+Existing failure,
 output ownership, cloud approval, and delete-and-restart gates from
 [ADR-0002](0002-pdf-import-skill-and-project-runtime.md) remain in force.
 

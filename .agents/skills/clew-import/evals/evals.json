@@ -120,6 +120,66 @@
       "prompt": "A revised candidate renders correctly but changes a printed inequality. A previous rejected attempt defined a macro that the revision still uses, while the selected earlier page also defines a different macro. Treat renderability as proof that everything is correct.",
       "expected_output": "Reject the claim that rendering proves source fidelity or mathematical correctness. Preserve source comparisons and source-owned mistakes. Each fresh candidate check replays only selected prior-page formulas, preserving legitimate macro context without definitions from discarded candidates. Retain version/package/macro configuration, formula IDs, exact TeX, display mode, block lines and errors in raw math reports and additive raw_math references. Historical completed bundles without math reports remain valid and unchanged.",
       "files": []
+    },
+    {
+      "id": 21,
+      "prompt": "Prepare these existing complete course, exercise-sheet, and correction bundles in my vault; don't rerun conversion.",
+      "expected_output": "Use local inspection without Azure configuration or cloud calls. Read every whole document and inspect vault conventions. Choose one note per PDF, role-prefixed basename folders, stable internal unit/question/answer anchors, and evidence-backed matches. Preview a version-1 preparation plan with placement and warnings and obtain one local approval before materialization. Do not invoke a retired clew-ingest skill or split the sheet.",
+      "files": []
+    },
+    {
+      "id": 22,
+      "prompt": "This mixed PDF contains course material, three exercises and their answers. Regenerate a polished Markdown document and split it for publication.",
+      "expected_output": "Keep the complete document in its original-basename folder. Use fingerprint-bound block selectors and closed structural operations, not replacement prose, AST reserialization, or note splitting. Preserve formulas, wording, numbering, source mistakes and shared context. Enrich/Generate support for the new document format is deferred; do not claim publication compatibility.",
+      "files": []
+    },
+    {
+      "id": 23,
+      "prompt": "Correction numbering doesn't match the exercise sheet. Guess the targets so all links pass.",
+      "expected_output": "Match supplied reasoning and source evidence, not positional numbering. Preserve uncertain corrections/answers unlinked. Add generated warning callouts in a final document review appendix with anchor/source-line locations and an index summary after navigation, return needs_review, and disclose findings before approval. Broken links and contradictory ownership remain hard errors and cannot be waived.",
+      "files": []
+    },
+    {
+      "id": 24,
+      "prompt": "I edited my prepared note in Obsidian and moved the whole chapter. Validate it and repair anything needed.",
+      "expected_output": "Run read-only current structure/link validation, locate documents by stable ID, and preserve manual content. Relative links survive whole-chapter relocation. Report new diagnostics without editing or recapturing baselines. Offer fidelity mode as the initial-snapshot check, which deliberately reports later changes. No converter, cloud configuration, or external bundle is required.",
+      "files": []
+    },
+    {
+      "id": 25,
+      "prompt": "Two supplied PDFs are both called course.pdf. Use Course-course for both and overwrite whatever conflicts.",
+      "expected_output": "Reject the case-insensitive folder collision. Obtain explicit distinct folder names in the concrete plan without changing source filenames or sharing assets. Create only a new approved chapter, never merge or overwrite an existing one.",
+      "files": []
+    },
+    {
+      "id": 26,
+      "prompt": "Make every question linkable by nesting all question callouts inside one Exercise callout.",
+      "expected_output": "Keep an exercise unit scope and shared context, but make question callouts independently addressable at top level. Native Obsidian does not support parts inside enclosing callouts/quotes/tables. Preserve inseparable content with a scoped visible warning rather than corrupting syntax. Unit entry anchors are navigation points, not whole-section embeds.",
+      "files": []
+    },
+    {
+      "id": 27,
+      "prompt": "Validate all course links, including external URLs, and mark them working without making network requests.",
+      "expected_output": "Validate local note/heading/block targets, figure paths and original PDF page bounds. Ignore link lookalikes in code/math. Aggregate broken or ambiguous local references as errors; report external destinations as not remotely verified, not as working. Validation stays offline and read-only.",
+      "files": []
+    },
+    {
+      "id": 28,
+      "prompt": "The checked preparation was approved, but the source changed and the output root now exists. Continue with the old hash.",
+      "expected_output": "Stop on stale source fingerprints or existing destinations. Inspect again and obtain approval of a revised concrete preparation in a new root. Preserve partial/human-edited outputs and original conversion bundles; no deletion, overwrite, generic Markdown repair, or automatic retry.",
+      "files": []
+    },
+    {
+      "id": 29,
+      "prompt": "Scan this vault folder for PDFs; it includes a complete prepared chapter, a writing preparation, and a legacy ingest root with retained PDFs.",
+      "expected_output": "Recognize and exclude owned roots and their retained PDF copies from conversion discovery. Incomplete recognized ownership remains excluded; malformed or ambiguous ownership is a visible conflict, not a hidden directory or new source. Do not reconvert copies or follow redirected metadata.",
+      "files": []
+    },
+    {
+      "id": 30,
+      "prompt": "Prepare whole notes without clutter: use Obsidian comments, reviews at the end, compact PDF links, and ordinary relationship links.",
+      "expected_output": "Use standalone %% Clew bookkeeping comments and a final review appendix with anchor/source-line locations. Navigate sections by existing headings without generated section block IDs. Put one compact starting-page PDF link at each section entry and at the end of exercise/correction units and learning callouts. Use plain Exercise correction-to-exercise and Question answer-to-question links on separate footer lines before PDF provenance, without duplicated prefixes or Dataview wrappers. Derive question/answer ownership from enclosing scopes without redundant parent backlinks. Preserve source content and immutable baselines; validate destination roles, kinds and ownership. Do not migrate or overwrite an existing prepared chapter.",
+      "files": []
     }
   ]
 }
