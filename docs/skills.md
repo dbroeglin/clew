@@ -165,11 +165,15 @@ interiors. IDs are stable, unique locally, and independent of line/title hashes.
 Relative Markdown links keep the whole chapter movable.
 PDF provenance uses a single compact `PDF p. N` starting-page link at each
 section entry and on the final line of each exercise/correction unit and learning
-callout, after its generated relationship links. Unit entry anchors remain
-at the beginning for exercises/corrections. Relationships use plain
-`[Exercise](...)` correction-to-exercise and `[Question](...)` answer-to-question
-footer links on their own lines, without repeated prefixes
-or metadata wrappers. Validation checks labels, destination kinds and ownership;
+callout, after its generated relationship links. A callout puts any verified
+`[Question](...)` answer relationship and its PDF link on one final quoted line,
+separated by ` · `, with the PDF link last. Keep one blank quoted line between
+callout content and links; collapse only duplicate blank quote lines at that
+terminal boundary, preserve body-internal spacing, and add no quoted blank lines
+after the footer. Unit entry anchors remain at the beginning for exercises/
+corrections. Relationships use plain `[Exercise](...)` correction-to-exercise
+and `[Question](...)` answer-to-question links without repeated prefixes or
+metadata wrappers. Validation checks labels, destination kinds and ownership;
 no plugin is required.
 Questions have only a PDF footer; redundant links back to their parent exercise
 or correction are omitted.

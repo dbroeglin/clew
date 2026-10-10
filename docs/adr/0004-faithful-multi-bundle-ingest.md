@@ -22,8 +22,12 @@ wrapping, block anchors and heading levels, plus generated metadata, page
 links, required destination-only remaps and review warnings. PDF provenance is
 one compact starting-page link per section entry or exercise/correction/callout
 footer, after generated relationship links, with unit entry anchors kept at
-the beginning. Sections navigate by existing headings, without generated block
-IDs. Do not generate covered-page lists or page-break links. Unit/review
+the beginning. Callout footer links share one quoted line, relationship first
+and PDF last, separated by ` · `. Keep one blank quoted line before the footer,
+collapse duplicate blank quote lines only at that terminal boundary, preserve
+body-internal spacing, and add no quoted blank lines after the footer. Sections
+navigate by existing headings, without generated block IDs. Do not generate
+covered-page lists or page-break links. Unit/review
 bookkeeping uses Obsidian `%%` comments. Only this generated format is supported;
 no compatibility adapter or automatic archive migration is added.
 No generic replacement, formatter, OCR repair or source-note splitting.
