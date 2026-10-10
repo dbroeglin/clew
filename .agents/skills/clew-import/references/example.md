@@ -180,6 +180,7 @@ with `validate_documents.py --fidelity`. Later manual edits use default
 structure/link validation; fidelity checks deliberately report differences.
 Moving this complete chapter preserves the relative links.
 
-Future aid notes can link to `sheet.md#^ex-01-q-01`,
-`solutions.md#^ex-01-r-01`, and `course.md#^thm-geometric`, but aid authorship
-and Enrich/Generate consumer refactors are not implemented by this skill.
+Separate Enrich aid notes can link to `sheet.md#^ex-01-q-01`,
+`solutions.md#^ex-01-r-01`, and `course.md#^thm-geometric` after preparation.
+Enrich leaves these imported notes unchanged. Generate remains a legacy consumer
+and cannot yet publish these prepared chapters.

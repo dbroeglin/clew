@@ -3,70 +3,72 @@
 - Status: Accepted
 - Date: 2026-10-04
 
-> **Implemented scope:** Enrich currently consumes legacy exercise-per-note
-> chapters. New Import whole-document output is not supported; its consumer
-> refactor is deferred. Help notes remain auxiliary additions.
-
 ## Context
 
-[ADR-0001](0001-document-processing-pipeline.md) separates faithful Ingest,
-optional Enrich, and repeatable Generate.
-[ADR-0006](0006-current-note-offline-html-generation.md) already publishes
-optional question-addressed help notes, but does not define an Enrich
-implementation or supplied-answer explanations. This record implements that
-first enrichment scope and Generate's legacy-note enrichment convention.
+[ADR-0001](0001-document-processing-pipeline.md) separates faithful Import,
+optional Enrich, and repeatable Generate. [ADR-0008](0008-exercise-unit-pipeline-contract.md)
+defines the stable document-internal exercise/correction units and question/
+answer anchors produced by Import. Enrich needs to preserve those complete
+source documents while adding optional learning aids.
 
-The first Enrich increment should be deliberately small: question-specific
-hints and explanations of supplied answers, both linked to existing course
-passages. Real current-note worksheets can have ordinary exercise headings,
-numbered lists, shared instructions, and multiline mathematics in long notes.
-Line-range mappings were considered, then rejected in favor of stable anchors.
+The first Enrich scope remains deliberately small: question-specific hints and
+explanations of supplied answers, both linked to existing course passages.
+Real worksheets contain shared context, ordinary lists, and multiline
+mathematics; stable imported anchors and source-unit ownership are safer than
+line-range mappings or regenerated boundaries.
 
 ## Decision
 
-Add portable `clew-enrich`. The host agent reads current selected notes, chooses
-boundaries and course/answer mappings, previews the concrete edits, obtains
-approval, and authors them using normal file-editing tools. No enrichment
-writer, embedded model, external service, or approval-hash framework is added.
+`clew-enrich` consumes only a completed Import whole-document chapter:
+`type: chapter` index, `type: document` notes, and `.clew/preparation.json` with
+`status: complete`. It follows each note's explicit role, document ID, source
+unit comments, native exercise/correction entry anchors, and question/answer
+anchors. It does not consume or migrate the legacy exercise-per-note layout.
 
-Reuse existing question/answer anchors. When absent, add structural
-`question`/`reponse` callouts, stable anchors, and explicit answer `question::`
-links while preserving supplied text. Keep teaching additions in separate
-`aides/` notes with `type: help`, question links, and supplied-answer links for
-explanations. Ordered anchored `hint` and `explanation` callouts contain precise
-course heading/block links. Missing answers remain missing.
+The host agent reads selected current notes, decides semantic question/answer
+and course matches, previews concrete changes, obtains approval, and writes
+separate `aides/` notes with `type: help`. Hints and explanations are anchored
+callouts; each contains a precise existing course heading/block link. Aid
+frontmatter links to the imported question and, for an explanation, its
+specific supplied answer. Import's `Exercise` and `Question` relationship
+footers and enclosing unit scopes define ownership. Missing answers remain
+missing. Enrich never changes imported documents, the index, preparation
+record, retained sources, or existing aids.
 
-A local validator captures a pre-edit baseline in host scratch storage outside
-the chapter and repository, then checks the persisted result. Compare supplied
-content after removing only documented structural wrappers/fields/separators;
-retain formulas, source blank lines, indentation, numbering, and shared context.
-Check file/directory inventory, immutable files, unique IDs/anchors, answer/question
-agreement, and precise course targets. Existing aid files are immutable in this
-additive increment. The baseline is local comparison evidence, not a permission
-token, publishing artifact, revision ledger, or attestation.
+A local validator captures a versioned file-hash and inventory baseline in
+host scratch storage outside the chapter and repository, then checks persisted
+additions. Only new Markdown under `aides/` is permitted. It verifies the
+completed preparation identity, unchanged existing files, unique IDs/anchors,
+unit ownership, answer/question agreement, and precise local course references.
+The validator does not write notes or decide semantic matches. Pedagogical
+correctness remains the agent's responsibility; ambiguous matches or
+inconsistent supplied mathematics require a user decision, not silent repair.
+Existing aid notes are immutable in this additive increment; do not recapture a
+baseline to hide edits.
 
-The validator is self-contained and has its own direct runtime dependencies.
-Enrich does not require Import, Ingest, or Generate to be installed. Pedagogical
-correctness still requires agent review; ambiguous matches or inconsistent
-supplied mathematics require a user decision, not silent repair.
+The validator is self-contained with its own direct runtime dependencies. It
+requires a prepared Import artifact, not Import runtime code or installation.
+No external learning sources, embedded model, cloud service, or repository
+specific runtime knowledge is required.
 
-Extend Generate's existing convention to explanations matched to selected
-supplied answers. Hints and explanations use its side panel; supplied corrections
-remain inline. Course links authored in aids open the exact referenced passage
-in the side panel, even when the course is also selected for reading.
-Keep HTML-first templates, offline publication, and source-note immutability
-during Generate. No guided steps or new navigation framework.
+Generate remains a legacy exercise-per-note consumer. It does not consume
+prepared-document Enrich aids, and this decision does not claim new-format HTML
+publication or end-to-end compatibility. Existing legacy archives are not
+migrated.
 
-Keep tests outside skills. Use a compact independently authored English chapter
-with ordinary baseline notes and an enriched overlay. Private material is not
-copied into fixtures. Update the affected skill contracts and documentation.
+Keep tests outside skills in `tests/clew_enrich/`, with independently authored
+synthetic prepared-document fixtures. Update all affected portable contracts,
+examples, project documentation, compatibility claims, and the ADR index.
 
 ## Consequences
 
-- Stable links survive unrelated line insertions without a mapping ledger.
-- Enrich changes source-note structure, not supplied teaching content; generated
-  prose remains separate and identifiable.
-- Producer records must not be rewritten to hide subsequent enrichment edits.
-- Generate still reads current notes without earlier-stage validation or hashes.
+- Stable document and block addresses support aids without splitting or editing
+  the imported source documents.
+- Generated learning prose remains separate and distinguishable from supplied
+  course/exercise/correction content.
+- Import preparation evidence is retained unchanged and local baselines remain
+  comparison evidence, not permission tokens or revision history.
+- Generate continues to publish only its legacy input contract until separately
+  refactored; legacy archives are not migrated.
 - Existing human aids are preserved. Aid revisions, broader enrichment,
-  generated answers/exercises, and revision history remain future decisions.
+  generated answers/exercises, and revision history remain outside this scope.

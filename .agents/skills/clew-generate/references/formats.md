@@ -193,8 +193,10 @@ automatically. They open in the side panel, including when the course is also
 selected for reading or the reading view is suppressed. No extra layout mapping
 is necessary for those authored links. Target notes must still be in `notes`.
 
-This publication convention also consumes the first-increment `clew-enrich`
-output. Generate needs no installed Enrich skill or validation snapshot.
+This publication convention consumes legacy question-addressed help notes.
+The current `clew-enrich` skill writes aids for Import's prepared
+document-internal unit format, which Generate does not yet publish. Generate
+needs no installed Enrich skill or validation snapshot.
 Humans can author/edit the same notes; a general revision/provenance contract
 remains outside this version.
 

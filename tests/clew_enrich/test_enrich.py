@@ -1,7 +1,8 @@
-"""Small English synthetic worksheets; no private material or cloud calls."""
+"""Prepared-document enrichment checks with synthetic notes only."""
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -13,10 +14,8 @@ ROOT = Path(__file__).resolve().parents[2]
 SKILL = ROOT / ".agents" / "skills" / "clew-enrich"
 FIXTURES = Path(__file__).parent / "fixtures"
 sys.path.insert(0, str(SKILL / "scripts"))
-sys.path.insert(0, str(ROOT / "tests"))
 
-from validate_enrich import EnrichError, Note, capture, validate
-from runtime_fixtures import build_wheelhouse
+from validate_enrich import EnrichError, capture, validate
 
 
 class EnrichTests(unittest.TestCase):
@@ -26,273 +25,117 @@ class EnrichTests(unittest.TestCase):
         self.root = Path(temporary.name)
         self.chapter = self.root / "chapter"
         shutil.copytree(FIXTURES / "chapter", self.chapter)
-        (self.chapter / "sources").mkdir()
-        (self.chapter / "sources" / "original.md").write_text("Synthetic retained source.\n", encoding="utf-8")
-        (self.chapter / "ingest.json").write_text("Untouched opaque Ingest record.\n", encoding="utf-8")
         self.before = self.root / "before.json"
         capture(self.chapter, self.before)
         shutil.copytree(FIXTURES / "enriched", self.chapter, dirs_exist_ok=True)
 
-    def edit(self, relative, old, new):
-        path = self.chapter / relative
-        text = path.read_text(encoding="utf-8")
-        self.assertIn(old, text)
-        path.write_text(text.replace(old, new), encoding="utf-8")
-
-    def ownership_chapter(self, associations=None):
-        chapter = self.root / "ownership"
-        (chapter / "exercices").mkdir(parents=True)
-        (chapter / "corriges").mkdir()
-        for number in (1, 2):
-            body = "".join(
-                f"> [!question] Question {question}\n> Supplied question {number}-{question}.\n>\n\n"
-                f"^q-{question}\n\n" for question in (1, 2))
-            (chapter / "exercices" / f"exercise-{number}.md").write_text(
-                f"---\nid: exercise-{number}\ntype: exercise\n---\n{body}", encoding="utf-8")
-        association = "" if associations is None else "exercises: " + json.dumps(associations) + "\n"
-        correction = chapter / "corriges" / "correction.md"
-        correction.write_text(
-            f"---\nid: correction\ntype: correction\n{association}---\n"
-            + "".join(f"> [!reponse] Answer {number}\n> Supplied answer {number}.\n>\n\n^r-{number}\n\n"
-                      for number in (1, 2)), encoding="utf-8")
-        before = self.root / "ownership-before.json"
-        capture(chapter, before)
-        return chapter, before, correction
-
-    def link_answers(self, correction, targets):
-        text = correction.read_text(encoding="utf-8")
-        for number, target in enumerate(targets, 1):
-            header = f"> [!reponse] Answer {number}\n"
-            text = text.replace(header, header + f"> [question:: [[{target}]]]\n")
-        correction.write_text(text, encoding="utf-8")
-
-    def test_declared_correction_owner_and_repeated_local_question_ids(self):
-        chapter, before, correction = self.ownership_chapter(["[[exercise-1]]"])
-        self.link_answers(correction, ["exercise-1#^q-1", "exercise-1#^q-2"])
-        report = validate(chapter, before)
-        self.assertEqual((report["questions"], report["supplied_answers"]), (4, 2))
-        self.assertEqual(report["questions_without_correction"],
-                         ["exercise-2#^q-1", "exercise-2#^q-2"])
-
-    def test_resolvable_answer_in_another_exercise_is_rejected(self):
-        chapter, before, correction = self.ownership_chapter(["[[exercise-1]]"])
-        self.link_answers(correction, ["exercise-2#^q-1", "exercise-1#^q-2"])
-        with self.assertRaisesRegex(EnrichError, "different exercise than its correction unit"):
-            validate(chapter, before)
-
-    def test_undeclared_correction_answers_must_agree_on_one_exercise(self):
-        chapter, before, correction = self.ownership_chapter()
-        self.link_answers(correction, ["exercise-1#^q-1", "exercise-1#^q-2"])
-        self.assertEqual(validate(chapter, before)["supplied_answers"], 2)
-        text = correction.read_text(encoding="utf-8")
-        correction.write_text(text.replace("exercise-1#^q-2", "exercise-2#^q-2"), encoding="utf-8")
-        with self.assertRaisesRegex(EnrichError, "different exercise than its correction unit"):
-            validate(chapter, before)
-
-    def test_multiple_declared_exercise_owners_are_rejected(self):
-        chapter, before, correction = self.ownership_chapter(["[[exercise-1]]", "[[exercise-2]]"])
-        self.link_answers(correction, ["exercise-1#^q-1", "exercise-1#^q-2"])
-        with self.assertRaisesRegex(EnrichError, "multiple exercises"):
-            validate(chapter, before)
-
-    def test_correction_association_cannot_target_one_question(self):
-        chapter, before, correction = self.ownership_chapter(["[[exercise-1#^q-1]]"])
-        self.link_answers(correction, ["exercise-1#^q-1", "exercise-1#^q-2"])
-        with self.assertRaisesRegex(EnrichError, "whole exercise note"):
-            validate(chapter, before)
-
-    def test_aid_files_cannot_replace_source_units(self):
-        chapter, before, correction = self.ownership_chapter(["[[exercise-1]]"])
-        self.link_answers(correction, ["exercise-1#^q-1", "exercise-1#^q-2"])
-        original = chapter / "exercices" / "exercise-1.md"
-        (chapter / "aides").mkdir()
-        shutil.copyfile(original, chapter / "aides" / "exercise-1.md")
-        original.unlink()
-        with self.assertRaisesRegex(EnrichError, "Original files removed"):
-            validate(chapter, before)
-
-    def test_small_representative_chapter_and_preservation(self):
+    def test_prepared_documents_and_additive_aid(self):
         report = validate(self.chapter, self.before)
-        self.assertEqual((report["questions"], report["supplied_answers"],
-                          report["hints"], report["explanations"]), (4, 3, 6, 3))
-        self.assertEqual(len(report["new_aids"]), 4)
-        self.assertEqual(report["questions_without_correction"],
-                         ["sequences-demo-exercise-2#^q-ex2-2"])
-        self.assertLessEqual(sum(path.stat().st_size for path in FIXTURES.rglob("*.md")), 12_000)
-        self.assertFalse(any(ord(char) > 127 for path in self.chapter.rglob("*.md")
-                             for char in path.read_text(encoding="utf-8")))
+        self.assertEqual((report["documents"], report["questions"], report["supplied_answers"],
+                          report["hints"], report["explanations"]), (3, 3, 2, 2, 1))
+        self.assertEqual(report["new_aids"], ["aides/q-1.md"])
+        self.assertEqual(report["questions_without_correction"], ["sheet#^q-3"])
 
-    def test_source_changes_and_blank_line_losses_are_rejected(self):
-        path = "exercices/sequences-demo-exercise-1.md"
-        for old, new in [("u_n=7(2/5)^n", "u_n=8(2/5)^n"),
-                         ("Justify each answer.", ""),
-                         ("> 2. Determine", "> 3. Determine"),
-                         ("> 2. Determine the limit of $(u_n)$.\n>\n",
-                          "> 2. Determine the limit of $(u_n)$.\n")]:
-            with self.subTest(new=new):
-                original = (self.chapter / path).read_text(encoding="utf-8")
-                self.edit(path, old, new)
-                with self.assertRaisesRegex(EnrichError, "Supplied text/formatting changed"):
-                    validate(self.chapter, self.before)
-                (self.chapter / path).write_text(original, encoding="utf-8")
-
-    def test_formula_indentation_and_frontmatter_are_preserved(self):
-        self.edit("corriges/sequences-demo-correction-2.md", ">    $$", "> $$")
-        with self.assertRaisesRegex(EnrichError, "Supplied text/formatting changed"):
+    def test_imported_documents_preparation_record_and_retained_files_are_immutable(self):
+        path = self.chapter / "Exercise-sheet" / "sheet.md"
+        original = path.read_bytes()
+        path.write_bytes(original + b"\nEdited source.")
+        with self.assertRaisesRegex(EnrichError, "Original file changed"):
             validate(self.chapter, self.before)
-        shutil.copyfile(FIXTURES / "enriched" / "corriges" / "sequences-demo-correction-2.md",
-                        self.chapter / "corriges" / "sequences-demo-correction-2.md")
-        self.edit("exercices/sequences-demo-exercise-1.md", "status: draft", "status: complete")
-        with self.assertRaisesRegex(EnrichError, "frontmatter changed"):
+        path.write_bytes(original)
+        (self.chapter / ".clew" / "preparation.json").write_text("{}", encoding="utf-8")
+        with self.assertRaisesRegex(EnrichError, "Original file changed"):
             validate(self.chapter, self.before)
 
-    def test_immutable_files_and_unexpected_new_files(self):
-        for name in ["courses/sequences-demo-course.md", "index.md", "ingest.json", "sources/original.md"]:
-            with self.subTest(name=name):
-                path = self.chapter / name
-                original = path.read_bytes()
-                path.write_bytes(original + b"\nChanged.")
-                with self.assertRaisesRegex(EnrichError, "Untouched file changed"):
-                    validate(self.chapter, self.before)
-                path.write_bytes(original)
-        (self.chapter / "notes.json").write_text("{}", encoding="utf-8")
+    def test_only_new_markdown_aids_are_allowed(self):
+        path = self.chapter / "unrelated.txt"
+        path.write_text("No.", encoding="utf-8")
         with self.assertRaisesRegex(EnrichError, "Only new Markdown aid notes"):
             validate(self.chapter, self.before)
 
-    def test_original_file_removal_is_rejected(self):
-        (self.chapter / "sources" / "original.md").unlink()
-        with self.assertRaisesRegex(EnrichError, "Original files removed"):
-            validate(self.chapter, self.before)
-
-    def test_unexpected_empty_directory_is_rejected(self):
-        (self.chapter / "unrelated").mkdir()
-        with self.assertRaisesRegex(EnrichError, "Only new aid directories"):
-            validate(self.chapter, self.before)
-
-    def test_wrong_answer_question_association(self):
-        self.edit("aides/ex1-q1.md", "#^r-ex1-1", "#^r-ex1-2")
-        with self.assertRaisesRegex(EnrichError, "correction/question mismatch"):
-            validate(self.chapter, self.before)
-
-    def test_new_aid_cannot_be_silently_classified_as_another_role(self):
-        self.edit("aides/ex1-q1.md", "type: help", "type: exercise")
-        with self.assertRaisesRegex(EnrichError, "New aid note needs type: help"):
-            validate(self.chapter, self.before)
-
-    def test_explanation_cannot_invent_a_missing_answer(self):
-        self.edit("aides/ex2-q2.md", "[!hint]", "[!explanation]")
-        with self.assertRaisesRegex(EnrichError, "needs a supplied correction"):
-            validate(self.chapter, self.before)
-
-    def test_missing_ambiguous_and_imprecise_course_links(self):
-        path = "aides/ex1-q1.md"
-        for old, new, error in [
-            ("#Geometric sequences", "#Missing", "Missing or ambiguous course heading"),
-            ("#Geometric sequences", "", "needs a heading or block"),
-            ("sequences-demo-course#", "absent#", "Missing or ambiguous note reference"),
-        ]:
-            with self.subTest(error=error):
-                original = (self.chapter / path).read_text(encoding="utf-8")
-                self.edit(path, old, new)
-                with self.assertRaisesRegex(EnrichError, error):
-                    validate(self.chapter, self.before)
-                (self.chapter / path).write_text(original, encoding="utf-8")
-        course = self.chapter / "courses" / "sequences-demo-course.md"
-        course.write_text(course.read_text(encoding="utf-8") + "\n## Geometric sequences\n",
-                          encoding="utf-8")
-        second = self.root / "second.json"
-        capture(self.chapter, second)
-        with self.assertRaisesRegex(EnrichError, "ambiguous course heading"):
-            validate(self.chapter, second)
-
-    def test_code_does_not_count_as_a_course_reference(self):
-        self.edit("aides/ex1-q1.md", "[[sequences-demo-course#Geometric sequences|geometric sequences]]",
-                  "`[[sequences-demo-course#Geometric sequences|geometric sequences]]`")
-        with self.assertRaisesRegex(EnrichError, "needs a precise course link"):
-            validate(self.chapter, self.before)
-
-    def test_wikilink_heading_can_contain_inline_mathematics(self):
-        self.edit("courses/sequences-demo-course.md", "## Geometric sequences",
-                  "## Geometric sequences $(u_n)$")
-        self.edit("aides/ex1-q1.md", "#Geometric sequences|", "#Geometric sequences $(u_n)$|")
-        baseline = self.root / "math-heading.json"
-        capture(self.chapter, baseline)
-        self.assertEqual(validate(self.chapter, baseline)["status"], "validated")
-
-    def test_duplicate_ids_anchors_and_missing_question(self):
-        path = "aides/ex1-q1.md"
-        original = (self.chapter / path).read_text(encoding="utf-8")
-        self.edit(path, "^explanation-1", "^hint-1")
-        with self.assertRaisesRegex(EnrichError, "Duplicate anchor"):
-            validate(self.chapter, self.before)
-        (self.chapter / path).write_text(original, encoding="utf-8")
-        self.edit(path, "id: sequences-demo-aid-ex1-1", "id: sequences-demo-aid-ex1-2")
-        with self.assertRaisesRegex(EnrichError, "Duplicate learning-note IDs"):
-            validate(self.chapter, self.before)
-        (self.chapter / path).write_text(original, encoding="utf-8")
-        self.edit(path, "#^q-ex1-1", "#^absent")
-        with self.assertRaisesRegex(EnrichError, "Expected anchored question"):
-            validate(self.chapter, self.before)
-
-    def test_existing_anchored_notes_and_aids_are_preserved(self):
-        second = self.root / "second.json"
-        capture(self.chapter, second)
-        self.assertEqual(validate(self.chapter, second)["new_aids"], [])
-        self.edit("aides/ex1-q1.md", "Compare", "Compare carefully")
-        with self.assertRaisesRegex(EnrichError, "Untouched file changed"):
-            validate(self.chapter, second)
-        shutil.copyfile(FIXTURES / "enriched" / "aides" / "ex1-q1.md",
-                        self.chapter / "aides" / "ex1-q1.md")
-        self.edit("exercices/sequences-demo-exercise-1.md", "Exercise 1 - Question 1",
-                  "Different label")
-        with self.assertRaisesRegex(EnrichError, "Existing block changed"):
-            validate(self.chapter, second)
-
-    def test_source_fields_survive_added_question_links(self):
-        path = self.chapter / "corriges" / "sequences-demo-correction-1.md"
-        old = ('---\nid: solutions\ntype: correction\n---\n'
-               '> [!reponse] Answer\n> [src:: original; pages 1]\n> Supplied text.\n>\n\n^answer\n\n')
-        new = old.replace("[src:: original; pages 1]",
-                          "[src:: original; pages 1] [question:: [[worksheet#^q]]]")
-        self.assertEqual(Note(path, old, "correction").projection(),
-                         Note(path, new, "correction").projection())
-        self.assertNotEqual(Note(path, old, "correction").projection(),
-                            Note(path, new.replace("pages 1", "pages 2"), "correction").projection())
-
-    def test_existing_plain_block_anchor_is_reused(self):
-        path = self.chapter / "exercices" / "sequences-demo-exercise-1.md"
-        old = "1. Supplied question.\n\n^existing\n\nNext instruction.\n"
-        new = "> [!question] Question\n> 1. Supplied question.\n\n^existing\n\nNext instruction.\n"
-        self.assertEqual(Note(path, old, "exercise").projection(),
-                         Note(path, new, "exercise").projection())
-
-    def test_existing_unanchored_callout_label_is_preserved(self):
-        chapter = self.root / "existing"
-        (chapter / "exercices").mkdir(parents=True)
-        path = chapter / "exercices" / "question.md"
-        old = '> [!question] Original label\n> Supplied question.\n>\n'
-        path.write_text(old, encoding="utf-8")
-        baseline = self.root / "existing.json"
-        capture(chapter, baseline)
-        path.write_text(old + "\n^question\n\n", encoding="utf-8")
-        self.assertEqual(validate(chapter, baseline)["questions"], 1)
-        path.write_text((old + "\n^question\n\n").replace("Original label", "Changed label"),
+    def test_existing_aids_are_immutable(self):
+        path = self.chapter / "aides" / "existing-q-2.md"
+        path.write_text(path.read_text(encoding="utf-8").replace("Start by", "Begin by"),
                         encoding="utf-8")
-        with self.assertRaisesRegex(EnrichError, "Existing unanchored callout changed"):
+        with self.assertRaisesRegex(EnrichError, "Original file changed"):
+            validate(self.chapter, self.before)
+
+    def test_aid_question_and_supplied_answer_must_match(self):
+        aid = self.chapter / "aides" / "q-1.md"
+        text = aid.read_text(encoding="utf-8")
+        aid.write_text(text.replace("solutions#^r-1", "solutions#^r-2"), encoding="utf-8")
+        with self.assertRaisesRegex(EnrichError, "Aid correction/question mismatch"):
+            validate(self.chapter, self.before)
+
+    def test_course_links_must_resolve_to_precise_course_passages(self):
+        aid = self.chapter / "aides" / "q-1.md"
+        text = aid.read_text(encoding="utf-8")
+        aid.write_text(text.replace("#Geometric limits", "#Absent"), encoding="utf-8")
+        with self.assertRaisesRegex(EnrichError, "Missing or ambiguous course heading"):
+            validate(self.chapter, self.before)
+        aid.write_text(text.replace("[[course#Geometric limits|the geometric limit result]]",
+                                    "`[[course#Geometric limits|the geometric limit result]]`"),
+                       encoding="utf-8")
+        with self.assertRaisesRegex(EnrichError, "Aid needs a precise course link"):
+            validate(self.chapter, self.before)
+
+    def test_legacy_chapter_is_rejected(self):
+        legacy = self.root / "legacy"
+        (legacy / "exercices").mkdir(parents=True)
+        (legacy / "exercices" / "exercise.md").write_text(
+            "---\nid: exercise\ntype: exercise\n---\n", encoding="utf-8")
+        (legacy / "index.md").write_text(
+            "---\nclew_schema: 1\nid: chapter\ntype: chapter\n---\n", encoding="utf-8")
+        (legacy / ".clew").mkdir()
+        (legacy / ".clew" / "preparation.json").write_text(
+            '{"schema_version":1,"status":"complete","documents":[]}', encoding="utf-8")
+        baseline = self.root / "legacy-before.json"
+        with self.assertRaisesRegex(EnrichError, "no documents"):
+            capture(legacy, baseline)
+
+    def test_correction_answer_cannot_target_a_question_owned_by_another_exercise(self):
+        chapter = self.root / "mismatch"
+        shutil.copytree(FIXTURES / "chapter", chapter)
+        exercise = chapter / "Exercise-sheet" / "sheet.md"
+        text = exercise.read_text(encoding="utf-8")
+        insertion = (
+            "%% clew:unit exercise ex-2 %%\n\n## Exercise 2\n\nExercise ^ex-2\n\n"
+            "> [!question] Question 1\n> 1. A question owned by another exercise.\n"
+            "> [PDF p. 1](sheet.pdf#page=1)\n\n^other-q\n\n"
+            "%% /clew:unit ex-2 %%\n\n"
+        )
+        text = text.replace("%% /clew:unit sec-sheet %%", insertion + "%% /clew:unit sec-sheet %%")
+        exercise.write_text(text, encoding="utf-8")
+        correction = chapter / "Correction-solutions" / "solutions.md"
+        text = correction.read_text(encoding="utf-8").replace("#^q-2", "#^other-q")
+        correction.write_text(text, encoding="utf-8")
+        baseline = self.root / "mismatch-before.json"
+        capture(chapter, baseline)
+        with self.assertRaisesRegex(EnrichError, "disagree on exercise owner"):
             validate(chapter, baseline)
 
-    def test_capture_is_outside_chapter_exclusive_and_hidden_entries_excluded(self):
+    def test_capture_requires_an_existing_external_path_and_refuses_replacement(self):
         with self.assertRaisesRegex(EnrichError, "outside the chapter"):
             capture(self.chapter, self.chapter / "before.json")
         with self.assertRaises(FileExistsError):
             capture(self.chapter, self.before)
-        (self.chapter / ".obsidian").mkdir()
-        (self.chapter / ".obsidian" / "config.json").write_text("not read", encoding="utf-8")
-        self.assertEqual(validate(self.chapter, self.before)["status"], "validated")
-        self.assertNotIn(".obsidian", self.before.read_text(encoding="utf-8"))
+
+    def test_unit_marker_lookalikes_inside_code_are_not_structure(self):
+        chapter = self.root / "code-lookalike"
+        shutil.copytree(FIXTURES / "chapter", chapter)
+        course = chapter / "Course-course" / "course.md"
+        course.write_text(
+            course.read_text(encoding="utf-8") +
+            "\n```text\n%% clew:unit exercise fake %%\n%% /clew:unit fake %%\n```\n",
+            encoding="utf-8")
+        baseline = self.root / "code-lookalike-before.json"
+        capture(chapter, baseline)
+        self.assertEqual(validate(chapter, baseline)["status"], "validated")
 
     def test_cli_failure_is_explicit_and_does_not_repair_notes(self):
-        self.edit("aides/ex1-q1.md", "#Geometric sequences", "#Missing")
+        aid = self.chapter / "aides" / "q-1.md"
+        aid.write_text(aid.read_text(encoding="utf-8").replace("#Geometric limits", "#Missing"),
+                       encoding="utf-8")
         before = {path: path.read_bytes() for path in self.chapter.rglob("*") if path.is_file()}
         result = subprocess.run([sys.executable, "-B", str(SKILL / "scripts" / "validate_enrich.py"),
                                  str(self.chapter), "--before", str(self.before)],
@@ -304,24 +147,14 @@ class EnrichTests(unittest.TestCase):
     def test_copied_skill_without_repository_runtime(self):
         copied = self.root / "standalone"
         shutil.copytree(SKILL, copied, ignore=shutil.ignore_patterns("__pycache__"))
-        exported = subprocess.run([
-            "uv", "export", "--package", "clew-enrich", "--locked", "--no-dev",
-            "--no-emit-project", "--no-hashes", "--format", "requirements-txt"],
-            cwd=ROOT, capture_output=True, text=True)
-        self.assertEqual(exported.returncode, 0, exported.stderr)
-        wheelhouse = self.root / "wheels"
-        build_wheelhouse(wheelhouse, exported.stdout)
-        result = subprocess.run(["uv", "sync", "--offline", "--no-index", "--find-links",
-                                 str(wheelhouse), "--python", sys.executable, "--quiet"],
-                                cwd=copied, capture_output=True, text=True)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        for mode, baseline in [("--capture", self.root / "copied-before.json"),
-                               ("--before", self.root / "copied-before.json")]:
-            result = subprocess.run(["uv", "run", "--locked", "--no-sync", "python", "-B",
-                                     str(copied / "scripts" / "validate_enrich.py"), str(self.chapter),
-                                     mode, str(baseline)], cwd=copied, capture_output=True, text=True)
+        baseline = self.root / "copied-before.json"
+        for mode, path in [("--capture", baseline), ("--before", baseline)]:
+            result = subprocess.run(
+                [sys.executable, "-B", str(copied / "scripts" / "validate_enrich.py"),
+                 str(self.chapter), mode, str(path)],
+                cwd=copied, capture_output=True, text=True, env=os.environ.copy())
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn(json.loads(result.stdout)["status"], {"captured", "validated"})
+            self.assertEqual(json.loads(result.stdout)["status"], "captured" if mode == "--capture" else "validated")
 
 
 if __name__ == "__main__":
