@@ -483,6 +483,13 @@ def build_plan(
             "enabled": page_review,
             "max_page_retries": digest_pdf.MAX_PAGE_RETRIES if page_review else 0,
         },
+        "vision_settings": {
+            "page_render_dpi": dpi,
+            "openai_image_detail": "high",
+            "page_reasoning_effort": digest_pdf.PAGE_REASONING_EFFORT,
+            "figure_reasoning_effort": "model_default",
+            "reference_pricing_model": digest_pdf.REFERENCE_PRICING_MODEL,
+        },
         "setup_required": not (project / ".venv").is_dir(),
         "setup_command": powershell_command(setup),
         "node_setup_command": powershell_command(node_setup),

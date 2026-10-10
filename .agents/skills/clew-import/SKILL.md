@@ -104,10 +104,22 @@ Pass through any requested `--pages`, `--dpi`, `--max-output-tokens`,
 planner. Do not enable high-resolution OCR without an explicit request:
 it is a paid add-on.
 Do not silently change rendering, page scope, deployment, or token budget.
+Page images currently render at 200 DPI and use OpenAI image `detail: high`.
+There is no documented single best DPI for vision models; image resizing and
+image-token accounting can vary by model and detail setting. Keep 200 DPI as
+the default unless source legibility requires a different value. This rendering
+choice is separate from Document Intelligence's paid `ocrHighResolution` add-on,
+which is intended for small text in large/dense documents.
+For the configured GPT-6.1-Sol model, page transcription and page review use
+`reasoning.effort=high`; figure classification leaves reasoning effort unset.
+The model supports `low`, `medium`, `high`, `xhigh`, and `max`; effort options
+are model-specific and must be rechecked if the deployment model changes.
 Source-grounded LLM page review is enabled by default; disable it only when
 the user requests `--no-page-review`. The plan's `page_review` records the
 enabled state and two-corrective-attempt limit; each eligible entry's
 `page_model_requests` gives minimum/maximum logical OpenAI page requests.
+The plan's `vision_settings` records render DPI, image detail, per-task reasoning
+effort, and the model used for the reference price estimate.
 
 The planner does not upload, convert, create directories, or delete anything.
 It does launch the local Node checker for a read-only smoke test; it does not
@@ -197,9 +209,18 @@ configuration/authentication failures.
 
 Explain that the selected PDFs, page images, and extracted text are transmitted
 to the configured Azure Document Intelligence and OpenAI/Foundry services and
-can incur charges. Obtain user approval for the exact PDFs, destinations,
-options, and commands before running conversions. A request to **plan** is not
-permission to execute. A plan approval is not permission to delete outputs.
+can incur charges. Explain that high reasoning effort may add latency and token
+usage. The completed manifest and final CLI output report API-returned OpenAI
+token usage plus an estimate using the OpenAI GPT-6.1-Sol standard list rates
+(as of 2026-10-10), not the user's Azure bill. They separately report Document
+Intelligence pages and whether its high-resolution OCR add-on was used, without
+estimating its region/contract-specific charge. Missing usage makes the OpenAI
+estimate unavailable rather than a success-shaped zero; a missing or different
+reported response model also suppresses it. SDK transport retries may add billed
+calls not represented in returned usage. Obtain user approval for
+the exact PDFs, destinations, options, and commands before running conversions.
+A request to **plan** is not permission to execute. A plan approval is not
+permission to delete outputs.
 Explain the default page-review cost before approval: each page uses an initial
 transcription and one judge call, with up to two corrective transcription/judge
 pairs (2-6 logical OpenAI requests per page). Figure classification and SDK
@@ -237,6 +258,10 @@ A zero exit is not enough: confirm that the manifest, Markdown, retained PDF,
 and referenced artifacts form a complete bundle for the requested scope. Do
 not rewrite model output or treat a hash match as a content-fidelity guarantee.
 Inspect diagnostics if a completion check fails.
+At completion, report the manifest's `costs` summary: observed logical OpenAI
+response usage, the explicitly labeled OpenAI list-price estimate, and
+Document Intelligence page/add-on usage. Do not call the reference estimate an
+actual Azure charge.
 
 The page prompt requires minimal, image-evidenced corrections, preserves correct
 source wording and notation (including source mistakes), and confines LaTeX to
