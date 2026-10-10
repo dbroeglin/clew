@@ -65,4 +65,6 @@ Local exits are 0 clean, 2 review-only, 1 errors.
 
 Full documents remain editable and traceable. Semantic decisions remain the
 agent's responsibility, but mechanical preservation is enforced locally.
-Enrich/Generate new-format consumption and archive migration are deferred.
+Enrich consumes the new document-internal unit format through separate
+question-addressed help notes without editing imported files. Generate's
+new-format consumption and archive migration are deferred.

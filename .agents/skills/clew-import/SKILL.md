@@ -23,9 +23,10 @@ local Python, not LLM-authored replacement Markdown. Read
 [the preparation contract](references/preparation.md) and
 [the worked example](references/example.md) before planning step B.
 Do not import runtime code from a sibling skill or require repository ADRs/tests.
-Enrich and Generate currently consume the older exercise-per-note layout, not
-this skill's new whole-document output; do not run them on it as a supported
-handoff. Their refactors are separate work.
+`clew-enrich` consumes this skill's completed whole-document output, using its
+document-internal exercise/correction units and question/answer anchors to add
+separate help notes without changing imported documents. `clew-generate` remains
+a legacy exercise-per-note consumer and does not publish this new format.
 
 The executable is `scripts/digest_pdf.py` relative to this skill. Python
 dependencies and supported Python versions are declared in this skill's
@@ -640,8 +641,9 @@ and `1` for errors. A completed prepared root requires version 1 and
 `status: complete`; an exit code alone is not completion. The existing step-A
 planner/converter exits keep their documented separate meanings.
 Report the chapter root/index, one-note-per-PDF count, roles, validation mode,
-and all unresolved warnings. Enrich/Generate support for this new format remains
-deferred; existing legacy note archives are neither migrated nor modified.
+and all unresolved warnings. Enrich can optionally consume the completed root;
+Generate support for the new format remains deferred. Existing legacy note
+archives are neither migrated nor modified.
 
 ## Provenance and maintenance
 

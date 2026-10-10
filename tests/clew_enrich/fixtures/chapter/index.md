@@ -1,22 +1,12 @@
 ---
-schema_version: 1
+clew_schema: 1
 id: sequences-demo
-type: ingest
+type: chapter
 title: Sequences - synthetic example
 ---
 
-# Sequences - synthetic example
+# Sequences
 
-## Course
-
-- [[sequences-demo-course]]
-
-## Exercises
-
-- [[sequences-demo-exercise-1]]
-- [[sequences-demo-exercise-2]]
-
-## Corrections
-
-- [[sequences-demo-correction-1]]
-- [[sequences-demo-correction-2]]
+- [[course]]
+- [[sheet]]
+- [[solutions]]

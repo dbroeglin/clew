@@ -4,9 +4,9 @@
 - Date: 2026-10-04
 
 > **Implemented scope:** Generate currently consumes legacy exercise-per-note
-> chapters. New Import whole-document output is not supported; its consumer
-> refactor is deferred. Publication does not require a producer snapshot or
-> Enrich comparison baseline.
+> chapters. New Import whole-document output and its Enrich help notes are not
+> supported; Generate's document-unit consumer refactor is deferred. Publication
+> does not require a producer snapshot or Enrich comparison baseline.
 
 ## Context
 
@@ -36,7 +36,7 @@ or a fixed vault hierarchy. Never restore imported text over human edits.
 References use existing note/block/heading addresses or parser-safe explicit
 line ranges. Ambiguous/unpublished targets are explicit errors.
 
-Optional separate help notes can contain question-addressed method/hint
+Optional legacy-layout help notes can contain question-addressed method/hint
 callouts. Missing aids or corrections are valid; omit unavailable controls.
 Generate never writes teaching content or implements Enrich. Guided-step tabs,
 grading, progress persistence, and analytics are outside the first release.
@@ -108,8 +108,9 @@ unresolved semantic relationships still require explicit agent decisions.
 
 - A current course can be published without rerunning any previous stage.
 - Agent decisions remain explicit without a large plan/approval system.
-- Generate works without enrichment; ADR-0007 subsequently adopts and extends
-  its minimal aid convention.
+- Generate works without enrichment and can consume legacy help notes. ADR-0007
+  defines the separate prepared-document Enrich format; Generate does not yet
+  consume that output.
 - Unsupported Obsidian features require an explicit selection/content decision.
 - The offline runtime increases HTML size; selected content/figures only are
   embedded rather than entire imported sources.
@@ -117,7 +118,7 @@ unresolved semantic relationships still require explicit agent decisions.
 - Mathematical correctness is not mechanically proven; browser errors and
   representative inspection complement static selection checks.
 - Import's preparation validator is intentionally not used by Generate.
-  ADR-0007 defines additive Enrich preservation; general
+  ADR-0007 defines additive Enrich preservation for prepared documents; general
   aid revision and history semantics remain deferred.
 - HTML-first view markup is maintainable without a framework; changes to
   behavioral hooks or native controls require coordinated JavaScript updates.

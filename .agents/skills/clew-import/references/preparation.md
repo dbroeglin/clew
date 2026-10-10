@@ -309,4 +309,7 @@ and persisted files rather than relying on exit codes alone. Partial failures
 remain in their owned root; never merge, overwrite, delete, or automatically
 retry. The whole prepared root can be relocated without external bundle access.
 Existing conversion bundles and legacy user note archives are not migrated.
-Enrich/Generate support for this new document-level contract is deferred.
+`clew-enrich` consumes completed chapters, addressing questions and supplied
+answers through document-internal units and stable anchors while writing
+separate help notes. `clew-generate` remains a legacy-layout consumer; new-format
+HTML publication is deferred.

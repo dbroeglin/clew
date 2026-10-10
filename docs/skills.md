@@ -237,31 +237,41 @@ a version-1 `.clew/preparation.json` with `status: complete`.
 
 ## Course-linked Enrich
 
-[`clew-enrich`](../.agents/skills/clew-enrich/SKILL.md) remains implemented for
-the **legacy exercise-per-note layout**, not new whole-document chapters.
-Its document-unit refactor is deferred; existing archives are not migrated.
+[`clew-enrich`](../.agents/skills/clew-enrich/SKILL.md) consumes completed
+Import whole-document chapters: an Import `type: chapter` index,
+`type: document` source notes, and `.clew/preparation.json` with
+`status: complete`. It follows Import's document IDs, exercise/correction unit
+comments, entry anchors, and question/answer anchors. It does not consume or
+migrate legacy exercise-per-note chapters.
 
-It adds question-specific hints and supplied-answer explanations as separate
-`aides/` notes, preserving source units, existing anchors and aids. Missing
+Enrich adds question-specific hints and supplied-answer explanations as
+separate `aides/` notes without changing imported source documents,
+preparation artifacts, index, retained sources, or existing aids. Missing
 answers are not invented. The agent authors approved additions; a local
-baseline validator checks preservation and precise course links.
-See its [format](../.agents/skills/clew-enrich/references/formats.md).
+baseline validator checks unchanged files, document/unit ownership, supplied
+answer associations, and precise course links. It needs the prepared Import
+artifact but no Import runtime installation or cloud credentials. See its
+[format](../.agents/skills/clew-enrich/references/formats.md).
+
+Generate remains a legacy exercise-per-note consumer. It does not yet publish
+Import's whole-document chapters or the corresponding Enrich aids.
 
 ```powershell
-uv run --package clew-enrich --locked --no-sync python -B ".agents\skills\clew-enrich\scripts\validate_enrich.py" "C:\vault\legacy-chapter" --capture "C:\scratch\before.json"
-uv run --package clew-enrich --locked --no-sync python -B ".agents\skills\clew-enrich\scripts\validate_enrich.py" "C:\vault\legacy-chapter" --before "C:\scratch\before.json"
+uv run --package clew-enrich --locked --no-sync python -B ".agents\skills\clew-enrich\scripts\validate_enrich.py" "C:\vault\prepared-chapter" --capture "C:\scratch\before.json"
+uv run --package clew-enrich --locked --no-sync python -B ".agents\skills\clew-enrich\scripts\validate_enrich.py" "C:\vault\prepared-chapter" --before "C:\scratch\before.json"
 ```
 
 Baselines belong outside the chapter/repository, not in published content.
-Courses, retained sources, indexes, existing aids and frontmatter stay unchanged.
-No missing-answer generation, broader learning enrichment or revision framework.
+All preexisting files—including Import `.clew/` artifacts—stay unchanged. New
+files are limited to Markdown aids under `aides/`. No missing-answer generation,
+broader learning enrichment, legacy archive migration, or revision framework.
 
 ## Offline HTML Generate
 
 [`clew-generate`](../.agents/skills/clew-generate/SKILL.md) likewise remains a
 legacy-note consumer. It does not yet publish new `type: document` chapters.
 Existing course/exercise/correction/help notes can still be published without
-Import, a producer record or snapshot validation.
+Import runtime, a producer record or snapshot validation.
 
 ```powershell
 uv run --package clew-generate --locked --no-sync python -B ".agents\skills\clew-generate\scripts\inspect_notes.py" "C:\vault" --list-chapters
@@ -294,8 +304,9 @@ npm run test:mathjax
 Tests use independently authored synthetic material and mocked/local transports,
 not real cloud calls or user archives. Import tests cover both steps, negative
 structure/link diagnostics, source preservation, warnings, lifecycle, relocation
-and standalone runtime. Enrich/Generate dedicated suites preserve legacy behavior;
-there is no claim of new-format pipeline compatibility.
+and standalone runtime. Enrich tests cover prepared-document consumption and additive preservation.
+Generate's suite covers its unchanged legacy behavior; there is no claim of
+new-format HTML publication.
 Standalone fixtures use temporary local wheels from installed locked
 distributions via `tests/runtime_fixtures.py`, outside the copied skill.
 

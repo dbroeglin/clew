@@ -104,11 +104,12 @@ prove semantic matches, theorem boundaries, or mathematical correctness.
 
 ## Enrichment and publication
 
-`clew-enrich` adds question-specific hints and supplied-answer explanations.
-`clew-generate` publishes current notes as an offline interactive HTML file.
-**Those skills currently support the legacy exercise-per-note layout, not the
-new whole-document output.** Their document-internal-unit refactors are deferred.
-Existing legacy note archives remain supported and are not migrated.
+`clew-enrich` adds question-specific hints and supplied-answer explanations to
+completed whole-document Import chapters, in separate help notes that leave
+imported documents unchanged. `clew-generate` publishes selected current notes
+as an offline interactive HTML file, but still supports only the legacy
+exercise-per-note layout. Whole-document HTML publication is not yet supported;
+existing legacy archives are not migrated.
 
 PDF is the only implemented conversion input. TeX, Word, PowerPoint, generated
 exercises/answers, general OCR repair, and broader enrichment are outside this

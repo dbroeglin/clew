@@ -1,77 +1,101 @@
-# First-increment note format
+# Enrich prepared-document format
 
-Use current chapter notes under `courses/`, `exercices/`, `corriges/`, and
-separate aids under `aides/`. Those directory names and `[!reponse]` are existing
-format keywords, independent of the teaching language.
+Enrich consumes a completed `clew-import` chapter. It does not consume legacy
+exercise-per-note chapters or alter the Import format. Import keeps each
+complete PDF as one Markdown note with frontmatter such as:
 
-An exercise note owns one actual exercise, including all subquestions and shared
-context. A correction note owns one supplied correction unit for that exercise.
-Keep these source units intact; multiple supplied variants may use separate
-correction notes. `type: help` files are auxiliary additions, not finer source
-exercise/correction units. Native notes already have internal question/answer
-blocks before optional enrichment.
-
-Unit IDs and note-local anchors form full addresses. Repeated `q-1` anchors in
-different exercise notes are distinct. An answer link must agree with the
-correction's declared `exercises` association and all other answers in that unit.
-When no association is declared in a current note, resolved answer links must
-still agree on one owning exercise; ambiguous matches require a decision.
-`exercises`, when present, is an array of references resolving to at most one
-whole exercise note, never a question fragment. Validation checks ownership even
-when the target question exists and repeats another exercise's local anchor.
-
-Do not alter source frontmatter. Preserve all supplied lines and their order.
-Wrap only explicitly selected question/answer spans. Reuse existing anchors,
-labels, source fields, and question links. IDs are unique across learning notes;
-anchors are unique within each note and use ASCII letters, digits, and dashes.
-
-For example, a source question followed by one blank line:
-
-```markdown
-1. Determine the limit of $u_n=7(2/5)^n$.
-
+```yaml
+---
+schema_version: 1
+id: sheet
+type: document
+role: exercise
+source_pdf: sheet.pdf
+source_pages: [1]
+title: Exercises
+---
 ```
 
-becomes this structural representation, including the source blank line as `>`:
+The chapter contains an Import `index.md` (`type: chapter`) and a complete
+`.clew/preparation.json` (`status: complete`). Documents may be in
+`Course-<basename>`, `Exercise-<basename>`, `Correction-<basename>`, or
+basename folders; filenames and folders are not proof of role or association.
+Use frontmatter roles, persistent document IDs, structural unit scopes, and
+native anchors.
+
+## Source ownership and links
+
+Exercise and correction units remain in their source documents. Unit comments
+mark the full scope; exercise/correction entry IDs are native block anchors.
+Question and answer callouts have their own native block anchors and belong to
+their enclosing source unit. Never split a whole sheet into question-sized
+notes or put independently addressable callouts inside an outer quote/callout.
+
+For example, an exercise may look like:
 
 ```markdown
-> [!question] Exercise 1 - Question 1
-> 1. Determine the limit of $u_n=7(2/5)^n$.
->
+%% clew:unit exercise ex-01 %%
 
-^q-ex1-1
+## Exercise 1
 
+Exercise ^ex-01
+
+Let $u_n=7(2/5)^n$.
+
+> [!question] Question 1
+> 1. Determine its limit.
+> [PDF p. 1](sheet.pdf#page=1)
+
+^ex-01-q-01
+
+%% /clew:unit ex-01 %%
 ```
 
-A supplied answer gets its explicit question link on the first quoted field
-line. When a source/needs field already exists, append the question field to
-that same structural line without changing the existing fields:
+A supplied answer stays in its correction unit and links to its question with
+the Import relationship footer. The correction unit's `Exercise` footer
+declares its owning exercise when that association was verified:
 
 ```markdown
-> [!reponse] Exercise 1 - Answer 1
-> [question:: [[worksheet#^q-ex1-1]]]
-> 1. Since $|2/5|<1$, the limit is $0$.
->
+%% clew:unit correction corr-01 %%
 
-^r-ex1-1
+## Correction 1
 
+Correction ^corr-01
+
+> [!reponse] Answer 1
+> Since $|2/5|<1$, the limit is $0$.
+> [Question](../Exercise-sheet/sheet.md#^ex-01-q-01)
+> [PDF p. 1](solutions.pdf#page=1)
+
+^ex-01-r-01
+
+[Exercise](../Exercise-sheet/sheet.md#^ex-01)
+[PDF p. 1](solutions.pdf#page=1)
+
+%% /clew:unit corr-01 %%
 ```
 
-Do not add this answer if it was not supplied. Keep shared instructions outside
-the wrappers. Prefix every source line inside a wrapper with `> ` (or `>` for
-an empty line); preserve its remaining indentation exactly. Lazy blockquote
-continuations and folded callout variants are outside this first contract.
-Do not introduce new `src`/`needs` fields or change Ingest structural comments.
+Addresses include the document ID and local anchor. An `ex-01-q-01` anchor in
+another document is a different question. Follow explicit `Exercise` and
+`Question` footer links; never infer ownership from filenames, numbering, or
+matching anchor strings. Separate correction variants may target the same
+question. Unmatched answers and questions without answers are valid.
 
-An aid note for this question is:
+## Aid notes
+
+Each new aid is a separate Markdown file under chapter `aides/`. Its frontmatter
+has `schema_version: 1`; `id` is unique across the chapter, and `question`
+targets an anchored imported question. `correction`, when present, targets the
+supplied answer linked to that same question. Explanations require `correction`;
+hints do not.
 
 ```markdown
 ---
-schema_version: 1
-id: aid-ex1-1
+clew_schema: 1
+id: aid-ex-01-q-01
 type: help
-question: "[[worksheet#^q-ex1-1]]"
-correction: "[[solutions#^r-ex1-1]]"
+question: "[[sheet#^ex-01-q-01]]"
+correction: "[[solutions#^ex-01-r-01]]"
 ---
 
 > [!hint]
@@ -80,45 +104,40 @@ correction: "[[solutions#^r-ex1-1]]"
 
 ^hint-1
 
-> [!hint]
-> The factor $7$ is constant; apply the second statement in
-> [[course#Geometric limits|the same result]].
-
-^hint-2
-
 > [!explanation]
-> The condition $|q|<1$ holds. Multiplication by a fixed constant
-> preserves the zero limit, as stated in
-> [[course#Geometric limits|the course]].
+> The ratio has absolute value below one, so its powers tend to zero by
+> [[course#^thm-geometric|the course theorem]].
 
 ^explanation-1
 ```
 
-`question` must resolve to a question block; `correction`, when present, must
-resolve to a supplied answer block linked to that same question. A note may
-contain hints only: omit `correction` when no supplied answer exists.
-Explanations require `correction`. Callouts are anchored, nonempty, and follow
-their intended presentation order. Counts are not fixed.
+Course references must resolve to one exact heading or existing block anchor
+in a selected document with `role: course`. Heading links need a unique exact
+heading; use a block link to disambiguate duplicates. Text inside code or math
+does not count as a reference. Markdown note links and wikilinks are supported.
+Links to other local note anchors must also resolve; external learning sources
+are not used.
 
-Every hint/explanation needs at least one explicit course heading/block link.
-Selectors resolve within the chosen chapter by note ID, unique filename/stem,
-or relative Markdown path. Prefer IDs and wikilinks, such as
-`[[course#Exact heading|label]]` and `[[course#^theorem|label]]`.
-Ordinary local Markdown `.md` links are also recognized. Duplicate headings
-need a stable block anchor already present in the course; do not edit the
-course just to disambiguate it. Ask if no precise existing target is available.
-Text inside code or mathematics is not interpreted as a course reference.
+A question may have a hint-only aid when no answer is supplied. Omit
+`correction` in that case. Do not create an answer or an explanation for a
+missing answer. An aid may contain ordered, anchored `hint` and `explanation`
+callouts; counts are not fixed. Keep prose concise, specific to its question,
+and visibly separate from imported source material.
 
-The baseline is version-1 local JSON containing the chapter path and original
-visible directory/file inventory and hashes, with current exercise/correction text. It is not
-a publishing artifact, proof of permission, or cryptographic attestation.
-Validation allows only unchanged original files, documented structural edits
-to exercise/correction Markdown, and new Markdown under `aides/`.
+## Preservation and validation
 
-Source projection removes the question/answer wrapper headers, their anchors,
-new question fields, and their explicit unquoted anchor separators. Existing
-ordinary block anchors are also structural; their identities must be retained.
-Quoted source blank lines, list/formula indentation, and other source lines remain
-exact. Body line endings may differ, but there is no broad whitespace normalization;
-original frontmatter is preserved exactly.
-Preexisting anchored blocks retain their IDs, kind, label, and question match.
+Capture one new local baseline outside both the chapter and repository before
+editing. Version-2 baselines record the chapter path, visible file and directory
+inventory, and SHA-256 hashes. They do not contain source text. The inventory
+includes Import's `.clew/` preparation record and retained files while
+excluding other hidden entries.
+
+Validation accepts only unchanged existing files and new Markdown aids under
+`aides/`. Existing aid notes are immutable, including human edits. The validator
+checks prepared document identities against `.clew/preparation.json`, unit
+ownership, unique anchors, answer/question links, aid references, and precise
+course passages. It is read-only and cannot establish semantic correctness.
+
+There is no migration path for legacy archives in this increment. Generate
+remains a legacy-layout consumer and does not publish these prepared-document
+aid notes.

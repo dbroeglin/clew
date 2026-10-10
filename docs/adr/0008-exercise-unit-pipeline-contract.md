@@ -43,9 +43,10 @@ backlinks. Keep verified cross-document links after supplied content. Prepare
 anchors now for future Aides references to questions, supplied answers and
 precise course passages. Aid authorship is not an Import responsibility.
 
-Current Enrich/Generate runtimes still use their legacy one-note-per-exercise/
-correction contract. Their document-internal-unit refactors are deferred.
-Do not claim compatibility or modify user archives to simulate it.
+Enrich consumes this document-internal unit contract and creates separate
+question-addressed help notes without editing imported files. Generate still
+uses its legacy one-note-per-exercise/correction contract and does not consume
+the new Enrich output. Do not modify user archives to simulate Generate support.
 
 ## Consequences
 

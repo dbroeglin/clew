@@ -33,8 +33,10 @@ HTML views. Several question selections from the same exercise stay in one
 exercise view, not independent exercises. A selected heading can contain several
 question blocks. Repeated local block IDs in different notes are distinct.
 Never split source notes for presentation or match corrections by numbers alone.
-Selected shared context accompanies its unit. Native Ingest notes work before
-optional Enrich; auxiliary `type: help` notes are aids, not source exercises.
+Selected shared context accompanies its unit. Legacy Ingest notes can be
+published with compatible existing `type: help` notes; auxiliary aids are not
+source exercises. This consumer still accepts only the legacy exercise-per-note
+layout; the prepared-document Enrich output is not supported for publication.
 
 ## Runtime
 
