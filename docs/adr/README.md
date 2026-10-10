@@ -13,11 +13,11 @@ skills, not in ADRs.
 | [ADR-0001](0001-document-processing-pipeline.md) | Document processing pipeline | Accepted | One two-step Import skill; optional Enrich and Generate remain legacy consumers pending refactor. |
 | [ADR-0002](0002-pdf-import-skill-and-project-runtime.md) | PDF Import and project runtime | Accepted | Pinned conversion provenance, retained bundles, recursive discovery, cloud and restart gates. |
 | [ADR-0003](0003-autonomous-portable-skills.md) | Autonomous portable skills | Accepted | Skill-owned runtime intent, host-owned resolution, external tests and documentation integrity. |
-| [ADR-0004](0004-faithful-multi-bundle-ingest.md) | Whole-document preparation | Accepted | One note per PDF, source-preserving typed edits, local approval, private baselines and pedantic validation. |
+| [ADR-0004](0004-faithful-multi-bundle-ingest.md) | Whole-document preparation | Accepted | One note per PDF, typed edits, compact provenance, Obsidian comments, final review appendices and pedantic validation. |
 | [ADR-0005](0005-conservative-import-and-latex-leakage-review.md) | Conservative transcription and leakage review | Accepted | Image-evidenced transcription and non-mutating review. |
 | [ADR-0006](0006-current-note-offline-html-generation.md) | Current-note offline HTML | Accepted | Legacy-note publication and offline HTML-first views; new document-unit support deferred. |
 | [ADR-0007](0007-course-linked-question-enrichment.md) | Course-linked question enrichment | Accepted | Legacy-unit hints/explanations with preservation checks; new document support deferred. |
-| [ADR-0008](0008-exercise-unit-pipeline-contract.md) | Document-internal learning units | Accepted | Stable section/exercise/correction entries, independently anchored questions/answers and typed matches. |
+| [ADR-0008](0008-exercise-unit-pipeline-contract.md) | Document-internal learning units | Accepted | Heading navigation, stable exercise/correction entries, scoped ownership and plain cross-document footer links. |
 | [ADR-0009](0009-direct-markdown-page-transcription.md) | Direct Markdown page transcription | Accepted | Direct page text, strict figure JSON and retained raw responses. |
 | [ADR-0010](0010-source-grounded-page-review-and-retries.md) | Source-grounded review and retries | Accepted | Fresh same-deployment judging, two corrective attempts and retained unresolved findings. |
 | [ADR-0011](0011-npm-workspace-and-offline-import-mathjax.md) | npm workspace and offline MathJax | Accepted | Hoisted root setup, skill-local declarations and browser-free candidate checks. |

@@ -499,8 +499,9 @@ legacy `ingest.json`.
 
 Use only the contract's typed operations:
 
-- `unit`: mark a section, exercise, or supplied correction scope and give it
-  a native entry anchor; correction-to-exercise matches require source evidence.
+- `unit`: mark a section, exercise, or supplied correction scope. Sections start
+  at existing headings and use heading links, with no generated block anchor.
+  Exercises/corrections get native entry anchors; matches require source evidence.
 - `callout`: wrap a selected definition/theorem/property/lemma/proposition/
   corollary/example/remark/proof or question/answer with its source-derived
   title and exact body. Questions identify their owning exercise; answers
@@ -508,15 +509,28 @@ Use only the contract's typed operations:
 - `anchor`: add or reuse an ID on one safe block.
 - `heading`: change only a selected heading's structural level.
 
-Python additionally inserts metadata, original-PDF-page provenance, required
-destination-only PDF/self-link remaps, and visible review warnings. The agent
+Python additionally inserts metadata, compact original-PDF-page provenance,
+required destination-only PDF/self-link remaps, and end-of-document review
+warnings. Each section entry links to its starting page as `PDF p. N`;
+exercise/correction units and learning callouts put that link on their final
+line, after any verified cross-document relationship links. Exercise/correction
+entry anchors remain at the beginning; question/answer ownership comes from their
+enclosing unit scopes, not redundant parent backlinks. Do not
+repeat provenance at page breaks or list every covered page. Generated
+bookkeeping uses standalone Obsidian `%%` comments; source comments are retained
+unchanged. Correction units link to `[Exercise](...)`; matched answers link to
+`[Question](...)` on their own footer lines, without duplicated prefixes or
+metadata wrappers. The validator checks their labels, destination kinds and
+ownership without a plugin. Only this generated format is supported. The agent
 authors selectors, IDs, relationships/evidence, and review reasons, **not**
 replacement source Markdown. Generic text replacement, OCR repair, deletion,
 reordering, blanket regex classification, and whole-tree reserialization are
 not operations.
 
-Keep genuine headings for whole-section navigation. Use stable block IDs for
-precise statements/questions/answers. A section/exercise entry anchor targets a
+Keep genuine headings for whole-section navigation; do not generate section
+block IDs. Section IDs in `%%` scope markers are private structural identities,
+not link targets. Use stable block IDs for precise statements/questions/answers
+and exercise/correction entries. An exercise/correction entry anchor targets a
 navigation point, not a native embed of every following paragraph.
 Question/answer callouts stay independently addressable at top level: native
 Obsidian does not support links to parts inside enclosing callouts/quotes/tables.
@@ -527,7 +541,8 @@ IDs are unique within their document, ASCII letters/digits/dashes, assigned once
 and independent of line numbers/title hashes. Reuse existing IDs; do not
 renumber them when visible source labels change. Match corrections from supplied
 statements/reasoning, never positions or numbering alone. Uncertain answers and
-corrections remain unlinked, with a visible warning beside their source content.
+corrections remain unlinked, with a visible warning in the document's final
+review appendix identifying the affected anchor or original Markdown line.
 Do not invent missing material or infer course prerequisites.
 
 ### 3. Preview and approve the exact local preparation
@@ -545,7 +560,8 @@ warnings, exact diffs, command, and returned `plan_sha256`. Obtain **one explici
 approval** for that concrete preparation. General implementation approval or
 cloud-conversion approval is not permission to write user notes.
 Hard errors block approval/execution; review-only findings are disclosed and
-inserted as generated `[!warning] Clew review` callouts in affected notes and
+inserted as generated `[!warning] Clew review` callouts in the final review
+appendix of affected notes and
 summarized in the index. Never hide findings to obtain a clean report.
 
 ### 4. Execute the approved plan and validate persisted output

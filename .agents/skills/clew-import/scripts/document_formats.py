@@ -157,7 +157,7 @@ class Finding(Record):
 class Change(Record):
     kind: Literal[
         "insert", "quote-prefix", "heading-prefix", "heading-suffix",
-        "page-link", "link-destination",
+        "page-marker", "link-destination",
     ]
     start: int = Field(ge=0)
     end: int = Field(ge=0)

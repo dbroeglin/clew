@@ -12,8 +12,10 @@ question-sized files.
 ## Decision
 
 Import preparation keeps one complete note per PDF. Inside it, sections,
-exercises and supplied correction units have explicit source scopes and native
-entry anchors. Each question/answer has one valid owning unit. Course statements
+exercises and supplied correction units have explicit source scopes.
+Sections navigate by existing headings; their scope IDs are not native anchors.
+Exercises/corrections have native entry anchors. Each question/answer has one
+valid enclosing owning unit. Course statements
 have individually anchored callouts where safe.
 
 Preserve original headings and hierarchy; no size cutoff or automatic heading
@@ -28,7 +30,12 @@ verified exercise units; answers link verified questions of that same exercise.
 Match statements/reasoning with source evidence, never numbering alone.
 Variants are allowed; missing matches stay unlinked with visible warnings.
 
-Use relative Markdown links and explicit typed structural fields. Prepare
+Use relative Markdown links with exact `Exercise` and `Question`
+labels on separate footer lines. The validator uses these conventions plus
+destination roles/kinds and ownership, not filename guesses or plugin metadata.
+Derive question/answer ownership from enclosing scopes without redundant parent
+backlinks. Keep verified cross-document links after supplied content, with
+compact PDF provenance last. Prepare
 anchors now for future Aides references to questions, supplied answers and
 precise course passages. Aid authorship is not an Import responsibility.
 

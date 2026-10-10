@@ -37,7 +37,7 @@ def address_link(origin: str, target: Address, paths: dict[str, str], label: str
 
 def escape_text(text: str) -> str:
     text = "".join(char if ord(char) >= 32 else f"U+{ord(char):04X}" for char in text)
-    return re.sub(r"([\\`*_{}\[\]<>()!#$|>])", r"\\\1", text)
+    return re.sub(r"([\\`*_{}\[\]<>()!#$|>%])", r"\\\1", text)
 
 
 def frontmatter(values: dict, newline: str) -> str:
@@ -108,9 +108,9 @@ def verify_projection(actual: str, original: str, changes: list[Change]) -> None
         elif change.kind == "heading-suffix":
             require(re.fullmatch(r"[ \t]+#+[ \t]*|[ \t]*[=-]+[ \t]*(?:\r\n|\r|\n)?", before)
                     is not None, "Heading edit removes more than heading syntax.")
-        elif change.kind == "page-link":
+        elif change.kind == "page-marker":
             require(re.fullmatch(r"[ \t]*<!-- page: [1-9][0-9]* -->[ \t]*(?:\r\n|\r|\n)?", before)
-                    is not None, "Page-link edit removes substantive content.")
+                    is not None, "Page-marker edit removes substantive content.")
         elif change.kind == "link-destination":
             if links is None:
                 links = MarkdownSource(original).links
@@ -190,6 +190,9 @@ def check_operations(plan: Plan, bundles: dict[str, Bundle]) -> None:
                         f"Overlapping callout operations in {document.id} at line {start + 1}.")
                 wrapped.append((start, end))
             if isinstance(operation, Unit):
+                if operation.kind == "section":
+                    require(source.blocks[operation.start].kind == "heading",
+                            "A section must start at an existing source heading.")
                 for a, b, kind in units:
                     require((start, end) != (a, b), "Two units cannot own the exact same source span.")
                     require(not (a < start < b < end or start < a < end < b),
@@ -322,14 +325,14 @@ def compile_document(document: Document, bundle: Bundle, path: str,
     nl = newline_match[0] if newline_match else "\n"
     edits: list[Edit] = []
     ranges = operation_ranges(document, source)
-    callout_ranges = [(ranges[index], operation) for index, operation in enumerate(document.operations)
-                      if isinstance(operation, Callout)]
     findings = source_reviews(document, bundle, path)
     source_pdf = posixpath.join(posixpath.dirname(path), bundle.source["name"])
 
     def pdf_links(start, end):
-        return ", ".join(relative_link(path, source_pdf, f"PDF, page {page}", f"#page={page}")
-                         for page in source.pages(start, end))
+        pages = source.pages(start, end)
+        require(pages, "Selected source block has no original PDF page provenance.")
+        page = pages[0]
+        return relative_link(path, source_pdf, f"PDF p. {page}", f"#page={page}")
 
     def add(position, text, order=(100, 0), kind="insert", end=None):
         edits.append(Edit(position, position if end is None else end, text, kind, order))
@@ -355,39 +358,37 @@ def compile_document(document: Document, bundle: Bundle, path: str,
     for index, operation in enumerate(document.operations):
         start, end = ranges[index]
         a, b = source.offsets[start], source.offsets[end]
-        existing = existing_anchor(operation.id) if isinstance(operation, (Unit, Callout, Anchor)) else None
+        addressed = (isinstance(operation, (Callout, Anchor))
+                     or isinstance(operation, Unit) and operation.kind != "section")
+        existing = existing_anchor(operation.id) if addressed else None
         if existing is not None:
             require(start <= existing[0] and existing[1] <= end,
                     "Existing anchor belongs to another source block.")
         if isinstance(operation, Unit):
-            add(a, nl + f"<!-- clew:unit {operation.kind} {operation.id} -->" + nl + nl,
+            add(a, nl + f"%% clew:unit {operation.kind} {operation.id} %%" + nl + nl,
                 (40, -end))
             ending = "" if b == 0 or source.text[b - 1] in "\r\n" else nl
-            add(b, ending + nl + f"<!-- /clew:unit {operation.id} -->" + nl + nl, (30, -start))
+            add(b, ending + nl + f"%% /clew:unit {operation.id} %%" + nl + nl, (30, -start))
             first = source.blocks[operation.start]
             position = source.offsets[first.end] if first.kind == "heading" else a
             fields = []
             if operation.exercise is not None:
-                fields.append("[exercise:: " + address_link(
-                    path, operation.exercise.target, paths, "Exercise") + "]")
-            entry = operation.kind.capitalize() + ": " + pdf_links(start, end)
-            if fields:
-                entry += " " + " ".join(fields)
-            if existing is None:
+                fields.append(address_link(
+                    path, operation.exercise.target, paths, "Exercise"))
+            entry = pdf_links(start, end) if operation.kind == "section" else operation.kind.capitalize()
+            if existing is None and operation.kind != "section":
                 entry += " ^" + operation.id
             add(position, nl + entry + nl + nl, (45, 0))
+            if operation.kind != "section":
+                footer = nl.join([*fields, pdf_links(start, end)])
+                add(b, ending + nl + footer + nl + nl, (25, 0))
         elif isinstance(operation, Callout):
             first = source.blocks[operation.start]
             fields = []
-            if operation.owner:
-                key = "exercise" if operation.kind == "question" else "correction"
-                fields.append(f"[{key}:: " + address_link(
-                    path, Address(document=document.id, anchor=operation.owner), paths, key.capitalize()) + "]")
             if operation.question is not None:
-                fields.append("[question:: " + address_link(
-                    path, operation.question.target, paths, "Question") + "]")
-            fields.append("Source: " + pdf_links(start, end))
-            field_text = "".join("> " + field + nl for field in fields) + ">" + nl
+                fields.append(address_link(
+                    path, operation.question.target, paths, "Question"))
+            field_text = ">" + nl
             callout_kind = "reponse" if operation.kind == "answer" else operation.kind
             original_callout = CALLOUT.fullmatch(source.lines[start].rstrip("\r\n")) if first.kind == "quote" else None
             if original_callout:
@@ -427,6 +428,10 @@ def compile_document(document: Document, bundle: Bundle, path: str,
                 for line in range(body_start, end):
                     if line not in source.markers:
                         add(source.offsets[line], "> ", kind="quote-prefix")
+            footer_position = source.offsets[first.end] if original_callout else b
+            ending = "" if footer_position == 0 or source.text[footer_position - 1] in "\r\n" else nl
+            footer = "".join("> " + field + nl for field in fields)
+            add(footer_position, ending + ">" + nl + footer + "> " + pdf_links(start, end) + nl, (10, 0))
             if existing is None:
                 standalone(b, operation.id)
         elif isinstance(operation, Anchor):
@@ -448,12 +453,9 @@ def compile_document(document: Document, bundle: Bundle, path: str,
                 require(end - start == 2, "Multiline setext heading adjustment is unsupported.")
                 add(a, "#" * operation.level + " ", kind="heading-prefix")
                 add(source.offsets[start + 1], "", kind="heading-suffix", end=b)
-    for line, page in source.markers.items():
+    for line in source.markers:
         a, b = source.offsets[line], source.offsets[line + 1]
-        wrapping = any(start <= line < end for (start, end), _ in callout_ranges)
-        add(a, ("> " if wrapping else "") + "Source: " + relative_link(
-            path, source_pdf, f"PDF, page {page}", f"#page={page}") + nl,
-            kind="page-link", end=b)
+        add(a, "", kind="page-marker", end=b)
     for item in source.links:
         if item.reference and item.kind != "definition":
             continue
@@ -473,22 +475,23 @@ def compile_document(document: Document, bundle: Bundle, path: str,
                 destination = new_path + ("#" + new_fragment if new_fragment else "")
             add(item.destination_start, destination, kind="link-destination", end=item.destination_end)
     seen = set()
+    reviews = []
     for finding in findings:
         key = finding.code, finding.line, finding.message
         if key in seen:
             continue
         seen.add(key)
-        line = min(finding.line - 1, len(source.lines))
-        for (start, end), _ in callout_ranges:
-            if start <= line < end:
-                line = start
-        while line not in source.boundaries:
-            line -= 1
         data = {"code": finding.code, "message": finding.message, "anchor": finding.anchor}
-        marker = json.dumps(data, ensure_ascii=True).replace("<", "\\u003c").replace(">", "\\u003e")
-        add(source.offsets[line], nl + "<!-- clew:review " + marker + " -->" + nl
-            + "> [!warning] Clew review" + nl + "> " + escape_text(finding.message)
-            + nl + nl, (55, 0))
+        marker = (json.dumps(data, ensure_ascii=True).replace("<", "\\u003c")
+                  .replace(">", "\\u003e").replace("%", "\\u0025"))
+        location = (relative_link(path, path, "Location", "#^" + finding.anchor)
+                    if finding.anchor else f"Original Markdown line {finding.line}")
+        reviews.append("%% clew:review " + marker + " %%" + nl
+                       + "> [!warning] Clew review" + nl + "> " + escape_text(finding.message)
+                       + nl + "> " + location + nl + nl)
+    if reviews:
+        add(len(source.text), nl + nl + "**Review required**" + nl + nl
+            + "".join(reviews), (90, 0))
     text, changes = apply_edits(source.text, edits)
     verify_projection(text, source.text, changes)
     return Compiled(text, changes, findings)

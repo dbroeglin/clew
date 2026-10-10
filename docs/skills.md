@@ -154,17 +154,33 @@ locally; external conversion diagnostics remain untouched. This subset is not
 a complete conversion bundle. Explicit folder overrides resolve collisions;
 no silent suffixing. All chapter-owned files share one root.
 
-Persistent section/exercise/correction entry anchors differ from temporary
-fingerprint-bound `b-N` source selectors. Genuine headings provide whole-section
-navigation; block IDs target exact entries/statements. They do not embed every
-following block. Top-level question/answer callouts have explicit owners and
+Persistent exercise/correction entry anchors differ from temporary
+fingerprint-bound `b-N` source selectors. Sections use genuine heading links,
+not generated block IDs; their scope IDs are private bookkeeping. Heading
+renames/duplicates can break title-based links. Block IDs target exact
+entries/statements, not every following block. Top-level question/answer
+callouts have unique enclosing owner scopes and
 verified target links; native Obsidian cannot address callout/quote/table
 interiors. IDs are stable, unique locally, and independent of line/title hashes.
 Relative Markdown links keep the whole chapter movable.
+PDF provenance uses a single compact `PDF p. N` starting-page link at each
+section entry and on the final line of each exercise/correction unit and learning
+callout, after its generated relationship links. Unit entry anchors remain
+at the beginning for exercises/corrections. Relationships use plain
+`[Exercise](...)` correction-to-exercise and `[Question](...)` answer-to-question
+footer links on their own lines, without repeated prefixes
+or metadata wrappers. Validation checks labels, destination kinds and ownership;
+no plugin is required.
+Questions have only a PDF footer; redundant links back to their parent exercise
+or correction are omitted.
+Page-break links and covered-page lists are omitted. Generated bookkeeping
+uses Obsidian `%%` comments. Only this generated format is supported; existing
+prepared notes are not automatically migrated.
 
 Unmatched corrections/answers remain unlinked. Suspicious valid structure and
-conversion issues appear as generated warning callouts in affected notes and
-the index. Hard errors (broken links, invalid anchors/owners, unsafe boundaries)
+conversion issues appear as generated warning callouts in an end appendix of
+each affected note, with anchor/source-line locations, and after index navigation.
+Hard errors (broken links, invalid anchors/owners, unsafe boundaries)
 cannot be waived by review reasons.
 
 ### Pedantic validation

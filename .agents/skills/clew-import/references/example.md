@@ -58,22 +58,21 @@ the theorem heading and `b-4` for its paragraph. The plan operations are:
 Prepared note body, with structural blank lines shortened for illustration:
 
 ```markdown
-Source: [PDF, page 1](course.pdf#page=1)
-
-<!-- clew:unit section sec-geometric -->
+%% clew:unit section sec-geometric %%
 
 ## Geometric limits
 
-Section: [PDF, page 1](course.pdf#page=1) ^sec-geometric
+[PDF p. 1](course.pdf#page=1)
 
 > [!theorem] Theorem 1
-> Source: [PDF, page 1](course.pdf#page=1)
 >
 > If $|q|<1$, then $q^n$ tends to zero.
+>
+> [PDF p. 1](course.pdf#page=1)
 
 ^thm-geometric
 
-<!-- /clew:unit sec-geometric -->
+%% /clew:unit sec-geometric %%
 ```
 
 The exact generated note also has `clew_schema: 1`, `type: document`, `role`,
@@ -81,8 +80,8 @@ The exact generated note also has `clew_schema: 1`, `type: document`, `role`,
 rewrites the statement. The compiler changes its heading wrapper and prefixes
 the original body, preserving source whitespace and equations.
 
-Use `course.md#Geometric%20limits` for the whole heading section,
-`course.md#^sec-geometric` for its navigation entry point, and
+Use `course.md#Geometric%20limits` for the section; the scope ID `sec-geometric`
+is private bookkeeping, not a native anchor. Use
 `course.md#^thm-geometric` for the exact theorem callout.
 
 ## Exercises and supplied answers
@@ -91,70 +90,79 @@ The whole sheet contains an exercise unit, shared context and two separately
 anchored questions:
 
 ```markdown
-<!-- clew:unit exercise ex-01 -->
+%% clew:unit exercise ex-01 %%
 
 ## Exercise 1
 
-Exercise: [PDF, page 1](sheet.pdf#page=1) ^ex-01
+Exercise ^ex-01
 
 Let $u_n=7(2/5)^n$.
 
 > [!question] Question 1
-> [exercise:: [Exercise](sheet.md#^ex-01)]
-> Source: [PDF, page 1](sheet.pdf#page=1)
 >
 > 1. Determine its limit.
+>
+> [PDF p. 1](sheet.pdf#page=1)
 
 ^ex-01-q-01
 
 > [!question] Question 2
-> [exercise:: [Exercise](sheet.md#^ex-01)]
-> Source: [PDF, page 1](sheet.pdf#page=1)
 >
 > 2. Find a bound.
+>
+> [PDF p. 1](sheet.pdf#page=1)
 
 ^ex-01-q-02
 
-<!-- /clew:unit ex-01 -->
+[PDF p. 1](sheet.pdf#page=1)
+
+%% /clew:unit ex-01 %%
 ```
 
 Do not enclose both questions in an outer callout: native Obsidian cannot
-address parts inside that callout. The comments and question owner fields
-express unit scope without splitting the source sheet.
+address parts inside that callout. The comments express unit scope without
+splitting the source sheet. Question ownership comes from that scope, so no
+parent Exercise backlink is needed.
 
 A supplied answer in the complete `solutions.md`:
 
 ```markdown
-<!-- clew:unit correction corr-01 -->
+%% clew:unit correction corr-01 %%
 
 ## Correction 1
 
-Correction: [PDF, page 1](solutions.pdf#page=1)
-[exercise:: [Exercise](../Exercise-sheet/sheet.md#^ex-01)] ^corr-01
+Correction ^corr-01
 
 > [!reponse] Answer 1
-> [correction:: [Correction](solutions.md#^corr-01)]
-> [question:: [Question](../Exercise-sheet/sheet.md#^ex-01-q-01)]
-> Source: [PDF, page 1](solutions.pdf#page=1)
 >
 > 1. The limit is $0$.
+>
+> [Question](../Exercise-sheet/sheet.md#^ex-01-q-01)
+> [PDF p. 1](solutions.pdf#page=1)
 
 ^ex-01-r-01
 
-<!-- /clew:unit corr-01 -->
+[Exercise](../Exercise-sheet/sheet.md#^ex-01)
+[PDF p. 1](solutions.pdf#page=1)
+
+%% /clew:unit corr-01 %%
 ```
 
-The generated correction entry is one paragraph even when shown wrapped here.
+The generated correction footer is one paragraph even when shown wrapped here.
 Every linked answer must target a question owned by that correction's linked
 exercise. Several supplied correction variants may legitimately target the
 same question. No missing answer is generated.
 
 If a match is uncertain, omit its relationship in the plan. The resulting
-note receives a generated warning near that answer:
+note receives a generated warning after all source units, in its final appendix:
 
 ```markdown
+**Review required**
+
+%% clew:review {"code":"unmatched-answer","message":"This supplied answer has no verified question match.","anchor":"ex-01-r-01"} %%
 > [!warning] Clew review
 > This supplied answer has no verified question match.
+> [Location](solutions.md#^ex-01-r-01)
 ```
 
 The source answer remains unchanged and addressable. The index and validator

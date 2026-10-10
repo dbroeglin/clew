@@ -80,27 +80,34 @@ units, conflicting edits, stale sources, and unsafe nesting are errors.
 ```
 
 Kinds: `section`, `exercise`, `correction`. Unit scope retains all its original
-source content; opening/closing HTML comments make boundaries explicit:
+source content; opening/closing Obsidian comments make boundaries explicit:
 
 ```markdown
-<!-- clew:unit exercise ex-01 -->
+%% clew:unit exercise ex-01 %%
 
 ## Exercise 1
 
-Exercise: [PDF, page 2](sheet.pdf#page=2) ^ex-01
+Exercise ^ex-01
 
 Original shared context and individually addressed questions.
 
-<!-- /clew:unit ex-01 -->
+[PDF p. 2](sheet.pdf#page=2)
+
+%% /clew:unit ex-01 %%
 ```
 
-The generated entry paragraph is a native link target, not a source sentence.
+For exercises/corrections, the generated entry paragraph is a native link
+target, not a source sentence.
 It follows the selected first heading, or precedes non-heading content. Its
 anchor is reused if already present within the unit. Only sections can contain
 other units. Exercises/corrections cannot contain other exercises/corrections.
 Do not place unit entry markers inside a callout.
 
-Sections retain original headings for whole-section navigation. Linking to
+Sections must start at an existing source heading. They retain original headings
+for navigation and get no generated block IDs. A section's scope ID in comments
+is internal bookkeeping, not a link target. Use `note.md#Heading%20title` for a
+section; heading changes or duplicates can invalidate a title-based link.
+Linking to
 `#^ex-01` reaches the entry point; it does not natively embed the entire unit.
 Unit comments define its source scope for local checks and future consumers.
 
@@ -117,9 +124,14 @@ A correction may declare a verified exercise match:
 }
 ```
 
-The generated `[exercise:: [Exercise](../Exercise-sheet/sheet.md#^ex-01)]`
-is a visible structural relationship field. A match needs nonempty source
+The generated `[Exercise](../Exercise-sheet/sheet.md#^ex-01)`
+is a visible structural relationship link. A match needs nonempty source
 evidence. Python checks evidence location and ownership, not semantic truth.
+It appears in the correction footer before its PDF link. Relationship links
+occupy their own lines with exactly the label `Exercise` or `Question`.
+The validator uses that convention and checks the destination's
+document role, target kind, and ownership; filenames alone are not proof.
+No prefix, metadata wrapper, or plugin is required.
 No match means no fabricated link: generate a visible review warning.
 
 ### Source-derived callouts
@@ -138,9 +150,10 @@ the user separately installs styling.
 
 ```markdown
 > [!theorem] Original theorem title
-> Source: [PDF, page 3](course.pdf#page=3)
 >
 > Original statement, equations, and proof if included in the selected source.
+>
+> [PDF p. 3](course.pdf#page=3)
 
 ^thm-limit
 
@@ -173,9 +186,11 @@ Supplied answers declare the local correction owner and an optional question:
 }
 ```
 
-Answers render as `[!reponse]` with structural `correction::` and verified
-`question::` Markdown-link fields. Questions render as `[!question]` with
-`exercise::`. All matches must agree with the correction's exercise association.
+Answers render as `[!reponse]` with a verified `[Question](...)` footer link.
+Questions render as `[!question]` with only their compact PDF footer link.
+Ownership comes from the unique enclosing exercise/correction scope, not a
+redundant parent backlink. All matches must agree with the correction's exercise
+association.
 Missing answers are valid; separate supplied correction variants may reference
 the same exercise/question. Do not add `needs`, prerequisites, aids, or inferred
 course links in this increment.
@@ -195,10 +210,19 @@ unsupported rather than silently collapsed.
 
 ## Automatic provenance, links, and review warnings
 
-Parsed original `<!-- page: N -->` markers become visible links to actual
-retained PDF pages. Code lookalikes remain source text. Several/discontiguous
-pages use separate `#page=N` links. Never use printed labels or range fragments.
-Additional unit/callout provenance comes from selected original page spans.
+Parsed original `<!-- page: N -->` markers supply page provenance and are removed
+from the editable note by recorded mechanical edits. Code lookalikes remain
+source text. Each section entry gets one compact
+`[PDF p. N](filename.pdf#page=N)` link to its starting original PDF page.
+Exercise/correction units instead place it on their final line, with any
+correction-to-exercise relationship before it; their entry anchors stay at
+the beginning for navigation and ownership.
+Each learning callout gets the same compact link at the end of its quoted body,
+after any verified question-target link and before its native block anchor,
+not above the supplied content.
+Do not list every covered page or repeat links at page breaks. Full coverage
+remains recoverable from the plan's selectors and immutable source baseline.
+Never use printed page labels or range fragments.
 
 New links are relative Markdown links; URL-encode paths and preserve `#^id`
 block fragments. Moving the complete chapter leaves relationships intact.
@@ -219,9 +243,16 @@ and offline-unverified external destinations.
 ```
 
 Review decisions do not waive unsafe edits or broken links. The compiler inserts
-escaped messages into generated `[!warning] Clew review` callouts at nearby safe
-boundaries. A `clew:review` comment carries their machine-readable code/message;
-the warning is visible in Obsidian. The index summarizes the findings too.
+escaped messages into generated `[!warning] Clew review` callouts in a
+**Review required** appendix after all supplied content and closed source units.
+Each warning includes a location link when it has an anchor, otherwise its
+original Markdown line. The index summarizes the findings after navigation.
+Generated unit/review bookkeeping uses standalone `%% clew:... %%` Obsidian
+comments (hidden in Reading view, visible in Source mode). Review JSON escapes
+percent signs so messages cannot close their comment. Native anchors and links
+remain outside comments. The parser recognizes the reserved Clew comment lines
+without interpreting code/math lookalikes. Only this generated style is
+supported; source-authored comments are never blanket-converted.
 Warnings do not modify supplied prose and are excluded only by their exact
 recorded insertions in source projection.
 

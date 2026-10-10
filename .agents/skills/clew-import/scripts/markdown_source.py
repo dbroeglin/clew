@@ -122,9 +122,29 @@ def _unresolved_reference(state, silent):
     return True
 
 
+def _clew_comment(state, start_line, end_line, silent):
+    if state.sCount[start_line] - state.blkIndent >= 4:
+        return False
+    start = state.bMarks[start_line] + state.tShift[start_line]
+    end = state.eMarks[start_line]
+    raw = state.src[start:end]
+    if not raw.startswith(("%% clew:", "%% /clew:")):
+        return False
+    if silent:
+        return True
+    token = state.push("clew_comment", "", 0)
+    token.block = True
+    token.content = raw
+    token.map = [start_line, start_line + 1]
+    state.line = start_line + 1
+    return True
+
+
 def parser() -> MarkdownIt:
     md = MarkdownIt("commonmark", {"store_labels": True, "inline_definitions": True})
     md.enable("table").use(dollarmath_plugin)
+    md.block.ruler.before("html_block", "clew_comment", _clew_comment,
+                          {"alt": ["paragraph", "reference", "blockquote"]})
     # Inspection must expose unsafe destinations so the validator can reject them.
     md.validateLink = lambda _url: True
     md.inline.ruler.at("link", _capture(link, "link_open"))
@@ -193,7 +213,7 @@ class MarkdownSource:
             if token.level == 0 and token.type in {
                 "heading_open", "paragraph_open", "blockquote_open", "table_open",
                 "ordered_list_open", "bullet_list_open", "fence", "code_block",
-                "math_block", "math_block_label", "html_block", "hr", "definition",
+                "math_block", "math_block_label", "html_block", "clew_comment", "hr", "definition",
             } or token.type == "list_item_open" and token.level == 1:
                 kind = {"heading_open": "heading", "paragraph_open": "paragraph",
                         "blockquote_open": "quote", "table_open": "table",

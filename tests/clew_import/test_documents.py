@@ -154,7 +154,7 @@ class DocumentTests(unittest.TestCase):
                                  "Exercise-sheet/sheet.md", "index.md"]))
         answer = (root / "Correction-solutions" / "solutions.md").read_text(encoding="utf-8")
         self.assertIn("../Exercise-sheet/sheet.md#^q-1", answer)
-        self.assertIn("[correction:: [Correction](solutions.md#^corr-1)]", answer)
+        self.assertIn("> [Question](../Exercise-sheet/sheet.md#^q-1)", answer)
         self.assertEqual(validate(root)["status"], "validated")
 
     def test_crlf_fidelity_preserves_math_lists_and_figures(self):
@@ -178,6 +178,38 @@ class DocumentTests(unittest.TestCase):
         path.write_text(text.replace("First case.", "First case, with a handwritten clarification."), encoding="utf-8")
         self.assertEqual(validate(root)["errors"], 0)
         self.assertIn("source-fidelity", self.codes(validate(root, fidelity=True)))
+
+    def test_section_heading_links_replace_generated_section_block_ids(self):
+        plan = self.plan([self.course()])
+        materialize(plan, plan_hash(plan))
+        root = Path(plan.destination)
+        path = root / "Course-course" / "course.md"
+        text = path.read_text()
+        self.assertNotIn("^sec-", text)
+        with (root / "index.md").open("a", encoding="utf-8") as stream:
+            stream.write("\n[Section](Course-course/course.md#Geometric%20limits)\n")
+        self.assertEqual(validate(root)["errors"], 0)
+        path.write_text(text.replace("## Geometric limits", "## Renamed section"))
+        self.assertIn("missing-heading", self.codes(validate(root)))
+
+    def test_section_scope_requires_an_existing_heading(self):
+        document = self.document("no-heading", "<!-- page: 1 -->\n\nParagraph only.\n")
+        block = self.block(document, "Paragraph only.", kind="paragraph")
+        document["operations"] = [
+            {"op": "unit", "kind": "section", "id": "sec", "start": block, "end": block},
+        ]
+        with self.assertRaisesRegex(ValueError, "existing source heading"):
+            check(self.plan([document]))
+
+    def test_question_without_enclosing_exercise_is_rejected(self):
+        plan = self.pipeline_plan()
+        materialize(plan, plan_hash(plan))
+        root = Path(plan.destination)
+        path = root / "Exercise-sheet" / "sheet.md"
+        text = path.read_text().replace("%% /clew:unit ex-1 %%", "")
+        text = text.replace("> [!question] Question 1", "%% /clew:unit ex-1 %%\n\n> [!question] Question 1")
+        path.write_text(text)
+        self.assertIn("unit-owner", self.codes(validate(root)))
 
     def test_local_links_are_aggregated_and_code_math_lookalikes_are_ignored(self):
         plan = self.plan([self.course()])
@@ -208,6 +240,127 @@ class DocumentTests(unittest.TestCase):
         self.assertIn("no verified question match", text)
         self.assertIn("unmatched-answer", (root / "index.md").read_text(encoding="utf-8"))
         self.assertEqual(validate(root, fidelity=True)["errors"], 0)
+
+    def test_reviews_follow_all_source_units_and_preserve_delimiter_messages(self):
+        document = self.course(newline="\r\n")
+        data = self.plan([document]).model_dump()
+        data["documents"][0]["reviews"] = [
+            {"code": "manual-review", "message": "Check literal %% and <!-- -->.",
+             "block": self.block(document, "### Theorem", kind="heading")},
+        ]
+        plan = Plan.model_validate(data)
+        report = materialize(plan, plan_hash(plan))
+        root = Path(plan.destination)
+        text = (root / "Course-course" / "course.md").read_bytes().decode("utf-8")
+        self.assertEqual(report["errors"], 0, report)
+        self.assertGreater(text.index("**Review required**"), text.rindex("%% /clew:unit"))
+        self.assertNotIn("clew:review", text[:text.index("**Review required**")])
+        self.assertIn(r"Check literal \%\% and", text)
+        self.assertIn(r"\u0025\u0025", text)
+        self.assertEqual(validate(root, fidelity=True)["errors"], 0)
+
+    def test_compact_pdf_links_at_entries_and_callout_footers_only(self):
+        document = self.course()
+        source = Path(document["bundle"]) / "document.md"
+        text = source.read_text().replace("$$\nq^n", "<!-- page: 2 -->\n\n$$\nq^n")
+        source.write_text(text)
+        manifest = Path(document["bundle"]) / "manifest.json"
+        metadata = json.loads(manifest.read_text())
+        metadata["pages"].append({**metadata["pages"][0], "number": 2})
+        manifest.write_text(json.dumps(metadata))
+        document["fingerprint"] = load_bundle(Path(document["bundle"])).fingerprint
+        for operation in document["operations"]:
+            operation["end"] = self.block(document, "![Diagram]", kind="paragraph")
+        plan = self.plan([document])
+        report = materialize(plan, plan_hash(plan))
+        root = Path(plan.destination)
+        output = (root / "Course-course" / "course.md").read_text()
+        self.assertEqual(report["errors"], 0, report)
+        self.assertEqual(output.count("(course.pdf#page="), 3)
+        self.assertIn("[PDF p. 1](course.pdf#page=1)", output)
+        self.assertNotIn("^sec-geometric", output)
+        self.assertIn("> ![Diagram](figures/a.png)\n>\n> [PDF p. 1](course.pdf#page=1)", output)
+        self.assertNotIn("Source:", output)
+        self.assertNotIn("PDF, page", output)
+        self.assertNotIn("<!-- page:", output)
+        self.assertEqual(validate(root, fidelity=True)["errors"], 0)
+
+    def test_malformed_native_structural_comments_are_rejected(self):
+        plan = self.plan([self.course()])
+        materialize(plan, plan_hash(plan))
+        root = Path(plan.destination)
+        path = root / "Course-course" / "course.md"
+        text = path.read_text().replace("%% /clew:unit sec-course %%", "%% /clew:unit sec-course")
+        path.write_text(text)
+        self.assertIn("structural-marker", self.codes(validate(root)))
+
+    def test_relationship_links_follow_source(self):
+        plan = self.pipeline_plan()
+        materialize(plan, plan_hash(plan))
+        root = Path(plan.destination)
+        path = root / "Correction-solutions" / "solutions.md"
+        text = path.read_text()
+        self.assertIn("> [Question](../Exercise-sheet/sheet.md#^q-1)\n"
+                      "> [PDF p. 1](solutions.pdf#page=1)", text)
+        self.assertLess(text.index("> 1. The limit"), text.index("> [Question]"))
+        self.assertGreater(text.index("[Exercise]"), text.index("^r-2"))
+        self.assertNotIn("::", text)
+        self.assertNotIn("[Correction]", text)
+        sheet = (root / "Exercise-sheet" / "sheet.md").read_text()
+        self.assertNotIn("[Exercise]", sheet)
+        self.assertEqual(validate(root, fidelity=True)["errors"], 0)
+
+    def test_plain_relationship_footer_cannot_hide_missing_or_multiple_targets(self):
+        plan = self.pipeline_plan()
+        materialize(plan, plan_hash(plan))
+        root = Path(plan.destination)
+        path = root / "Correction-solutions" / "solutions.md"
+        path.write_text(path.read_text().replace(
+            "[Question](../Exercise-sheet/sheet.md#^q-1)",
+            "[Question](../Exercise-sheet/sheet.md#^q-1) [Other](solutions.md#^corr-1)"))
+        self.assertIn("malformed-field", self.codes(validate(root)))
+
+    def test_existing_callout_footer_precedes_reused_native_anchor(self):
+        document = self.document("existing", "<!-- page: 1 -->\n\n"
+                                 "> [!definition] Existing definition\n> Source-authored statement.\n\n"
+                                 "^def-existing\n\n<!-- Source-authored comment. -->\n")
+        document["operations"] = [
+            {"op": "callout", "kind": "definition", "id": "def-existing",
+             "start": self.block(document, "> [!definition]", kind="quote"),
+             "end": self.block(document, "^def-existing", kind="paragraph")},
+        ]
+        plan = self.plan([document])
+        report = materialize(plan, plan_hash(plan))
+        root = Path(plan.destination)
+        output = (root / "Course-existing" / "existing.md").read_text()
+        self.assertEqual(report["errors"], 0, report)
+        self.assertIn("> Source-authored statement.\n>\n> [PDF p. 1](existing.pdf#page=1)\n\n"
+                      "^def-existing", output)
+        self.assertEqual(output.count("^def-existing"), 1)
+        self.assertIn("<!-- Source-authored comment. -->", output)
+        self.assertEqual(validate(root, fidelity=True)["errors"], 0)
+
+    def test_callout_footer_adds_safe_separator_after_source_without_final_newline(self):
+        document = self.document("no-newline", "<!-- page: 1 -->\n\n## Definition\n\nExact body.")
+        document["operations"] = [
+            {"op": "callout", "kind": "definition", "id": "def",
+             "start": self.block(document, "## Definition", kind="heading"),
+             "end": self.block(document, "Exact body.", kind="paragraph")},
+        ]
+        plan = self.plan([document])
+        report = materialize(plan, plan_hash(plan))
+        self.assertEqual(report["errors"], 0, report)
+        self.assertEqual(validate(Path(plan.destination), fidelity=True)["errors"], 0)
+
+    def test_native_marker_lookalikes_in_code_and_math_are_not_structure(self):
+        document = self.document("native-code", "<!-- page: 1 -->\n\n"
+                                 "```\n%% clew:unit exercise fake %%\n"
+                                 "%% /clew:unit fake %%\n[Hidden](absent.md)\n```\n\n"
+                                 "$$\n%% clew:unit exercise math %%\n$$\n")
+        plan = self.plan([document])
+        report = materialize(plan, plan_hash(plan))
+        self.assertEqual(report["errors"], 0, report)
+        self.assertEqual(validate(Path(plan.destination), fidelity=True)["errors"], 0)
 
     def test_stale_sources_and_approval_are_blocked(self):
         plan = self.plan([self.course()])
@@ -247,7 +400,7 @@ class DocumentTests(unittest.TestCase):
         root = Path(plan.destination)
         path = root / "Course-course" / "course.md"
         with path.open("a", encoding="utf-8") as stream:
-            stream.write("\nDuplicate. ^sec-course\n\n[Wrong page](course.pdf#page=3)\n")
+            stream.write("\nDuplicate. ^thm-geometric\n\n[Wrong page](course.pdf#page=3)\n")
         report = validate(root)
         self.assertTrue({"duplicate-anchor", "pdf-page"} <= self.codes(report), report)
 
@@ -333,17 +486,25 @@ class DocumentTests(unittest.TestCase):
         text = (Path(plan.destination) / "Course-reference" / "reference.md").read_bytes().decode()
         self.assertIn('[pdf]: <reference.pdf> "Original title"\r\n', text)
 
-    def test_discontiguous_pdf_page_links_use_original_numbers(self):
-        document = self.document("pages", "<!-- page: 2 -->\n\nFirst selected page.\n\n"
+    def test_discontiguous_pdf_entry_links_use_original_starting_page(self):
+        document = self.document("pages", "<!-- page: 2 -->\n\n# Selected pages\n\nFirst selected page.\n\n"
                                  "<!-- page: 4 -->\n\nSecond selected page.\n", count=4)
+        document["operations"] = [
+            {"op": "unit", "kind": "section", "id": "sec-pages",
+             "start": self.block(document, "# Selected pages", kind="heading"),
+             "end": self.block(document, "Second selected", kind="paragraph")},
+        ]
         plan = self.plan([document])
         report = materialize(plan, plan_hash(plan))
         self.assertEqual(report["errors"], 0, report)
         text = (Path(plan.destination) / "Course-pages" / "pages.md").read_text()
         self.assertIn("pages.pdf#page=2", text)
-        self.assertIn("pages.pdf#page=4", text)
+        self.assertNotIn("pages.pdf#page=4", text)
+        self.assertIn("source_pages: [2, 4]", text)
+        self.assertEqual(text.count("(pages.pdf#page="), 1)
         self.assertNotIn("#page=1", text)
         self.assertNotIn("#page=2-4", text)
+        self.assertEqual(validate(Path(plan.destination), fidelity=True)["errors"], 0)
 
     def test_broken_links_undefined_refs_and_unsafe_schemes_block_initial_preparation(self):
         document = self.document("bad", "<!-- page: 1 -->\n\n[Missing][unknown] "

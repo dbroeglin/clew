@@ -17,9 +17,15 @@ Use `markdown-it-py` CommonMark/table/dollar-math rules for safe source location
 
 The agent selects fingerprint-bound blocks, unit/callout roles and
 evidence-backed matches in a strict version-1 plan. Python applies a closed
-operation set to original source slices: unit scopes/entry anchors, callout
+operation set to original source slices: unit scopes, exercise/correction entry anchors, callout
 wrapping, block anchors and heading levels, plus generated metadata, page
-links, required destination-only remaps and review warnings.
+links, required destination-only remaps and review warnings. PDF provenance is
+one compact starting-page link per section entry or exercise/correction/callout
+footer, after generated relationship links, with unit entry anchors kept at
+the beginning. Sections navigate by existing headings, without generated block
+IDs. Do not generate covered-page lists or page-break links. Unit/review
+bookkeeping uses Obsidian `%%` comments. Only this generated format is supported;
+no compatibility adapter or automatic archive migration is added.
 No generic replacement, formatter, OCR repair or source-note splitting.
 
 Choose a new chapter under an evidence-supported non-root vault parent.
@@ -41,7 +47,8 @@ validation accepts manual edits; fidelity mode detects initial-snapshot changes.
 Neither mode rewrites notes or baselines. External URLs are not fetched.
 
 Uncertain supplied matches and suspicious valid structure are review findings,
-with warning callouts visible beside affected source and in the index.
+with warning callouts in a final document appendix identifying their anchor or
+original source line, and an index summary after navigation.
 Broken links, malformed anchors/ownership and unsafe edits are hard errors.
 No review reason waives errors.
 

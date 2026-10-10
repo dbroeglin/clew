@@ -79,8 +79,9 @@ New output never merges with or overwrites an existing chapter.
 
 Sections remain navigable, important course statements become anchored
 callouts, and questions/answers have explicit internal ownership. Corrections
-reference verified question targets. Uncertain matches stay unlinked with
-**warning callouts visible in Obsidian**, not only in a report.
+reference verified question targets. Exercise and statement links sit in
+unobtrusive footers. Uncertain matches stay unlinked with **warning callouts
+in an end-of-document review appendix**, not only in a report.
 Missing exercises or supplied corrections are valid; nothing is invented.
 Relative Markdown links keep the complete chapter movable as one folder.
 

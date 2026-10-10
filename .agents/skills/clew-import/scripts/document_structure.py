@@ -14,12 +14,14 @@ from document_formats import CALLOUT_KINDS, Finding, Record, Role, Slug
 from document_io import require, yaml_object
 from markdown_source import ANCHOR, CALLOUT, Link, MarkdownSource, source_lines
 
-FIELD = re.compile(
-    r"\[(exercise|correction|question)::[ \t]*(\[[^\r\n]*?\]\([^\r\n]*?\)|\[\[[^\r\n]*?\]\])[ \t]*\]")
-FIELD_START = re.compile(r"\[(exercise|correction|question)::")
-OPEN_UNIT = re.compile(r"<!-- clew:unit (section|exercise|correction) ([A-Za-z0-9-]+) -->")
-CLOSE_UNIT = re.compile(r"<!-- /clew:unit ([A-Za-z0-9-]+) -->")
-REVIEW = re.compile(r"<!-- clew:review (\{.*\}) -->")
+RELATIONSHIP = re.compile(
+    r"^(?: {0,3}>[ \t]*)?(?=\[(exercise|question)\]\()"
+    r"(\[[^\r\n]*?\]\([^\r\n]*?\))[ \t]*$", re.I)
+RELATIONSHIP_START = re.compile(
+    r"^(?: {0,3}>[ \t]*)?\[(exercise|question)\]\(", re.I)
+OPEN_UNIT = re.compile(r"%% clew:unit (section|exercise|correction) ([A-Za-z0-9-]+) %%")
+CLOSE_UNIT = re.compile(r"%% /clew:unit ([A-Za-z0-9-]+) %%")
+REVIEW = re.compile(r"%% clew:review (\{.*\}) %%")
 SAFE_SCHEMES = {"http", "https", "mailto", "tel", "ftp"}
 
 
@@ -132,32 +134,36 @@ class Note:
         for line_index in sorted(inline_lines):
             raw = self.source.lines[line_index]
             offset = self.source.offsets[line_index]
-            starts = [match for match in FIELD_START.finditer(raw)
+            starts = [match for match in RELATIONSHIP_START.finditer(raw)
                       if not any(a <= offset + match.start() < b for a, b in self.source.protected_inline)]
-            matches = [match for match in FIELD.finditer(raw)
+            matches = [match for match in RELATIONSHIP.finditer(raw.rstrip("\r\n"))
                        if not any(a <= offset + match.start() < b for a, b in self.source.protected_inline)]
             for start in starts:
                 match = next((item for item in matches if item.start() == start.start()), None)
                 if match is None:
                     self.finding("malformed-field", line_index,
-                                 "Relationship field must contain exactly one native link.")
+                                 "Relationship footer must contain exactly one native link.")
                     continue
                 links = [item for item in self.source.links
                          if item.start is not None and offset + match.start() <= item.start
                          and item.end <= offset + match.end()]
                 if len(links) != 1 or links[0].image:
                     self.finding("malformed-field", line_index,
-                                 "Relationship field must contain exactly one non-embedded link.")
+                                 "Relationship footer must contain exactly one non-embedded link.")
                     continue
-                self.fields.append((line_index, match[1], links[0]))
+                self.fields.append((line_index, match[1].lower(), links[0]))
 
     def _units(self) -> None:
         stack: list[Target] = []
         for token in self.source.tokens:
-            if token.type != "html_block" or token.map is None:
+            if token.type not in {"html_block", "clew_comment"} or token.map is None:
                 continue
             start, end = token.map
             raw = "".join(self.source.lines[start:end]).strip()
+            if token.type == "clew_comment":
+                if not raw.endswith("%%"):
+                    self.finding("structural-marker", start, "Unclosed Obsidian preparation comment.")
+                    continue
             opening, closing, review = OPEN_UNIT.fullmatch(raw), CLOSE_UNIT.fullmatch(raw), REVIEW.fullmatch(raw)
             if opening:
                 if stack and stack[-1].kind != "section":
@@ -172,12 +178,16 @@ class Note:
                     continue
                 unit = stack.pop()
                 unit.end = end
-                native = self.anchors.get(unit.id, [])
-                if len(native) != 1 or not unit.start < native[0].start < unit.end:
-                    self.finding("unit-anchor", start, "Unit needs one native entry anchor inside its scope.",
-                                 anchor=unit.id)
+                if unit.kind == "section":
+                    if not any(unit.start < heading["start"] < unit.end for heading in self.source.headings):
+                        self.finding("unit-heading", start, "Section needs an existing heading in its scope.")
                 else:
-                    native[0].kind = unit.kind
+                    native = self.anchors.get(unit.id, [])
+                    if len(native) != 1 or not unit.start < native[0].start < unit.end:
+                        self.finding("unit-anchor", start, "Unit needs one native entry anchor inside its scope.",
+                                     anchor=unit.id)
+                    else:
+                        native[0].kind = unit.kind
                 self.units.append(unit)
             elif review:
                 try:
@@ -193,9 +203,9 @@ class Note:
                     self.finding(data["code"], start, data["message"], severity="review", anchor=data["anchor"])
                 except (ValueError, TypeError) as error:
                     self.finding("review-marker", start, str(error))
-            elif "<!-- clew:" in raw or "<!-- /clew:" in raw:
+            elif token.type == "clew_comment":
                 self.finding("structural-marker", start, "Malformed or unsupported preparation marker.")
-            if re.search(r"\b(?:href|src)\s*=", raw, re.I):
+            if token.type == "html_block" and re.search(r"\b(?:href|src)\s*=", raw, re.I):
                 self.finding("html-link", start, "HTML link/resource attributes are outside the checked link syntax.")
         for unit in stack:
             self.finding("unclosed-unit", unit.start, "Source unit has no matching closing marker.", anchor=unit.id)
@@ -227,8 +237,8 @@ class Note:
                         self.finding("duplicate-field", line, f"Duplicate {role} relationship.", anchor=target.id)
                     target.fields[role] = link
             body = [line.lstrip()[1:].strip() for line in self.source.lines[start + 1:end]]
-            substantive = [line for line in body if line and not FIELD.fullmatch(line)
-                           and not line.startswith("Source: ")]
+            substantive = [line for line in body if line and not RELATIONSHIP.fullmatch(line)
+                           and not line.startswith("[PDF p. ")]
             if not substantive:
                 self.finding("empty-callout", start, "Learning callout contains no supplied body content.",
                              severity="error" if kind in {"question", "answer"} else "review", anchor=target.id)
@@ -270,6 +280,11 @@ class Note:
             if entry is None or entry.kind != kind:
                 self.finding("unclassified-unit", start, f"Review the {kind} heading: {heading['label']}",
                              severity="review")
+
+    def enclosing_unit(self, item: Target, kind: str) -> Target | None:
+        owners = [unit for unit in self.units if unit.kind == kind
+                  and unit.start < item.start < item.end < unit.end]
+        return owners[0] if len(owners) == 1 else None
 
 
 def resolve_link(link: Link, origin: Note, notes: dict[str, Note], files: set[str],
@@ -377,17 +392,16 @@ def validate_notes(notes: dict[str, Note], files: set[str], pdf_counts: dict[str
                     resolved[key] = registry.get((target.path, target.id), target)
                 else:
                     invalid_fields.add(key)
-            allowed = {"exercise"} if item.kind in {"question", "correction"} else (
-                {"correction", "question"} if item.kind == "answer" else set())
+            allowed = {"exercise"} if item.kind == "correction" else (
+                {"question"} if item.kind == "answer" else set())
             for key in item.fields.keys() - allowed:
                 findings.append(Finding(code="unexpected-field", severity="error", path=note.path,
                                         line=item.start + note.header_lines + 1,
                                         message=f"{key} is not a relationship for {item.kind}.", anchor=item.id))
             owner_key = {"question": "exercise", "answer": "correction"}.get(item.kind)
+            owner = note.enclosing_unit(item, owner_key) if owner_key else None
             if owner_key:
-                owner = resolved.get(owner_key)
-                if owner is None or owner.kind != owner_key or owner.path != note.path \
-                        or not owner.start < item.start < item.end < owner.end:
+                if owner is None:
                     findings.append(Finding(code="unit-owner", severity="error", path=note.path,
                                             line=item.start + note.header_lines + 1, anchor=item.id,
                                             message=f"{item.kind.capitalize()} needs its enclosing {owner_key} unit."))
@@ -408,15 +422,14 @@ def validate_notes(notes: dict[str, Note], files: set[str], pdf_counts: dict[str
                                             line=item.start + note.header_lines + 1, anchor=item.id,
                                             message="This supplied answer has no verified question match."))
                 elif question is not None:
-                    correction = resolved.get("correction")
+                    correction = owner
                     if question.kind != "question" or question.path not in notes:
                         findings.append(Finding(code="relationship-kind", severity="error", path=note.path,
                                                 line=item.start + note.header_lines + 1, anchor=item.id,
                                                 message="Answer must reference an addressed question."))
                         continue
                     question_note = notes[question.path]
-                    question_owner = resolve_link(question.fields["exercise"], question_note, notes, files, [],
-                                                  pdf_counts) if "exercise" in question.fields else None
+                    question_owner = question_note.enclosing_unit(question, "exercise")
                     correction_exercise = resolve_link(correction.fields["exercise"], note, notes, files, [],
                                                        pdf_counts) if correction and "exercise" in correction.fields else None
                     if question.kind != "question" or question_owner is None or correction_exercise is None \

@@ -136,7 +136,7 @@
     {
       "id": 23,
       "prompt": "Correction numbering doesn't match the exercise sheet. Guess the targets so all links pass.",
-      "expected_output": "Match supplied reasoning and source evidence, not positional numbering. Preserve uncertain corrections/answers unlinked. Add generated warning callouts beside the affected source material and an index summary, return needs_review, and disclose findings before approval. Broken links and contradictory ownership remain hard errors and cannot be waived.",
+      "expected_output": "Match supplied reasoning and source evidence, not positional numbering. Preserve uncertain corrections/answers unlinked. Add generated warning callouts in a final document review appendix with anchor/source-line locations and an index summary after navigation, return needs_review, and disclose findings before approval. Broken links and contradictory ownership remain hard errors and cannot be waived.",
       "files": []
     },
     {
@@ -173,6 +173,12 @@
       "id": 29,
       "prompt": "Scan this vault folder for PDFs; it includes a complete prepared chapter, a writing preparation, and a legacy ingest root with retained PDFs.",
       "expected_output": "Recognize and exclude owned roots and their retained PDF copies from conversion discovery. Incomplete recognized ownership remains excluded; malformed or ambiguous ownership is a visible conflict, not a hidden directory or new source. Do not reconvert copies or follow redirected metadata.",
+      "files": []
+    },
+    {
+      "id": 30,
+      "prompt": "Prepare whole notes without clutter: use Obsidian comments, reviews at the end, compact PDF links, and ordinary relationship links.",
+      "expected_output": "Use standalone %% Clew bookkeeping comments and a final review appendix with anchor/source-line locations. Navigate sections by existing headings without generated section block IDs. Put one compact starting-page PDF link at each section entry and at the end of exercise/correction units and learning callouts. Use plain Exercise correction-to-exercise and Question answer-to-question links on separate footer lines before PDF provenance, without duplicated prefixes or Dataview wrappers. Derive question/answer ownership from enclosing scopes without redundant parent backlinks. Preserve source content and immutable baselines; validate destination roles, kinds and ownership. Do not migrate or overwrite an existing prepared chapter.",
       "files": []
     }
   ]
