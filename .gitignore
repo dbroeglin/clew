@@ -4,4 +4,6 @@ __pycache__/
 .env
 .env.*
 !.env.example
-node_modules/
+
+# APM dependencies
+apm_modules/
