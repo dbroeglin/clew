@@ -43,7 +43,9 @@ source inspector's fingerprint-bound temporary block addresses.
 portable relative visible directory, not an owned root/configuration directory.
 The new chapter is a direct child. Missing parents require explicit approval and
 `create_parent: true`. The final preparation approval includes this placement.
-Do not nest inside another prepared root (`.clew/`) or legacy `ingest.json` root.
+Do not nest inside another prepared root (`.clew/preparation.json` or partial
+`.clew/baselines/`) or legacy `ingest.json` root. A vault-level
+`.clew/imports.json` inventory alone does not claim chapter ownership.
 
 Each selected PDF gets exactly one document object and one complete editable
 note. Roles are `course`, `exercise`, `correction`, `mixed`, or `unknown`.

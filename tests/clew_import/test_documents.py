@@ -482,6 +482,30 @@ class DocumentTests(unittest.TestCase):
         _, conflicts, _ = plan_imports.discover(self.vault)
         self.assertTrue(conflicts)
 
+    def test_vault_import_inventory_does_not_claim_chapter_ownership(self):
+        private = self.vault / ".clew"
+        private.mkdir()
+        inventory = private / "imports.json"
+        inventory.write_text('{"imports":[]}', encoding="utf-8")
+        before = inventory.read_bytes()
+        report = check(self.plan([self.course()]))
+        self.assertEqual(report["errors"], 0, report)
+        self.assertEqual(inventory.read_bytes(), before)
+        self.assertFalse(Path(report["destination"]).exists())
+
+    def test_preparation_markers_and_partial_baselines_still_block_nesting(self):
+        private = self.vault / ".clew"
+        private.mkdir()
+        plan = self.plan([self.course()])
+        marker = private / "preparation.json"
+        marker.write_text("{}", encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "owned root"):
+            check(plan)
+        marker.unlink()
+        (private / "baselines").mkdir()
+        with self.assertRaisesRegex(ValueError, "owned root"):
+            check(plan)
+
     def test_real_converter_handoff_uses_current_bundle_without_reconversion(self):
         from test_digest_pdf import clients, di_result, ingestion, make_pdf, response
         pdf = self.root / "real-source.pdf"

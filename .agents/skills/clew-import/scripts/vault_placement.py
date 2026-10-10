@@ -24,8 +24,12 @@ def placement_parent(plan: Plan) -> Path:
     ancestor = selected
     while ancestor.is_relative_to(vault):
         legacy = no_redirect(ancestor / "ingest.json")
-        marker = no_redirect(ancestor / ".clew")
-        require(not os.path.lexists(marker) and not os.path.lexists(legacy),
+        private = no_redirect(ancestor / ".clew")
+        if os.path.lexists(private):
+            require(private.is_dir(), f"Private metadata path is not a directory: {private}")
+        marker = no_redirect(private / "preparation.json")
+        baselines = no_redirect(private / "baselines")
+        require(not any(os.path.lexists(path) for path in (marker, baselines, legacy)),
                 f"Placement is inside an existing or unrecognized owned root: {ancestor}. "
                 "Choose a sibling learning-material container.")
         if ancestor == vault:

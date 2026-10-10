@@ -135,6 +135,8 @@ folder names, operations, diffs, matches/evidence, copied files and warnings.
 Conversion approval is separate. Changed sources/plans invalidate approval.
 Only a new chapter root is allowed; no merge/overwrite/update or automatic
 cleanup/retry. Failed roots remain incomplete.
+Prepared ownership is identified by `.clew/preparation.json` or partial
+`.clew/baselines/`, not an unrelated vault-level `.clew/imports.json` inventory.
 
 ```text
 <chapter>\
