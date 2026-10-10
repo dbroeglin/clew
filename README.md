@@ -54,7 +54,10 @@ that still need conversion.
 Review the selected PDFs, destinations, options, and any existing-output
 conflicts. The skill waits for approval before conversion: **Import sends
 document content to your configured Azure services and can incur charges.**
-It reports extraction issues for review rather than silently correcting them.
+Import checks formulas with an offline renderer, reviews each page against its
+source, and can make bounded corrective
+transcription attempts within the approved plan. It retains the attempts and
+reports unresolved issues for review; it does not correct the author's claims.
 Completed bundles normally sit beside each PDF, in a folder with the same stem.
 
 ### 2. Organize the imported material

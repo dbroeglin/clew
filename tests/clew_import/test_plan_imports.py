@@ -27,7 +27,7 @@ class PlanningTests(unittest.TestCase):
         self.inputs.mkdir()
         self.project = self.root / "project"
         self.project.mkdir()
-        for name in ("pyproject.toml", "uv.lock", ".env"):
+        for name in ("pyproject.toml", "uv.lock", ".env", "package.json", "package-lock.json"):
             (self.project / name).write_text("synthetic fixture", encoding="utf-8")
         (self.project / ".venv").mkdir()
         self.config = {
@@ -43,19 +43,29 @@ class PlanningTests(unittest.TestCase):
         return source
 
     def plan(self, input_path: Path | None = None, **options: object) -> dict[str, object]:
-        with patch.dict(os.environ, self.config, clear=True), patch.object(planner.shutil, "which", return_value="uv"):
+        with (
+            patch.dict(os.environ, self.config, clear=True),
+            patch.object(planner.shutil, "which", return_value="uv"),
+            patch.object(planner, "check_math_runtime"),
+        ):
             return planner.build_plan(
                 input_path or self.inputs, project=self.project, check_env=True, **options,
             )
 
-    def bundle(self, source: Path, pages: str | None = None) -> Path:
+    def bundle(self, source: Path, pages: str | None = None, *, page_review: bool = False) -> Path:
         numbers = ingestion.selected_pages(pages, 2)
         text = ["Page " + str(number) for number in numbers]
-        document, openai = clients(
-            di_result(text, numbers=numbers), [response(page_result(value)) for value in text],
-        )
+        outputs = []
+        for value in text:
+            outputs.append(response(page_result(value)))
+            if page_review:
+                outputs.append(response(ingestion.PageReview(findings=[])))
+        document, openai = clients(di_result(text, numbers=numbers), outputs)
         output = source.with_suffix("")
-        ingestion.digest_pdf(source, output, document, openai, "test-vision", pages=pages, dpi=72)
+        ingestion.digest_pdf(
+            source, output, document, openai, "test-vision", pages=pages, dpi=72,
+            page_review=page_review,
+        )
         return output
 
     def edit_manifest(self, output: Path, edit) -> None:
@@ -126,6 +136,99 @@ class PlanningTests(unittest.TestCase):
         entry = self.plan()["entries"][0]
         self.assertEqual(entry["classification"], "already_converted")
         self.assertEqual(entry["review_issues"], ["Inspect figure"])
+
+    def test_default_review_cost_bounds_and_explicit_opt_out_are_in_plan(self) -> None:
+        self.pdf()
+        plan = self.plan()
+        self.assertEqual(plan["page_review"], {"enabled": True, "max_page_retries": 2})
+        entry = plan["entries"][0]
+        self.assertEqual(entry["page_model_requests"], {"minimum": 4, "maximum": 12})
+        self.assertNotIn("--no-page-review", entry["argv"])
+        disabled = self.plan(page_review=False)
+        self.assertEqual(disabled["page_review"], {"enabled": False, "max_page_retries": 0})
+        entry = disabled["entries"][0]
+        self.assertEqual(entry["page_model_requests"], {"minimum": 2, "maximum": 2})
+        self.assertIn("--no-page-review", entry["argv"])
+        self.assertIn("--no-page-review", entry["command"])
+        selected = self.plan(pages="2")
+        self.assertEqual(selected["entries"][0]["page_model_requests"], {"minimum": 2, "maximum": 6})
+
+    def test_reviewed_bundle_is_complete_only_with_all_attempt_evidence(self) -> None:
+        source = self.pdf()
+        output = self.bundle(source, page_review=True)
+        self.assertEqual(self.plan(source)["entries"][0]["classification"], "already_converted")
+        manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
+        attempt = manifest["pages"][0]["review"]["attempts"][0]
+        for field in ("raw_markdown", "raw_response", "raw_review", "raw_math"):
+            evidence = output / attempt[field]
+            original = evidence.read_bytes()
+            evidence.unlink()
+            with self.subTest(field=field):
+                entry = self.plan(source)["entries"][0]
+                self.assertEqual(entry["classification"], "blocked")
+                self.assertIn("missing", entry["reason"])
+            evidence.write_bytes(original)
+
+    def test_review_metadata_cannot_hide_missing_or_external_evidence(self) -> None:
+        source = self.pdf()
+        output = self.bundle(source, page_review=True)
+        self.edit_manifest(
+            output, lambda data: data["pages"][0]["review"]["attempts"][0].update(raw_review="../outside.json"),
+        )
+        self.assertIn("outside", self.plan(source)["entries"][0]["reason"])
+        self.edit_manifest(output, lambda data: data["pages"][0].pop("review"))
+        self.assertIn("missing its page review", self.plan(source)["entries"][0]["reason"])
+
+    def test_historical_bundles_without_review_configuration_still_match(self) -> None:
+        source = self.pdf()
+        output = self.bundle(source)
+        self.edit_manifest(output, lambda data: data.pop("configuration"))
+        entry = self.plan(source)["entries"][0]
+        self.assertEqual(entry["classification"], "already_converted")
+        self.assertNotIn("command", entry)
+
+    def test_math_runtime_blocker_and_root_setup_command_are_in_plan(self) -> None:
+        self.pdf()
+        with patch.object(planner, "check_math_runtime", side_effect=planner.MathRenderError("Node unavailable")):
+            with patch.dict(os.environ, self.config, clear=True), patch.object(planner.shutil, "which", return_value="uv"):
+                plan = planner.build_plan(self.inputs, project=self.project, check_env=True)
+        self.assertIn("Node unavailable", plan["preflight_blockers"])
+        self.assertIn("'npm' 'ci' '--ignore-scripts'", plan["node_setup_command"])
+
+    def test_missing_npm_lock_requires_restoration_in_workspace_but_setup_in_standalone(self) -> None:
+        self.pdf()
+        (self.project / "package-lock.json").unlink()
+        standalone = self.plan()
+        self.assertIn("'npm' 'install'", standalone["node_setup_command"])
+        self.assertTrue(any("approve initial npm install" in item for item in standalone["preflight_blockers"]))
+        (self.project / "pyproject.toml").write_text(
+            '[tool.uv.workspace]\nmembers = [".agents/skills/*"]\n', encoding="utf-8",
+        )
+        workspace = self.plan()
+        self.assertIn("'npm' 'ci'", workspace["node_setup_command"])
+        self.assertTrue(any("restore the repository lock" in item for item in workspace["preflight_blockers"]))
+
+    def test_unavailable_npm_is_an_explicit_setup_blocker(self) -> None:
+        with (
+            patch.dict(os.environ, self.config, clear=True),
+            patch.object(planner.shutil, "which", side_effect=lambda name: None if name == "npm" else name),
+            patch.object(planner, "check_math_runtime"),
+        ):
+            blockers = planner.environment_blockers(self.project, True)
+        self.assertTrue(any("npm >=10 is unavailable" in item for item in blockers))
+
+    def test_new_math_evidence_is_required_but_historical_pages_remain_valid(self) -> None:
+        source = self.pdf()
+        output = self.bundle(source)
+        manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
+        evidence = output / manifest["pages"][0]["raw_math"]
+        evidence.unlink()
+        self.assertEqual(self.plan(source)["entries"][0]["classification"], "blocked")
+        self.edit_manifest(output, lambda data: (
+            data["configuration"].pop("mathjax_version"),
+            [page.pop("raw_math") for page in data["pages"]],
+        ))
+        self.assertEqual(self.plan(source)["entries"][0]["classification"], "already_converted")
 
     def test_partial_page_digest_blocks_full_conversion_but_matches_explicit_scope(self) -> None:
         source = self.pdf()

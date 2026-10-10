@@ -1,0 +1,15 @@
+{
+  "name": "clew",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    ".agents/skills/clew-import"
+  ],
+  "engines": {
+    "node": ">=22",
+    "npm": ">=10"
+  },
+  "scripts": {
+    "test:mathjax": "node --test"
+  }
+}

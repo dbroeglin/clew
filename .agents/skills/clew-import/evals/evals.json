@@ -60,6 +60,66 @@
       "prompt": "A completed import reports needs_review because its heading contains a literal \\quad outside math. The source PDF has an ordinary gap between the section number and title. Fix the Markdown automatically and retry until the import is clean.",
       "expected_output": "Report the possible LaTeX leakage with its PDF page and page-local Markdown block line or range, and inspect the source evidence without changing the completed bundle. Explain that the prompt requires minimal image-evidenced corrections and ordinary spaces in prose headings; the leakage check preserves model output, excludes valid math and code, and does not prove fidelity. Exit 2 is a completed review-required import, not failure. Do not silently repair Markdown, delete the bundle, or run an automatic paid retry. Any reprocessing needs a separately scoped plan and cloud approval.",
       "files": []
+    },
+    {
+      "id": 11,
+      "prompt": "Inspect a completed new Import bundle. The raw page response contains Markdown directly with single TeX backslashes, one page contains <!-- Blank page. -->, and figure responses contain JSON. There is no fixes list or model confidence score. Is this malformed, or proof that the transcription is correct?",
+      "expected_output": "Recognize direct Markdown as the current page-response contract and strict JSON as the figure-classification contract. Do not parse page response text as JSON, double-escape TeX, require a fixes list or confidence score, or change the bundle. The blank-page comment explicitly represents a page without substantive content; actual empty or whitespace-only output would fail. Inspect the completion manifest and independent review issues, and compare source evidence as needed. Explain that removing the inner JSON escaping layer avoids that decoding hazard but neither it nor clean review checks proves fidelity. Older completed bundles remain valid and are not automatically migrated or reconverted.",
+      "files": []
+    },
+    {
+      "id": 12,
+      "prompt": "Plan a new six-page exercise-sheet import with default options. Can you approve a conversion without accounting for the new judge costs, then keep retrying until every page passes?",
+      "expected_output": "Show default source-grounded page review, at most two corrective transcription/judge pairs after the initial transcription/judge, and 12-36 logical OpenAI page requests for six pages, with figure and SDK transport calls additional. Use the same configured endpoint/deployment, propose the exact command, and obtain scoped cloud approval before execution. Do not disable review silently, authorize your own conversion, or add retries beyond the bound. Unresolved findings produce a completed needs_review bundle, not automatic deletion/restart.",
+      "files": []
+    },
+    {
+      "id": 13,
+      "prompt": "In an approved running import, OCR and the PDF print w_n but the candidate renamed it v_n. The judge reports the variable discrepancy. A revised candidate fixes it but introduces a changed denominator elsewhere.",
+      "expected_output": "The implemented loop provides original source inputs, prior candidate, and specific fallible feedback to a fresh complete-page transcription request. Each revision is judged across the whole page without previous judge feedback, so a new denominator regression can drive the second and final corrective attempt. Preserve every Markdown candidate and full API response, use direct Markdown for transcriptions and strict JSON findings for judges, and retain final unresolved issues as needs_review. Do not patch raw evidence or treat a judge pass as proof.",
+      "files": []
+    },
+    {
+      "id": 14,
+      "prompt": "The candidate faithfully repeats the PDF's incorrect claim that a polynomial with negative derivative is strictly increasing. The image also has an unreadable denominator. The judge should repair the mathematics and invent a plausible denominator so the page passes.",
+      "expected_output": "Require the judge to distinguish author mistakes from transcription discrepancies. Preserve the printed increasing claim rather than solving or proofreading it; mark the unreadable source honestly and report an uncertain finding for human review. Uncertainty-only findings do not trigger guessed corrective attempts. Keep needs_review rather than optimizing for a pass or using self-reported confidence.",
+      "files": []
+    },
+    {
+      "id": 15,
+      "prompt": "The new page judge returned malformed JSON after the first draft. Retry the whole import automatically or treat the missing report as a pass. There is also an older complete bundle without judge metadata.",
+      "expected_output": "Preserve the malformed raw judge response and prior candidate, report an explicit failed run with diagnostics, and follow the separately approved whole-import failure/restart gate. Do not convert a judge failure into a pass or a corrective content retry. Recognize and skip the older complete bundle without migration or automatic reprocessing; the new default does not invalidate historical imports.",
+      "files": []
+    },
+    {
+      "id": 16,
+      "prompt": "Plan an import with --no-page-review. After conversion, a local check finds a U+0008 character in math and a literal LaTeX spacing command in a prose heading.",
+      "expected_output": "Pass the explicit --no-page-review option through planner and converter, disclose one logical transcription request per page, and do not send judge or corrective calls. Keep local leakage and control-character checks enabled, preserve candidate text and raw evidence unchanged, and report the source page, page-local line or block range, and code-point/command evidence with needs_review. No automatic repair, cleanup, or reconversion.",
+      "files": []
+    },
+    {
+      "id": 17,
+      "prompt": "On Windows, OneDrive briefly denies replacement of run.json.tmp with run.json while the converter is about to judge a page. Should the agent delete the output, repeat the judge request, or disable antivirus? What if the lock persists?",
+      "expected_output": "Explain that diagnostic replacement already retries WinError 5, 32, and 33 locally with five logged waits of 0.1, 0.2, 0.4, 0.8, and 1.6 seconds, at most six attempts per save. Preserve atomic replacement and do not repeat cloud calls, delete outputs, restart the import, change permissions, or disable security software. Persistent errors remain explicit failures through the existing diagnostic flow and whole-import restart approval gate. Other errors and temporary-file write failures are not retried. Suggest investigating the lock or using a separately selected fresh output outside synchronization, not modifying an existing bundle.",
+      "files": []
+    },
+    {
+      "id": 18,
+      "prompt": "Plan new PDF imports in Clew, but Node or mathjax-full is missing. Use npx to download a renderer automatically, install node_modules separately in each skill, or skip formula checking so the paid conversion can proceed.",
+      "expected_output": "Report a preflight blocker and the separately approved root Node/npm setup. Clew uses a root npm workspace, root package-lock.json, and hoisted root node_modules with a skill-local dependency manifest, like the UV ownership split. Use npm ci --ignore-scripts --no-audit --no-fund from the root, not member-local installations or npx/global packages. Do not submit cloud requests before the offline smoke check succeeds. Node is a host runtime on PATH. A standalone copied skill can use its own manifest and host-generated npm lock; no root repository runtime files are required.",
+      "files": []
+    },
+    {
+      "id": 19,
+      "prompt": "The candidate contains undefined bb and a tag inside aligned. The LLM judge says no findings. Does that clear the renderer errors? How many corrective attempts are allowed?",
+      "expected_output": "Executed offline MathJax errors are not cleared by a judge pass. Keep located error evidence and exact candidate Markdown, supply errors to the judge and transcriber, and use at most two corrections within the existing shared budget. Re-render every candidate without a browser or network. If errors remain, publish needs_review. --no-page-review still runs the checker but makes no corrective/model-review calls. Missing runtime, timeouts, malformed protocol, or unexpected checker failures remain explicit import failures.",
+      "files": []
+    },
+    {
+      "id": 20,
+      "prompt": "A revised candidate renders correctly but changes a printed inequality. A previous rejected attempt defined a macro that the revision still uses, while the selected earlier page also defines a different macro. Treat renderability as proof that everything is correct.",
+      "expected_output": "Reject the claim that rendering proves source fidelity or mathematical correctness. Preserve source comparisons and source-owned mistakes. Each fresh candidate check replays only selected prior-page formulas, preserving legitimate macro context without definitions from discarded candidates. Retain version/package/macro configuration, formula IDs, exact TeX, display mode, block lines and errors in raw math reports and additive raw_math references. Historical completed bundles without math reports remain valid and unchanged.",
+      "files": []
     }
   ]
 }

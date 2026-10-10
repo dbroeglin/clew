@@ -1,7 +1,16 @@
 # ADR-0005: Conservative Import and LaTeX leakage review
 
-- Status: Accepted
+- Status: Accepted; partially superseded by ADR-0010
 - Date: 2026-10-04
+
+> **Refinement:** [ADR-0009](0009-direct-markdown-page-transcription.md) changes
+> page responses to direct Markdown and removes self-reported fixes/confidence.
+> This record's conservative transcription and non-mutating review remain in
+> force.
+> [ADR-0010](0010-source-grounded-page-review-and-retries.md) replaces the
+> prohibition on in-run model corrective retries with default source-grounded
+> judging and at most two corrective attempts. Non-mutating local review and
+> conservative source preservation remain; completed bundles are untouched.
 
 ## Context
 

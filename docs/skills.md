@@ -28,6 +28,26 @@ and install its declared dependencies as its own UV project. External services,
 platform capabilities, host integrations, and dependencies on other skills must
 be explicit.
 
+Import also participates in an **npm workspace**. The root
+[`package.json`](../package.json) names `.agents/skills/clew-import`; that
+skill's own [Node manifest](../.agents/skills/clew-import/package.json) declares
+its exact MathJax dependency. The root `package-lock.json` owns combined
+resolution, and `.npmrc` selects npm's hoisted install strategy. Install once
+from the repository root, with Node.js >=22 and npm >=10 available on PATH:
+
+```powershell
+npm ci --ignore-scripts --no-audit --no-fund
+```
+
+Do not install separately inside a workspace member. The current locked tree
+has only root-hoisted dependencies; npm can nest incompatible versions, unlike
+UV's single-environment conflict behavior. Dependency changes must explicitly
+reconcile conflicts rather than promise unconditional hoisting. Node is a host
+runtime, not a binary stored in the repository. A standalone copied Import
+skill uses its own `package.json`: initially approve `npm install
+--ignore-scripts --no-audit --no-fund`, then `npm ci --ignore-scripts --no-audit
+--no-fund` with that host's lock. Other skills need no Node runtime.
+
 All four skills require Python >=3.11 and [UV](https://docs.astral.sh/uv/).
 From the repository root, install the shared environment as a separate setup
 step, following the host's approval rules:
@@ -104,17 +124,105 @@ uv run --package clew-import --locked --env-file .env python ".agents\skills\cle
 ```
 
 This sends document content to configured Azure services and may incur charges.
+Page judging is enabled by default: each page uses one transcription and one
+fresh review request to the same configured deployment, with up to two
+corrective transcription/review pairs (2-6 logical OpenAI page requests).
+Figure classifications and SDK transport retries are additional. The plan
+discloses those bounds before conversion approval. Add `--no-page-review` to
+both planner and converter only when opting out; this keeps one transcription
+request per page with local checks but no LLM review or corrective attempts.
 The output must not already exist. A bundle includes the original PDF in
 `source`, Markdown, figures, raw extraction evidence, a manifest, and diagnostics.
 Exit `2` means completed but needs review; `1` means failed and `130` interrupted.
 The skill asks before deleting a verified failed output and retrying.
 
+On Windows, replacing progress diagnostics (`run.json.tmp` -> `run.json`)
+retries access-denied/sharing/lock errors (WinError 5, 32, 33) with five logged
+backoff waits: 0.1, 0.2, 0.4, 0.8, and 1.6 seconds. Each save makes at most six
+replacement attempts with 3.1 seconds of total waiting, preserving atomic
+replacement. Other errors, temporary-file writes, and exhausted retries still
+fail explicitly. This handles brief OneDrive/scanner/reader contention without
+repeating cloud requests or restarting the import; it does not bypass
+permissions or guarantee recovery from persistent locks.
+
 The page prompt asks for minimal, image-evidenced corrections, not proofreading
-or cosmetic rewriting. A non-mutating check flags known LaTeX commands leaked
+or cosmetic rewriting. Pages return Markdown directly, without a JSON envelope
+or self-reported fixes/confidence list. This removes the inner JSON escaping
+layer around TeX, not the possibility of transcription errors. Unreadable
+content is marked in place; pages without substantive content return
+`<!-- Blank page. -->`. Empty or whitespace-only output, incomplete responses,
+and refusals without extraction are failures. Figure classifications and the
+separate page judge use strict JSON with schema and semantic validation, so
+the deployment must support structured output.
+
+The judge compares the whole candidate page with the original image, using
+original OCR/formulas as hints. It reports location, discrepancy, visible source
+evidence, and a minimal correction instruction, categorized as transcription,
+format, or uncertainty. It must preserve author mistakes and never solve,
+proofread, or normalize source content. The corrective transcriber receives
+the prior candidate and feedback but must verify proposed changes against the
+image; it returns a complete plain Markdown page. Each revision is judged in
+a fresh request without earlier review feedback, to detect new regressions.
+Uncertainty-only findings with no renderer errors stop without guessed
+corrections. After at most two corrective attempts, unresolved findings are
+published as `needs_review`, not
+hidden or retried indefinitely. Empty/malformed/incomplete judge or corrective
+responses fail explicitly. These in-run attempts are distinct from the
+separately approved delete-and-restart gate for a failed whole import. Executed
+MathJax errors also trigger corrections within that same budget, even if the
+judge reports no findings.
+
+Raw `*.response.json` artifacts still retain complete API responses before
+checks. Their page response text is Markdown directly; figure and judge response
+text is JSON. Every reviewed candidate has exact Markdown and full API evidence:
+`raw/pages/page-NNNN.attempt-AA.md`, `.attempt-AA.response.json`, and
+`.attempt-AA.review.response.json`. The existing `page-NNNN.response.json`
+contains the selected final transcription on completion. Manifest schema 3
+adds configuration `page_review`/`max_page_retries` and per-page `review`
+status/attempts, including artifact references, findings, and local format
+issues. The planner checks these additional references when present.
+Selected page Markdown is unchanged, including backslashes and whitespace,
+with only page markers and inter-page separators added during assembly.
+Existing completed bundles remain valid and are not rescanned or modified;
+canonical artifact references, manifest schema, and exit meanings stay supported.
+
+A non-mutating check flags known LaTeX commands leaked
 into ordinary Markdown as `needs_review`, with page and block-line evidence.
-It preserves the generated Markdown and raw responses; it does not repair
-content, rescan old bundles, or prove transcription fidelity. See the skill
-instructions for the bounded command list and exclusions.
+Another local check flags Unicode `Cc` controls except newline, carriage return,
+and tab, with page/line/code-point evidence. These checks preserve candidate
+text and raw responses, and supply findings to the judge rather than applying
+string repairs. Remaining local findings require review even if the judge
+reports no discrepancy.
+
+**Every candidate is also checked by an executed offline MathJax renderer**,
+including with `--no-page-review`. A local Node helper uses `liteAdaptor` and
+in-memory SVG—no browser, network, SVG files, or screenshots. It pins MathJax
+3.2.2 to match Generate's bundled version and uses the same selected
+base/ams/newcommand/configmacros packages and llbracket/rrbracket macros,
+without a runtime dependency on Generate or autoloaded extensions. It rejects
+active/external commands and unexpected controls before TeX conversion.
+Markdown extraction mirrors publication's CommonMark/tables/dollar-math
+configuration, excluding code, image alt text, and destinations; reports retain
+formula IDs, exact TeX, display mode, and page-local block lines. Prior selected
+page expressions are replayed to preserve macro context, but earlier rejected
+candidates cannot pollute a new check.
+
+The checker captures TeX errors and error nodes, not just process exit status.
+Its reports are retained as `raw/pages/page-NNNN.math.json` for the final
+candidate and `.attempt-AA.math.json` for reviewed attempts; `raw_math`
+references and `configuration.mathjax_version` extend manifest schema 3.
+Missing/unusable Node or MathJax blocks conversion before cloud work; timeout
+(60 seconds per batch), malformed protocol, and unexpected engine failures
+remain explicit import failures. Normal formula errors feed the judge and
+corrective transcriber and remain `needs_review` if unresolved. The read-only
+planner runs a local smoke test and reports Node setup commands without
+installing packages. Historical completed bundles need no new evidence.
+
+Neither renderer checks nor the same-model judge prove source fidelity,
+mathematical correctness, extraction completeness, resolved references, or
+final layout. A wrong inequality can render successfully, and unrecognized or
+missing math delimiters can escape formula extraction. See the skill
+instructions for the complete contract and exclusions.
 
 For read-only inspection with the environment already installed:
 
@@ -126,7 +234,9 @@ Add `--env-file .env` before `python` and `--check-env` after the input to check
 the effective configuration without dumping its values. Plans show only resource
 hosts and a configuration fingerprint for approval and change detection.
 Inspection never converts or cleans up outputs. Plans use PowerShell quoting
-and include argument arrays for other shells.
+and include argument arrays for other shells, `page_review` settings, and
+per-eligible-document `page_model_requests` bounds. Existing completed bundles
+are skipped even if their historical imports did not use the judge.
 
 ## Faithful Ingest
 
@@ -346,6 +456,7 @@ uv run --package clew-import --locked --no-sync python -B -m unittest discover -
 uv run --package clew-ingest --locked --no-sync python -B -m unittest discover -s "tests\clew_ingest"
 uv run --package clew-enrich --locked --no-sync python -B -m unittest discover -s "tests\clew_enrich"
 uv run --package clew-generate --locked --no-sync python -B -m unittest discover -s "tests\clew_generate"
+npm run test:mathjax
 ```
 
 Script tests and fixtures belong to `tests/clew_import/`, `tests/clew_ingest/`,
