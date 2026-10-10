@@ -620,6 +620,38 @@ class IngestTests(unittest.TestCase):
                 load_bundle(root)
         manifest_path.write_bytes(original)
 
+    def test_additive_import_review_metadata_preserves_ingest_handoff(self):
+        plan = self.plan()
+        root = Path(plan.sources[0].bundle)
+        manifest_path = root / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["configuration"] = {
+            "page_review": True, "max_page_retries": 2, "mathjax_version": "3.2.2",
+        }
+        page = manifest["pages"][0]
+        page["raw_math"] = "raw/pages/page-0001.math.json"
+        (root / page["raw_math"]).write_text('{"expressions":[]}', encoding="utf-8")
+        attempt = {
+            "number": 1, "raw_markdown": "raw/pages/page-0001.attempt-01.md",
+            "raw_response": page["raw_response"],
+            "raw_review": "raw/pages/page-0001.attempt-01.review.response.json",
+            "raw_math": page["raw_math"],
+            "findings": [], "format_issues": [],
+        }
+        (root / attempt["raw_markdown"]).write_bytes((root / "document.md").read_bytes())
+        (root / attempt["raw_review"]).write_text('{"findings":[]}', encoding="utf-8")
+        page["review"] = {"status": "passed", "attempts": [attempt]}
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        self.assertEqual(load_bundle(root).metadata["pages"], [1])
+        data = plan.model_dump()
+        data["sources"][0]["fingerprint"] = load_bundle(root).fingerprint
+        reviewed_plan = Plan.model_validate(data)
+        checked, _ = check(reviewed_plan)
+        self.assertEqual(checked["issues"], [])
+        report = materialize(reviewed_plan, plan_hash(reviewed_plan))
+        self.assertEqual(report["status"], "validated")
+        self.assertEqual(validate(Path(plan.destination))["status"], "validated")
+
     def test_portable_paths_and_cloud_placeholders(self):
         for value in ("../escape", "/absolute", "C:\\escape", "a\\b", "a/../b",
                       "a/CON.md", "a/name.", "a//b", "a/name:stream"):

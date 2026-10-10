@@ -1,0 +1,12 @@
+{
+  "name": "@clew/import",
+  "version": "1.0.0",
+  "private": true,
+  "engines": {
+    "node": ">=22",
+    "npm": ">=10"
+  },
+  "dependencies": {
+    "mathjax-full": "3.2.2"
+  }
+}

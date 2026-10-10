@@ -18,6 +18,7 @@ from urllib.parse import urlsplit
 import pymupdf
 
 import digest_pdf
+from math_render import MathRenderError, check_math_runtime
 
 SKILL_ROOT = Path(__file__).resolve().parents[1]
 
@@ -261,6 +262,29 @@ def inspect_completed(
         numbers.append(page["number"])
         artifact(output, page.get("raw_image"))
         artifact(output, page.get("raw_response"))
+        review = page.get("review")
+        configuration = manifest.get("configuration")
+        if isinstance(configuration, dict) and configuration.get("mathjax_version") is not None:
+            artifact(output, page.get("raw_math"))
+        elif page.get("raw_math") is not None:
+            artifact(output, page["raw_math"])
+        if isinstance(configuration, dict) and configuration.get("page_review") is True and review is None:
+            raise InspectionError("Reviewed import is missing its page review record.")
+        if review is not None:
+            if (
+                not isinstance(review, dict) or review.get("status") not in ("passed", "needs_review")
+                or not isinstance(review.get("attempts"), list) or not review["attempts"]
+            ):
+                raise InspectionError("Manifest page review record is invalid.")
+            for attempt in review["attempts"]:
+                if not isinstance(attempt, dict):
+                    raise InspectionError("Manifest page review attempt is invalid.")
+                for field in ("raw_markdown", "raw_response", "raw_review"):
+                    artifact(output, attempt.get(field))
+                if isinstance(configuration, dict) and configuration.get("mathjax_version") is not None:
+                    artifact(output, attempt.get("raw_math"))
+                elif attempt.get("raw_math") is not None:
+                    artifact(output, attempt["raw_math"])
     if sorted(numbers) != wanted:
         raise InspectionError("Existing import page coverage does not match the requested scope.")
     for figure in figures:
@@ -302,6 +326,19 @@ def environment_blockers(project: Path, check_env: bool) -> list[str]:
             blockers.append("Project environment and lock are missing; approve initial uv sync before planning.")
     if shutil.which("uv") is None:
         blockers.append("UV is unavailable; no global-Python conversion fallback is allowed.")
+    if shutil.which("npm") is None:
+        blockers.append("npm >=10 is unavailable; approve separate host setup before installing dependencies.")
+    if not (project / "package.json").is_file():
+        blockers.append("Node setup root is missing package.json; restore the declared dependency manifest.")
+    if not (project / "package-lock.json").is_file():
+        if is_workspace(project):
+            blockers.append("Workspace root is missing package-lock.json; restore the repository lock before conversion.")
+        else:
+            blockers.append("Standalone npm lock is missing; approve initial npm install before conversion.")
+    try:
+        check_math_runtime()
+    except MathRenderError as error:
+        blockers.append(str(error))
     if check_env:
         try:
             settings = digest_pdf.settings_from_env(os.environ)
@@ -329,6 +366,7 @@ def build_plan(
     input_path: Path, *, project: Path = PROJECT_ROOT, pages: str | None = None,
     dpi: int = 200, max_output_tokens: int = 16000,
     high_resolution_ocr: bool = False, debug: bool = False, check_env: bool = False,
+    page_review: bool = True,
 ) -> dict[str, object]:
     if not 72 <= dpi <= 600 or max_output_tokens < 1:
         raise InspectionError("Use DPI between 72 and 600 and a positive output token budget.")
@@ -367,8 +405,14 @@ def build_plan(
                     argv.append("--high-resolution-ocr")
                 if debug:
                     argv.append("--debug")
+                if not page_review:
+                    argv.append("--no-page-review")
                 entry.update(classification="convert", reason="Valid PDF and target does not exist.",
-                             argv=argv, command=powershell_command(argv))
+                             argv=argv, command=powershell_command(argv),
+                             page_model_requests={
+                                 "minimum": len(wanted) * (2 if page_review else 1),
+                                 "maximum": len(wanted) * (2 * (digest_pdf.MAX_PAGE_RETRIES + 1) if page_review else 1),
+                             })
         except (InspectionError, OSError) as error:
             entry.update(classification="blocked", reason=str(error))
         entries.append(entry)
@@ -385,14 +429,23 @@ def build_plan(
         setup.append("--all-packages")
     if (project / "uv.lock").is_file():
         setup.append("--locked")
+    node_setup = [
+        "npm", "ci" if is_workspace(project) or (project / "package-lock.json").is_file() else "install",
+        "--ignore-scripts", "--no-audit", "--no-fund",
+    ]
     return {
         "schema_version": 1, "working_directory": str(project),
         "input": str(input_path.resolve()), "entries": entries,
         "excluded_bundles": excluded, "discovery_conflicts": conflicts,
         "preflight_blockers": blockers,
         "configuration": configuration,
+        "page_review": {
+            "enabled": page_review,
+            "max_page_retries": digest_pdf.MAX_PAGE_RETRIES if page_review else 0,
+        },
         "setup_required": not (project / ".venv").is_dir(),
         "setup_command": powershell_command(setup),
+        "node_setup_command": powershell_command(node_setup),
         "requires_approval": True,
     }
 
@@ -403,6 +456,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--pages", help="Original PDF page groups; default: all")
     parser.add_argument("--dpi", type=int, default=200)
     parser.add_argument("--max-output-tokens", type=int, default=16000)
+    parser.add_argument(
+        "--no-page-review", action="store_true",
+        help="Plan without default LLM page judging or corrective attempts",
+    )
     parser.add_argument("--high-resolution-ocr", action="store_true")
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--check-env", action="store_true", help="Validate effective environment without printing values")
@@ -411,6 +468,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         plan = build_plan(
             args.input, pages=args.pages, dpi=args.dpi, max_output_tokens=args.max_output_tokens,
             high_resolution_ocr=args.high_resolution_ocr, debug=args.debug, check_env=args.check_env,
+            page_review=not args.no_page_review,
         )
     except (InspectionError, OSError) as error:
         print(f"Inspection failed: {error}", file=sys.stderr)

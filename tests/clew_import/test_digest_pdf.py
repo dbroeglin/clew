@@ -423,6 +423,149 @@ class RunDiagnosticsTests(unittest.TestCase):
         self.output = self.root / "existing"
         self.output.mkdir()
 
+    @staticmethod
+    def windows_error(code: int) -> OSError:
+        error = OSError("Synthetic Windows replacement failure")
+        error.winerror = code
+        return error
+
+    def test_transient_windows_replacement_errors_retry_without_rewriting_diagnostics(self) -> None:
+        original_replace = Path.replace
+        run = ingestion.RunDiagnostics(self.root / "source.pdf", self.output)
+        run.report_path = self.output / "run.json"
+        previous = '{"status": "previous"}'
+        for code in (5, 32, 33):
+            run.report_path.write_text(previous, encoding="utf-8")
+            calls = []
+
+            def replace(pending, target):
+                calls.append((pending, target))
+                if len(calls) <= 2:
+                    raise self.windows_error(code)
+                return original_replace(pending, target)
+
+            def wait(delay):
+                self.assertEqual(run.report_path.read_text(encoding="utf-8"), previous)
+                self.assertEqual(json.loads(calls[-1][0].read_text(encoding="utf-8"))["status"], "running")
+
+            with (
+                self.subTest(winerror=code),
+                patch.object(Path, "replace", autospec=True, side_effect=replace) as replacing,
+                patch.object(ingestion.time, "sleep", side_effect=wait) as sleeping,
+                patch.object(ingestion, "write_json", wraps=ingestion.write_json) as writing,
+                self.assertLogs("ingestion", "WARNING") as logs,
+            ):
+                run.update("Saving progress")
+            self.assertEqual(replacing.call_count, 3)
+            self.assertEqual(writing.call_count, 1)
+            self.assertEqual([call.args[0] for call in sleeping.call_args_list], [0.1, 0.2])
+            self.assertIn(f"WinError {code}", "\n".join(logs.output))
+            self.assertIn("local retry 2/5", "\n".join(logs.output))
+            self.assertEqual(json.loads(run.report_path.read_text(encoding="utf-8"))["stage"], "Saving progress")
+            self.assertFalse((self.output / "run.json.tmp").exists())
+
+    def test_persistent_windows_replacement_error_exhausts_bounded_backoff(self) -> None:
+        run = ingestion.RunDiagnostics(self.root / "source.pdf", self.output)
+        run.report_path = self.output / "run.json"
+        previous = '{"status": "previous"}'
+        run.report_path.write_text(previous, encoding="utf-8")
+        error = self.windows_error(5)
+        with (
+            patch.object(Path, "replace", side_effect=error) as replacing,
+            patch.object(ingestion.time, "sleep") as sleeping,
+            self.assertLogs("ingestion", "WARNING") as logs,
+            self.assertRaises(OSError) as caught,
+        ):
+            run.save()
+        self.assertIs(caught.exception, error)
+        self.assertEqual(replacing.call_count, 6)
+        self.assertEqual([call.args[0] for call in sleeping.call_args_list], [0.1, 0.2, 0.4, 0.8, 1.6])
+        self.assertAlmostEqual(sum(call.args[0] for call in sleeping.call_args_list), 3.1)
+        self.assertEqual(len(logs.output), 5)
+        self.assertEqual(run.report_path.read_text(encoding="utf-8"), previous)
+        self.assertTrue((self.output / "run.json.tmp").is_file())
+
+    def test_other_replacement_errors_and_temporary_write_errors_are_not_retried(self) -> None:
+        run = ingestion.RunDiagnostics(self.root / "source.pdf", self.output)
+        run.report_path = self.output / "run.json"
+        for error in (PermissionError("Non-Windows denial"), self.windows_error(2), self.windows_error(112)):
+            with (
+                self.subTest(error=error),
+                patch.object(Path, "replace", side_effect=error) as replacing,
+                patch.object(ingestion.time, "sleep") as sleeping,
+                self.assertRaises(OSError) as caught,
+            ):
+                run.save()
+            self.assertIs(caught.exception, error)
+            replacing.assert_called_once()
+            sleeping.assert_not_called()
+        with (
+            patch.object(ingestion, "write_json", side_effect=self.windows_error(5)),
+            patch.object(Path, "replace") as replacing,
+            patch.object(ingestion.time, "sleep") as sleeping,
+            self.assertRaises(OSError),
+        ):
+            run.save()
+        replacing.assert_not_called()
+        sleeping.assert_not_called()
+
+    def test_backoff_sleep_remains_interruptible(self) -> None:
+        run = ingestion.RunDiagnostics(self.root / "source.pdf", self.output)
+        run.report_path = self.output / "run.json"
+        with (
+            patch.object(Path, "replace", side_effect=self.windows_error(32)) as replacing,
+            patch.object(ingestion.time, "sleep", side_effect=KeyboardInterrupt()) as sleeping,
+            self.assertLogs("ingestion", "WARNING"),
+            self.assertRaises(KeyboardInterrupt),
+        ):
+            run.save()
+        replacing.assert_called_once()
+        sleeping.assert_called_once_with(0.1)
+
+    @unittest.skipUnless(sys.platform == "win32", "Requires Windows file-sharing semantics")
+    def test_real_windows_reader_lock_recovers_after_reader_closes(self) -> None:
+        import ctypes
+        from ctypes import wintypes
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.CreateFileW.argtypes = (
+            wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, wintypes.LPVOID,
+            wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE,
+        )
+        kernel32.CreateFileW.restype = wintypes.HANDLE
+        kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
+        kernel32.CloseHandle.restype = wintypes.BOOL
+        run = ingestion.RunDiagnostics(self.root / "source.pdf", self.output)
+        run.report_path = self.output / "run.json"
+        previous = '{"status": "previous"}'
+        run.report_path.write_text(previous, encoding="utf-8")
+        # A reader allows read/write sharing, but not deletion or replacement.
+        handle = kernel32.CreateFileW(str(run.report_path), 0x80000000, 3, None, 3, 0x80, None)
+        self.assertNotEqual(handle, wintypes.HANDLE(-1).value, str(ctypes.WinError(ctypes.get_last_error())))
+        closed = False
+
+        def release_lock(delay):
+            nonlocal closed
+            self.assertEqual(run.report_path.read_text(encoding="utf-8"), previous)
+            self.assertTrue(kernel32.CloseHandle(handle))
+            closed = True
+
+        try:
+            with (
+                patch.object(ingestion.time, "sleep", side_effect=release_lock) as sleeping,
+                self.assertLogs("ingestion", "WARNING"),
+            ):
+                run.update("Saving progress after reader closes")
+            sleeping.assert_called_once_with(0.1)
+            self.assertEqual(
+                json.loads(run.report_path.read_text(encoding="utf-8"))["stage"],
+                "Saving progress after reader closes",
+            )
+            self.assertFalse((self.output / "run.json.tmp").exists())
+        finally:
+            if not closed:
+                kernel32.CloseHandle(handle)
+
     def test_existing_old_partial_run_explains_that_original_error_is_unavailable(self) -> None:
         sentinel = self.output / "source-extraction.json"
         sentinel.write_text("unchanged", encoding="utf-8")
@@ -544,6 +687,7 @@ class PipelineTests(unittest.TestCase):
         **options: object,
     ) -> tuple[dict[str, object], Mock, Mock]:
         document, openai = clients(result, outputs, crops)
+        options.setdefault("page_review", False)
         manifest = ingestion.digest_pdf(
             self.source, self.output, document, openai, "vision-deployment", dpi=72, **options
         )
@@ -725,9 +869,10 @@ class PipelineTests(unittest.TestCase):
             "\n\n$$\n" r"\begin{aligned}x&=\frac{1}{2}\\y&=\text{oui}\end{aligned}"
             "\n$$\n\n",
         )
-        manifest, _, _ = self.run_digest(result, [response(page)], pages="1")
-        self.assertEqual(manifest["status"], "extracted")
-        self.assertEqual(manifest["issues"], [])
+        with self.assertLogs("ingestion", "WARNING"):
+            manifest, _, _ = self.run_digest(result, [response(page)], pages="1")
+        self.assertEqual(manifest["status"], "needs_review")
+        self.assertIn(r"Undefined control sequence \boldsymbol", manifest["issues"][0])
         self.assertNotIn("fixes", manifest["pages"][0])
         self.assertNotIn("formulas", manifest["pages"][0])
         self.assertNotIn("formula_corrections", manifest["pages"][0])
@@ -815,7 +960,8 @@ class PipelineTests(unittest.TestCase):
             transport=transport, polling_interval=0, api_version=ingestion.DI_API_VERSION,
         ) as document:
             manifest = ingestion.digest_pdf(
-                self.source, self.output, document, openai, "vision-deployment", dpi=72
+                self.source, self.output, document, openai, "vision-deployment", dpi=72,
+                page_review=False,
             )
         self.assertEqual(manifest["status"], "extracted")
         self.assertEqual(transport.uploaded, self.source.read_bytes())
@@ -834,7 +980,7 @@ class PipelineTests(unittest.TestCase):
         )
 
     def test_real_openai_sdk_sends_explicit_multimodal_messages_and_response_formats(self) -> None:
-        for schema in (None, ingestion.FigureDecision):
+        for schema in (None, ingestion.FigureDecision, ingestion.PageReview):
             with self.subTest(schema=schema):
                 self.assert_openai_wire_format(schema)
 
@@ -849,7 +995,7 @@ class PipelineTests(unittest.TestCase):
             self.assertRaises((ingestion.APIConnectionError, OSError)),
         ):
             ingestion.analyze_image(
-                client, "vision", ingestion.PAGE_PROMPT if schema is None else ingestion.FIGURE_PROMPT,
+                client, "vision", ingestion.PAGE_PROMPT if schema is None else ingestion.PAGE_REVIEW_PROMPT,
                 {"page_number": "0001"}, png_bytes(), schema, self.root / "response.json", 16000,
             )
         send.assert_called_once()
@@ -872,8 +1018,8 @@ class PipelineTests(unittest.TestCase):
             self.assertEqual(payload["text"]["format"], {"type": "text"})
         else:
             self.assertEqual(payload["text"]["format"], {
-                "type": "json_schema", "name": "FigureDecision", "strict": True,
-                "schema": ingestion.FigureDecision.model_json_schema(),
+                "type": "json_schema", "name": schema.__name__, "strict": True,
+                "schema": schema.model_json_schema(),
             })
 
     def test_uncertainty_and_cross_page_crops_require_review(self) -> None:
@@ -1008,7 +1154,9 @@ class PipelineTests(unittest.TestCase):
             return response(next(responses))
 
         openai.responses.create.side_effect = return_page
-        ingestion.digest_pdf(self.source, self.output, document, openai, "vision", dpi=72)
+        ingestion.digest_pdf(
+            self.source, self.output, document, openai, "vision", dpi=72, page_review=False,
+        )
         self.assertTrue((self.output / "document.md").is_file())
         self.assertFalse((self.output / "pages").exists())
 
@@ -1020,16 +1168,18 @@ class PipelineTests(unittest.TestCase):
         with (
             patch.object(
                 ingestion.MarkdownIt, "parse",
-                side_effect=[[], [], ValueError("Synthetic invalid syntax")],
+                side_effect=[[], [], [], [], ValueError("Synthetic invalid syntax")],
             ) as parse,
             self.assertRaisesRegex(ingestion.DigestionError, "Markdown format parser failed"),
         ):
-            ingestion.digest_pdf(self.source, self.output, document, openai, "vision", dpi=72)
+            ingestion.digest_pdf(
+                self.source, self.output, document, openai, "vision", dpi=72, page_review=False,
+            )
         expected = "<!-- page: 1 -->\n\n# First\n\n<!-- page: 2 -->\n\n# Second"
         self.assertEqual(openai.responses.create.call_count, 2)
         self.assertEqual(
             [call.args[0] for call in parse.call_args_list],
-            ["# First", "# Second", expected],
+            ["# First", "# First", "# Second", "# Second", expected],
         )
         self.assertEqual(
             (self.output / "raw" / "assembled.md").read_bytes(), expected.encode("utf-8")
@@ -1047,7 +1197,9 @@ class PipelineTests(unittest.TestCase):
             response(page_result("Authoritative first page")), HttpResponseError("Second page unavailable"),
         ]
         with self.assertRaises(HttpResponseError):
-            ingestion.digest_pdf(self.source, self.output, document, openai, "vision", dpi=72)
+            ingestion.digest_pdf(
+                self.source, self.output, document, openai, "vision", dpi=72, page_review=False,
+            )
         self.assertTrue((self.output / "raw" / "pages" / "page-0001.response.json").exists())
         self.assertFalse((self.output / "document.md").exists())
         self.assertFalse((self.output / "manifest.json").exists())
@@ -1130,7 +1282,11 @@ class CliTests(unittest.TestCase):
         return code, "\n".join(logs.output)
 
     def test_missing_configuration_is_a_clear_nonzero_failure(self) -> None:
-        with patch.dict("os.environ", {}, clear=True), self.assertLogs("ingestion", "ERROR") as logs:
+        with (
+            patch.dict("os.environ", {}, clear=True),
+            patch.object(ingestion, "check_math_runtime"),
+            self.assertLogs("ingestion", "ERROR") as logs,
+        ):
             code = ingestion.main([str(self.source), "--output", str(self.output)])
         self.assertEqual(code, 1)
         self.assertIn("AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT", " ".join(logs.output))
@@ -1250,7 +1406,7 @@ class CliTests(unittest.TestCase):
             di_result(["One", "Two"]),
             [response(page), response(page_result("Second page"))],
         )
-        code, logs = self.configured_main(document, openai)
+        code, logs = self.configured_main(document, openai, "--no-page-review")
         self.assertEqual(code, 2)
         self.assertIn("Page 1, line 1: possible LaTeX leakage", logs)
         self.assertEqual(openai.responses.create.call_count, 2)
@@ -1265,6 +1421,35 @@ class CliTests(unittest.TestCase):
         self.assertEqual(
             (self.output / "source" / self.source.name).read_bytes(), self.source.read_bytes(),
         )
+
+    def test_cli_enables_page_review_by_default_and_can_disable_it(self) -> None:
+        for args, expected in (((), True), (("--no-page-review",), False)):
+            with (
+                self.subTest(args=args),
+                patch.object(ingestion, "digest_pdf", return_value={"status": "extracted"}) as digest,
+            ):
+                code, _ = self.configured_main(Mock(), Mock(), *args)
+            self.assertEqual(code, 0)
+            self.assertEqual(digest.call_args.kwargs["page_review"], expected)
+
+    def test_unresolved_judge_findings_return_exit_2_without_deleting_or_rerunning_di(self) -> None:
+        report = ingestion.PageReview(findings=[ingestion.PageFinding(
+            category="uncertain", location="bottom formula",
+            description="The denominator is not readable.",
+            source_evidence="The source image is blurred at the denominator.",
+            instruction="Keep an unreadable marker, do not guess.",
+        )])
+        document, openai = clients(
+            di_result(["One", "Two"]),
+            [response("One"), response(report), response("Two"), response(ingestion.PageReview(findings=[]))],
+        )
+        code, logs = self.configured_main(document, openai)
+        self.assertEqual(code, 2)
+        self.assertIn("Page 1, bottom formula: LLM uncertain", logs)
+        self.assertEqual(openai.responses.create.call_count, 4)
+        document.begin_analyze_document.assert_called_once()
+        self.assertTrue((self.output / "document.md").is_file())
+        self.assertTrue((self.output / "raw" / "pages" / "page-0001.attempt-01.review.response.json").is_file())
 
     def test_pdf_backend_error_is_reported_as_failure(self) -> None:
         settings = ingestion.Settings(

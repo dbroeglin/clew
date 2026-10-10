@@ -1,12 +1,16 @@
 # ADR-0003: Autonomous, portable skills
 
-- Status: Accepted; script-test ownership partially superseded by ADR-0004
+- Status: Accepted; script-test ownership partially superseded by ADR-0004; refined by ADR-0011
 - Date: 2026-10-04
 
 > **Supersession note:** [ADR-0004](0004-faithful-multi-bundle-ingest.md)
 > places executable script tests and fixtures outside skill directories, in
 > repository-owned suites. Workflow evaluations may remain bundled. Runtime
 > portability and the remaining rules in this record are unchanged.
+> **Refinement:** [ADR-0011](0011-npm-workspace-and-offline-import-mathjax.md)
+> extends skill-owned dependency declarations and host-owned resolution to an
+> npm workspace for Import's local MathJax checker, with root installation and
+> a standalone Node dependency contract.
 
 ## Context
 

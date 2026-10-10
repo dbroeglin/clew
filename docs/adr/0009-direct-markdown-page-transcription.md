@@ -1,7 +1,13 @@
 # ADR-0009: Direct Markdown page transcription
 
-- Status: Accepted
+- Status: Accepted; refined by ADR-0010
 - Date: 2026-10-09
+
+> **Refinement:** [ADR-0010](0010-source-grounded-page-review-and-retries.md)
+> adds independent page judging, bounded corrective candidates, and retained
+> attempt evidence. The selected candidate remains direct Markdown without
+> inner JSON decoding or Python string repairs; figure classification stays
+> structured. Its per-attempt judge report is separate from page authorship.
 
 ## Context
 
