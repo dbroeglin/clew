@@ -45,6 +45,22 @@ supported `\n`, `\r\n`, and `\r` line endings, and derive generated text's
 newline from its source when preserving document formatting. Use platform-
 independent path APIs rather than hard-coded separators.
 
+## Validation before proposing a pull request
+
+For changes to Clew-owned code and first-party skills, identify the affected
+test suites and run their focused checks before proposing that the work is ready
+for a pull request. Run the applicable full suite as well when it is practical;
+report any suite that remains blocked or unrun. Do not propose a pull request
+while an applicable check is failing or blocked without clearly stating the
+reason and the remaining validation.
+
+When a required test dependency is missing, inspect the owning project's
+manifest and lockfile, then install or restore the declared dependencies using
+the documented locked setup before rerunning the check. Do not update manifests
+or lockfiles just to make a test command work. This validation gate applies to
+Clew-owned code and first-party skills only; exclude skills imported or managed
+through APM unless the task specifically changes Clew's APM integration.
+
 For every task and pull request, assess documentation impact before considering
 the work complete. Update all affected public documentation, contributor
 guidance, skill instructions, examples, commands, and ADR index/status links in
