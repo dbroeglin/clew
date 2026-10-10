@@ -513,19 +513,23 @@ Python additionally inserts metadata, compact original-PDF-page provenance,
 required destination-only PDF/self-link remaps, and end-of-document review
 warnings. Each section entry links to its starting page as `PDF p. N`;
 exercise/correction units and learning callouts put that link on their final
-line, after any verified cross-document relationship links. Exercise/correction
-entry anchors remain at the beginning; question/answer ownership comes from their
-enclosing unit scopes, not redundant parent backlinks. Do not
-repeat provenance at page breaks or list every covered page. Generated
-bookkeeping uses standalone Obsidian `%%` comments; source comments are retained
-unchanged. Correction units link to `[Exercise](...)`; matched answers link to
-`[Question](...)` on their own footer lines, without duplicated prefixes or
-metadata wrappers. The validator checks their labels, destination kinds and
-ownership without a plugin. Only this generated format is supported. The agent
-authors selectors, IDs, relationships/evidence, and review reasons, **not**
-replacement source Markdown. Generic text replacement, OCR repair, deletion,
-reordering, blanket regex classification, and whole-tree reserialization are
-not operations.
+line, after any verified cross-document relationship links. In a learning
+callout, relationship and PDF links share that final quoted line, separated by
+` · `, with the PDF link last. Keep one blank quoted line before the footer;
+collapse duplicate empty quote lines only at that terminal boundary, preserve
+body-internal spacing, and add no empty quoted lines after the footer.
+Exercise/correction entry anchors remain at the beginning; question/answer
+ownership comes from their enclosing unit scopes, not redundant parent
+backlinks. Do not repeat provenance at page breaks or list every covered page.
+Generated bookkeeping uses standalone Obsidian `%%` comments; source comments
+are retained unchanged. Correction units link to `[Exercise](...)`; matched
+answers link to `[Question](...)` on the same footer line as the PDF link,
+without duplicated prefixes or metadata wrappers. The validator checks their
+labels, destination kinds and ownership without a plugin. Only this generated
+format is supported. The agent authors selectors, IDs, relationships/evidence,
+and review reasons, **not** replacement source Markdown. Generic text
+replacement, OCR repair, deletion, reordering, blanket regex classification,
+and whole-tree reserialization are not operations.
 
 Keep genuine headings for whole-section navigation; do not generate section
 block IDs. Section IDs in `%%` scope markers are private structural identities,

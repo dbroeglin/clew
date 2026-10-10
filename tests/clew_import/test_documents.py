@@ -279,7 +279,8 @@ class DocumentTests(unittest.TestCase):
         self.assertEqual(output.count("(course.pdf#page="), 3)
         self.assertIn("[PDF p. 1](course.pdf#page=1)", output)
         self.assertNotIn("^sec-geometric", output)
-        self.assertIn("> ![Diagram](figures/a.png)\n>\n> [PDF p. 1](course.pdf#page=1)", output)
+        self.assertIn("> ![Diagram](figures/a.png)\n>\n"
+                      "> [PDF p. 1](course.pdf#page=1)", output)
         self.assertNotIn("Source:", output)
         self.assertNotIn("PDF, page", output)
         self.assertNotIn("<!-- page:", output)
@@ -300,13 +301,16 @@ class DocumentTests(unittest.TestCase):
         root = Path(plan.destination)
         path = root / "Correction-solutions" / "solutions.md"
         text = path.read_text()
-        self.assertIn("> [Question](../Exercise-sheet/sheet.md#^q-1)\n"
-                      "> [PDF p. 1](solutions.pdf#page=1)", text)
+        footer = next(line for line in text.splitlines() if "[Question]" in line)
+        self.assertIn("\u00b7", footer)
+        self.assertLess(footer.index("[Question]"), footer.index("[PDF p. 1]"))
         self.assertLess(text.index("> 1. The limit"), text.index("> [Question]"))
         self.assertGreater(text.index("[Exercise]"), text.index("^r-2"))
         self.assertNotIn("::", text)
         self.assertNotIn("[Correction]", text)
         sheet = (root / "Exercise-sheet" / "sheet.md").read_text()
+        self.assertIn("> 1. Determine its limit.\n> \n"
+                      "> [PDF p. 1](sheet.pdf#page=1)", sheet)
         self.assertNotIn("[Exercise]", sheet)
         self.assertEqual(validate(root, fidelity=True)["errors"], 0)
 
@@ -334,10 +338,92 @@ class DocumentTests(unittest.TestCase):
         root = Path(plan.destination)
         output = (root / "Course-existing" / "existing.md").read_text()
         self.assertEqual(report["errors"], 0, report)
-        self.assertIn("> Source-authored statement.\n>\n> [PDF p. 1](existing.pdf#page=1)\n\n"
+        self.assertIn("> Source-authored statement.\n>\n"
+                      "> [PDF p. 1](existing.pdf#page=1)\n\n"
                       "^def-existing", output)
         self.assertEqual(output.count("^def-existing"), 1)
         self.assertIn("<!-- Source-authored comment. -->", output)
+        self.assertEqual(validate(root, fidelity=True)["errors"], 0)
+
+    def test_callout_footer_collapses_duplicate_terminal_quote_blanks(self):
+        document = self.document(
+            "compact-existing",
+            "<!-- page: 1 -->\n\n"
+            "> [!definition] Existing definition\n"
+            "> Source-authored statement.\n"
+            ">\n"
+            "> \n"
+            ">\n\n"
+            "^def-existing\n")
+        document["operations"] = [
+            {"op": "callout", "kind": "definition", "id": "def-existing",
+             "start": self.block(document, "> [!definition]", kind="quote"),
+             "end": self.block(document, "^def-existing", kind="paragraph")},
+        ]
+        plan = self.plan([document])
+        report = materialize(plan, plan_hash(plan))
+        root = Path(plan.destination)
+        output = (root / "Course-compact-existing" / "compact-existing.md").read_text()
+        self.assertEqual(report["errors"], 0, report)
+        self.assertIn("> Source-authored statement.\n>\n"
+                      "> [PDF p. 1](compact-existing.pdf#page=1)\n\n"
+                      "^def-existing", output)
+        self.assertNotIn("> \n>\n>\n> [PDF", output)
+        self.assertEqual(validate(root, fidelity=True)["errors"], 0)
+
+    def test_compact_callout_footer_preserves_source_line_endings(self):
+        for name, newline in (("lf", "\n"), ("crlf", "\r\n"), ("cr", "\r")):
+            with self.subTest(newline=repr(newline)):
+                identifier = f"{name}-footer"
+                document = self.document(
+                    identifier,
+                    newline.join(["<!-- page: 1 -->", "", "## Definition", "",
+                                  "Source-authored statement.", "", ""]),
+                )
+                document["operations"] = [
+                    {"op": "callout", "kind": "definition", "id": f"def-{name}",
+                     "start": self.block(document, "## Definition", kind="heading"),
+                     "end": self.block(document, "Source-authored statement.", kind="paragraph")},
+                ]
+                plan_data = self.plan([document]).model_dump()
+                plan_data["destination"] = str(self.vault / "Maths" / identifier)
+                plan = Plan.model_validate(plan_data)
+                report = materialize(plan, plan_hash(plan))
+                root = Path(plan.destination)
+                output = (root / f"Course-{identifier}" / f"{identifier}.md").read_bytes().decode("utf-8")
+                self.assertEqual(report["errors"], 0, report)
+                self.assertIn(
+                    f"> Source-authored statement.{newline}>{newline}"
+                    f"> [PDF p. 1]({identifier}.pdf#page=1){newline}",
+                    output)
+                if newline == "\n":
+                    self.assertNotIn("\r", output)
+                elif newline == "\r\n":
+                    self.assertNotIn("\n", output.replace("\r\n", ""))
+                else:
+                    self.assertNotIn("\n", output)
+                self.assertEqual(validate(root, fidelity=True)["errors"], 0)
+
+    def test_callout_footer_spacing_retains_body_internal_blank_lines(self):
+        document = self.document(
+            "internal-spacing",
+            "<!-- page: 1 -->\n\n"
+            "## Definition\n\n"
+            "First source paragraph.\n\n"
+            "Second source paragraph.\n\n")
+        document["operations"] = [
+            {"op": "callout", "kind": "definition", "id": "def-spacing",
+             "start": self.block(document, "## Definition", kind="heading"),
+             "end": self.block(document, "Second source paragraph.", kind="paragraph")},
+        ]
+        plan = self.plan([document])
+        report = materialize(plan, plan_hash(plan))
+        root = Path(plan.destination)
+        output = (root / "Course-internal-spacing" / "internal-spacing.md").read_text()
+        self.assertEqual(report["errors"], 0, report)
+        self.assertIn("> First source paragraph.\n> \n"
+                      "> Second source paragraph.\n>\n"
+                      "> [PDF p. 1](internal-spacing.pdf#page=1)", output)
         self.assertEqual(validate(root, fidelity=True)["errors"], 0)
 
     def test_callout_footer_adds_safe_separator_after_source_without_final_newline(self):

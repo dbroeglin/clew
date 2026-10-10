@@ -16,7 +16,8 @@ from markdown_source import ANCHOR, CALLOUT, Link, MarkdownSource, source_lines
 
 RELATIONSHIP = re.compile(
     r"^(?: {0,3}>[ \t]*)?(?=\[(exercise|question)\]\()"
-    r"(\[[^\r\n]*?\]\([^\r\n]*?\))[ \t]*$", re.I)
+    r"(\[[^\r\n]*?\]\([^\r\n]*?\))"
+    r"(?: · \[PDF p\. [1-9][0-9]*\]\([^\r\n]*?\))?[ \t]*$", re.I)
 RELATIONSHIP_START = re.compile(
     r"^(?: {0,3}>[ \t]*)?\[(exercise|question)\]\(", re.I)
 OPEN_UNIT = re.compile(r"%% clew:unit (section|exercise|correction) ([A-Za-z0-9-]+) %%")
@@ -142,11 +143,12 @@ class Note:
                 match = next((item for item in matches if item.start() == start.start()), None)
                 if match is None:
                     self.finding("malformed-field", line_index,
-                                 "Relationship footer must contain exactly one native link.")
+                                 "Relationship footer must contain one native link, optionally followed "
+                                 "by its PDF link.")
                     continue
                 links = [item for item in self.source.links
-                         if item.start is not None and offset + match.start() <= item.start
-                         and item.end <= offset + match.end()]
+                         if item.start is not None and offset + match.start(2) <= item.start
+                         and item.end <= offset + match.end(2)]
                 if len(links) != 1 or links[0].image:
                     self.finding("malformed-field", line_index,
                                  "Relationship footer must contain exactly one non-embedded link.")

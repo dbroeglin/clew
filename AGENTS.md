@@ -39,6 +39,12 @@ development checks in [the skills reference](docs/skills.md). Portable skills
 must still contain their complete operating instructions; the reference is not
 a runtime dependency.
 
+Write and test code portably across Windows, macOS, and Linux. In particular,
+do not assume a platform-specific newline: preserve or explicitly handle
+supported `\n`, `\r\n`, and `\r` line endings, and derive generated text's
+newline from its source when preserving document formatting. Use platform-
+independent path APIs rather than hard-coded separators.
+
 For every task and pull request, assess documentation impact before considering
 the work complete. Update all affected public documentation, contributor
 guidance, skill instructions, examples, commands, and ADR index/status links in

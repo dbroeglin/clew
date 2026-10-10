@@ -31,11 +31,15 @@ Match statements/reasoning with source evidence, never numbering alone.
 Variants are allowed; missing matches stay unlinked with visible warnings.
 
 Use relative Markdown links with exact `Exercise` and `Question`
-labels on separate footer lines. The validator uses these conventions plus
+labels. Correction-to-exercise unit links use their own footer line. In a
+learning callout, put the verified relationship link and compact PDF provenance
+on one final quoted line, relationship first and PDF last, separated by ` · `.
+Keep one blank quoted line before the footer, collapse duplicate blank quote
+lines only at that terminal boundary, preserve internal body spacing, and add
+no quoted blank lines after links. The validator uses these conventions plus
 destination roles/kinds and ownership, not filename guesses or plugin metadata.
 Derive question/answer ownership from enclosing scopes without redundant parent
-backlinks. Keep verified cross-document links after supplied content, with
-compact PDF provenance last. Prepare
+backlinks. Keep verified cross-document links after supplied content. Prepare
 anchors now for future Aides references to questions, supplied answers and
 precise course passages. Aid authorship is not an Import responsibility.
 
