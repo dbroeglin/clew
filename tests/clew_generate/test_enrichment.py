@@ -40,7 +40,7 @@ class EnrichmentPublicationTests(unittest.TestCase):
 
     def test_import_only_keeps_existing_question_units(self):
         model = self.model()
-        self.assertEqual([e["address"] for e in model["exercises"]], ["sheet#^ex-1"])
+        self.assertEqual([e["address"] for e in model["exercises"]], ["exercise-document#^ex-1"])
         self.assertEqual(len(model["questions"]), 3)
         self.assertEqual([len(q["corrections"]) for q in model["questions"]], [1, 1, 0])
         self.assertEqual([len(q["hints"]) for q in model["questions"]], [0, 1, 0])

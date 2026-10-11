@@ -1,6 +1,6 @@
 ---
 clew_schema: 1
-id: course
+id: course-document
 type: document
 role: course
 source_pdf: course.pdf

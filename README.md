@@ -112,7 +112,9 @@ prove semantic matches, theorem boundaries, or mathematical correctness.
 
 `clew-enrich` adds question-specific hints and supplied-answer explanations to
 completed whole-document Import chapters, in separate help notes that leave
-imported documents unchanged. `clew-generate` publishes selected current notes
+imported documents unchanged. Review and approve the exact hints, explanations
+and readable course links before any help notes are added to your vault.
+`clew-generate` publishes selected current notes
 as one offline interactive HTML file. Exercises and supplied corrections stay
 grouped by their document-internal units; hints and explanations use existing
 Enrich links. Publication reads your current edits without requiring original

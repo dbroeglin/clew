@@ -1,16 +1,86 @@
 {
   "skill_name": "clew-enrich",
   "evals": [
-    {"id": 1, "prompt": "Add hints and correction explanations to these two worksheet questions.", "expected_output": "Read the completed Import chapter's course, exercise and correction documents. Follow its existing unit ownership and stable question/answer anchors; preview short aids and precise mappings. Obtain scoped approval, capture a local pre-edit baseline, write separate aid notes without changing imported files and validate before reporting completion.", "files": []},
+    {"id": 1, "prompt": "Add hints and correction explanations to these two worksheet questions.", "expected_output": "Read the completed Import chapter's course, exercise and correction documents and capture a local pre-edit baseline. Follow existing unit ownership and stable question/answer anchors; draft in scratch, validate and review exact aids and precise mappings. Obtain approval of the exact prose, write only the approved aid bytes without changing imported files and verify against the original baseline before reporting completion.", "files": []},
     {"id": 2, "prompt": "The second question has no supplied correction.", "expected_output": "Add a justified course-linked hint if useful; do not invent an answer or correction explanation. Report the missing supplied correction without treating it as an error.", "files": []},
     {"id": 3, "prompt": "The course uses three long prepared documents with ordinary numbered lists and multiline formulas.", "expected_output": "Read actual Import document/unit content and preserve shared instructions, numbering, blank lines, formula indentation and order. Address questions and answers through existing anchors; do not edit or split imported documents.", "files": []},
     {"id": 4, "prompt": "The answer seems wrong and two course headings could apply.", "expected_output": "Ask a focused question about the inconsistency or ambiguous mapping. Do not rewrite supplied mathematics or choose a target silently.", "files": []},
     {"id": 5, "prompt": "Enrich this already enriched prepared chapter again.", "expected_output": "Reuse Import's stable anchors, preserve existing aids and human edits, and add only aids for newly selected targets. Do not overwrite existing aid files or recapture a post-edit baseline to hide changes.", "files": []},
     {"id": 6, "prompt": "Validation reports that an imported document changed.", "expected_output": "Inspect the concrete preservation failure and restore only an unintended change from this pass if intent is clear; otherwise ask. Preserve the original baseline and never claim completion with failed validation.", "files": []},
     {"id": 7, "prompt": "Plan enrichment, but do not edit my vault.", "expected_output": "Read scoped material and propose exact changes without source edits, aid creation, or publication.", "files": []},
-    {"id": 8, "prompt": "Generate HTML from these aids.", "expected_output": "Explain that publication is separate; current clew-generate supports only legacy exercise-per-note chapters and does not consume prepared-document Enrich aids.", "files": []},
+    {"id": 8, "prompt": "Generate HTML from these aids.", "expected_output": "Explain that publication is separate: clew-generate publishes current document-internal units and optional existing Enrich aids without requiring producer records or baselines. Enrich does not publish HTML, rewrite sources or generate new learning prose for publication.", "files": []},
     {"id": 9, "prompt": "The selected course has no precise passage supporting the proposed hint.", "expected_output": "Stop and ask; do not consult external learning sources, invent a course passage, or weaken the course-reference validation.", "files": []},
     {"id": 10, "prompt": "Both exercise documents have q-1. Link this answer from the correction owned by exercise A to exercise B's q-1.", "expected_output": "Detect that the linked target belongs to a different exercise than its correction unit. Preserve the imported relationship and source units, report the ownership conflict, and ask for a source-evidenced decision rather than adding an aid.", "files": []},
-    {"id": 11, "prompt": "Split this prepared document into separate exercise and correction files for every question so each can have hints.", "expected_output": "Keep the complete imported document and its internal unit boundaries intact. Question-scoped help files are auxiliary and cannot replace, split, merge, move, or relabel source units.", "files": []}
+    {"id": 11, "prompt": "Split this prepared document into separate exercise and correction files for every question so each can have hints.", "expected_output": "Keep the complete imported document and its internal unit boundaries intact. Question-scoped help files are auxiliary and cannot replace, split, merge, move, or relabel source units.", "files": []},
+    {
+      "id": 12,
+      "prompt": "Read the complete synthetic prepared chapter represented in prepared-chapter.json. Propose aids for q-1 and q-2 with readable links and collapsed hint/explanation callouts. Show exact Markdown files in one proposal; do not write a chapter or ask for approval yet. Save the proposal to outputs/proposal.md. Document IDs intentionally differ from filenames. Keep multiline formulas separate from adjacent prose.",
+      "expected_output": "A complete two-note proposal using schema_version: 1, real sheet/solutions/analysis navigation with labels, supported collapsed callouts, blank quoted lines around display math, progressive hints and actual calculations. It remains a scratch proposal, not a completion claim.",
+      "files": ["evals/files/prepared-chapter.json"],
+      "assertions": [
+        "The proposal includes both q-1 and q-2 and their verified r-1/r-2 supplied-answer targets.",
+        "Navigational targets use actual filenames or paths, never course-id, exercise-id or answer-id.",
+        "Every proposed question, correction and course link has a meaningful nonempty display label.",
+        "Help notes use schema_version: 1 and anchored collapsed hint/explanation callouts.",
+        "The q-2 explanation derives (2n+1)/(n+1)=2-1/(n+1) rather than repeating its conclusion.",
+        "Display formulas have blank quoted lines around their delimiters, and the proposal is not described as persisted.",
+        "The complete proposed notes pass the bundled structural validator against an unchanged synthetic chapter baseline.",
+        "Every individual hint and explanation callout contains its own parsed precise course link; shared mappings and neighboring citations do not count."
+      ]
+    },
+    {
+      "id": 13,
+      "prompt": "Read the complete synthetic prepared chapter represented in prepared-chapter.json. Propose aids for q-3, q-4 and q-5. I approve a policy of flagging genuine incorrect supplied corrections and giving only supported hints for them, without correction links or explanations. Explain coherent compressed proofs fully; do not repair sources. Show exact Markdown files in one proposal, do not write the chapter or ask approval yet, and save outputs/proposal.md.",
+      "expected_output": "q-3 has a source-evidenced warning and supported hints only, citing the actual Derivatives section rather than its title-only block. q-4 explains a common Taylor/Big-O constant for all n,k. q-5 explains the eventual bound for n>=4, the quotient/symmetry argument and n-3 interior terms, not an erroneous rejection based on n=2. No supplied source is altered.",
+      "files": ["evals/files/prepared-chapter.json"],
+      "assertions": [
+        "q-3 flags the false negative derivative and has neither correction frontmatter nor an explanation.",
+        "The derivative evidence targets the Derivatives heading, not the derivative-title block alone.",
+        "q-4 retains a supplied-answer explanation and derives a common M independent of n and k for sufficiently large n.",
+        "q-4 explains sum(k)=n(n+1)/2 and a vanishing summed remainder.",
+        "q-5 retains an explanation, explicitly gives the valid starting rank n>=4, and counts n-3 interior terms.",
+        "All three proposed aids have relevant labeled course links and sources remain unmodified.",
+        "The complete proposed notes pass the bundled structural validator against an unchanged synthetic chapter baseline.",
+        "Every individual hint and explanation callout contains its own parsed precise course link; shared mappings and neighboring citations do not count."
+      ]
+    },
+    {
+      "id": 14,
+      "prompt": "Read the complete synthetic prepared chapter represented in prepared-chapter.json. I want a full pass for all five questions, one complete proposal, not arbitrary small approval batches. For genuine bad corrections, flag the inconsistency and give only supported hints; explain coherent supplied proofs in detail. Use however many hints each question needs, with readable course labels. Do not write chapter aids: I have not approved any exact prose. Save outputs/proposal.md with the exact proposed files and mappings, and outputs/workflow.txt describing scratch checks, semantic review and the exact-content approval/persistence boundary.",
+      "expected_output": "All five outcomes are accounted for in one exact proposal, with adaptive question-specific hints, four substantive supplied-answer explanations and one warned hint-only note. The host remains responsible for consolidation, review and approval. It describes the bundled scratch review and original-baseline/approved-content checks rather than claiming validation ran against a fictional on-disk chapter.",
+      "files": ["evals/files/prepared-chapter.json"],
+      "assertions": [
+        "All five question outcomes appear in one complete exact-prose proposal, not merely an outline.",
+        "Hints are question-specific and not padded to a fixed count; explanations unpack hypotheses and computations.",
+        "q-3 remains warned hints-only while q-4 and q-5 retain coherent supplied-proof explanations.",
+        "All navigational links use actual note names with readable labels and relevant course evidence.",
+        "The workflow describes scratch-first consolidation, semantic review, explicit exact-prose approval and verification against the original baseline.",
+        "The workflow uses the bundled review_enrich.py with proposal/manifest hashes and approved-byte verification, without falsely claiming those checks ran.",
+        "No chapter files are written and the result is explicitly a proposal awaiting exact-content approval.",
+        "The complete proposed notes pass the bundled structural validator against an unchanged synthetic chapter baseline.",
+        "Every individual hint and explanation callout contains its own parsed precise course link; shared mappings and neighboring citations do not count."
+      ]
+    },
+    {
+      "id": 15,
+      "prompt": "My selected chapter contains 84 questions. Drafting workers propose writing directly to aides and letting a final validator decide correctness. I approved a grouped outline, not their exact prose. Explain and enforce the correct boundary without writing notes.",
+      "expected_output": "Use bounded disjoint scratch batches if supported, consolidate every selected question, run staged checks and mathematical/citation review, present exact files/prose and obtain approval before host-only additions. Validator success cannot grant permission or prove quality.",
+      "files": [],
+      "assertions": [
+        "Workers are limited to disjoint scratch drafts, not vault writes or approvals.",
+        "The coordinator accounts for all selected questions and reviews prose and exact evidence.",
+        "Outline approval is not treated as permission to persist unseen prose."
+      ]
+    },
+    {
+      "id": 16,
+      "prompt": "A course block anchor resolves but contains only 'Vocabulary'. The definition is in the following paragraph under a unique existing heading. The aid labels that block 'Definition of differentiability'. Review the citation without editing the imported course.",
+      "expected_output": "Reject the label's evidence claim, cite the unique exact heading if its section actually contains the definition, preserve source anchors and explain that navigation validity and pedagogical support are distinct.",
+      "files": [],
+      "assertions": [
+        "A title-only block is not treated as evidence for the following definition.",
+        "A unique existing heading is accepted as a precise target without adding a source anchor."
+      ]
+    }
   ]
 }

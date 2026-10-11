@@ -1,6 +1,6 @@
 ---
 clew_schema: 1
-id: solutions
+id: correction-document
 type: document
 role: correction
 source_pdf: solutions.pdf

@@ -1,6 +1,6 @@
 ---
 clew_schema: 1
-id: sheet
+id: exercise-document
 type: document
 role: exercise
 source_pdf: sheet.pdf

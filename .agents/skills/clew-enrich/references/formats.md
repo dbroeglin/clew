@@ -75,11 +75,18 @@ Correction ^corr-01
 %% /clew:unit corr-01 %%
 ```
 
-Addresses include the document ID and local anchor. An `ex-01-q-01` anchor in
+Internal addresses include the document ID and local anchor. An `ex-01-q-01` anchor in
 another document is a different question. Follow explicit `Exercise` and
 `Question` footer links; never infer ownership from filenames, numbering, or
 matching anchor strings. Separate correction variants may target the same
 question. Unmatched answers and questions without answers are valid.
+
+IDs do not navigate in Obsidian. A document with `id: course-document` saved as
+`Course-analysis/analysis.md` is linked as `[[analysis#...|Readable label]]`,
+not `[[course-document#...]]`. Use a unique actual filename (with or without
+`.md`) or exact chapter-relative path such as `Course-analysis/analysis` when
+basenames are ambiguous. Markdown note paths are relative to the origin note;
+they are not resolved as IDs or bare filename searches.
 
 ## Aid notes
 
@@ -94,8 +101,8 @@ hints do not.
 schema_version: 1
 id: aid-ex-01-q-01
 type: help
-question: "[[sheet#^ex-01-q-01]]"
-correction: "[[solutions#^ex-01-r-01]]"
+question: "[[sheet#^ex-01-q-01|Exercise 1 - question 1]]"
+correction: "[[solutions#^ex-01-r-01|Supplied geometric-limit correction]]"
 ---
 
 > [!hint]
@@ -118,11 +125,55 @@ does not count as a reference. Markdown note links and wikilinks are supported.
 Links to other local note anchors must also resolve; external learning sources
 are not used.
 
+Every new frontmatter question/correction link and local body link has a
+nonempty display label. Choose a natural concept, theorem, exercise, or question
+label; not an internal anchor ID. The checker enforces label presence for new
+aids only, leaving existing human-authored aids unchanged. Navigation checks
+still apply to existing aids. A resolving link is not proof of relevant evidence:
+read the precise paragraph or heading section, especially when an anchor is
+attached only to a title. Do not edit a course to create a better anchor.
+
+Plain `[!hint]` / `[!explanation]`, collapsed `[!hint]-`, and expanded
+`[!explanation]+` callouts are supported, with optional titles. Put the block ID
+on its own line after each callout, as above. For multiline display mathematics,
+keep explicit quote prefixes and blank quoted lines before the opening `$$` and
+after the closing `$$` so adjacent prose and links are not parsed as inline math:
+
+```markdown
+> [!explanation]- Controlling a remainder
+> Apply [[course#Taylor bound|the bound on the Taylor remainder]].
+>
+> $$
+> |r(x)|\leq Mx^2.
+> $$
+>
+> Now sum the termwise bounds.
+
+^explanation-remainder
+```
+
+LF, CRLF, and CR line endings are accepted. Proposal manifests hash original
+draft bytes; do not normalize approved files when copying them to the chapter.
+
 A question may have a hint-only aid when no answer is supplied. Omit
 `correction` in that case. Do not create an answer or an explanation for a
 missing answer. An aid may contain ordered, anchored `hint` and `explanation`
-callouts; counts are not fixed. Keep prose concise, specific to its question,
-and visibly separate from imported source material.
+callouts; counts are not fixed. Hints remain short and progressive; explanations
+are as detailed as the supplied reasoning needs, not generic summaries. Make
+calculations and hypotheses explicit and cite the relevant course results at
+their use. Keep additions visibly separate from imported source material.
+Every individual hint/explanation callout contains its own parsed precise course
+link; a shared mapping table or a citation in the next callout does not count.
+Elementary transitions belong inside their course-supported explanation rather
+than separate unsupported callouts. Merge such transitions with the reasoning
+they support; do not manufacture an unrelated course citation.
+
+For a genuine supplied contradiction or missing support, obtain a user decision.
+Under an approved hints-only policy, state a neutral, source-evidenced warning
+outside the hints and omit `correction` and explanations. A supported omitted
+starting rank or uniformity argument is not automatically a contradiction.
+Explain it without replacing the supplied method. List targets with no
+supported aid; do not fabricate a course citation to achieve full counts.
 
 ## Preservation and validation
 

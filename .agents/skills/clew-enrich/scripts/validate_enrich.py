@@ -1,4 +1,4 @@
-"""Capture a chapter baseline or validate additive aids on a prepared chapter."""
+"""Capture a baseline, review scratch drafts, or validate additive chapter aids."""
 from __future__ import annotations
 
 import argparse
@@ -46,7 +46,8 @@ def parser() -> MarkdownIt:
 ANCHOR = re.compile(r"\^([A-Za-z0-9-]+)")
 UNIT_OPEN = re.compile(r"%% clew:unit (section|exercise|correction) ([A-Za-z0-9-]+) %%")
 UNIT_CLOSE = re.compile(r"%% /clew:unit ([A-Za-z0-9-]+) %%")
-CALLOUT = re.compile(r"> \[!(question|reponse|hint|explanation)\](?: (.*))?")
+CALLOUT = re.compile(r"> \[!(question|reponse|hint|explanation)\][+-]?(?: (.*))?")
+FRONTMATTER = re.compile(r"\A---(?:\r\n|\r|\n)(.*?)(?:\r\n|\r|\n)---(?:(?:\r\n|\r|\n)|$)", re.S)
 RELATIONSHIP = re.compile(r"^\s*(?:>\s*)?\[(Exercise|Question)\]\(([^)\r\n]+)\)\s*$")
 
 
@@ -82,7 +83,7 @@ class Block:
 class Note:
     def __init__(self, path: Path, text: str, relative: str):
         self.path, self.text, self.relative = path, text, relative
-        match = re.match(r"\A---\r?\n(.*?)\r?\n---(?:\r?\n|$)", text, re.S)
+        match = FRONTMATTER.match(text)
         require(match is not None, f"Missing or unclosed frontmatter: {relative}")
         self.header = text[:match.end()]
         self.body = text[match.end():]
@@ -234,7 +235,7 @@ def read_chapter(root: Path, files: dict[str, bytes]) -> tuple[dict[str, Note], 
             "Import preparation must be schema 1 and complete.")
     try:
         index_text = files["index.md"].decode("utf-8-sig")
-        index_match = re.match(r"\A---\r?\n(.*?)\r?\n---(?:\r?\n|$)", index_text, re.S)
+        index_match = FRONTMATTER.match(index_text)
         index_metadata = yaml.safe_load(index_match[1]) if index_match else None
     except (UnicodeError, yaml.YAMLError) as error:
         raise EnrichError(f"Invalid chapter index: {error}") from error
@@ -313,7 +314,8 @@ def resolve(notes: dict[str, Note], ref: str, origin: Note) -> tuple[Note, str]:
         name, _, fragment = ref.partition("#")
         matches = [note for note in notes.values()
                    if (not name and note is origin)
-                   or name in {note.id, note.path.stem, note.path.name, note.relative}]
+                   or name in {note.path.stem, note.path.name, note.relative,
+                               str(Path(note.relative).with_suffix("")).replace("\\", "/")}]
     else:
         parsed = urlsplit(ref)
         require(not parsed.scheme and not parsed.netloc, f"External reference is not a local note: {ref}")
@@ -321,13 +323,12 @@ def resolve(notes: dict[str, Note], ref: str, origin: Note) -> tuple[Note, str]:
         relative = Path(os.path.abspath(origin.path.parent / name)) if name else origin.path
         matches = [note for note in notes.values()
                    if (not name and note is origin)
-                   or note.path == relative
-                   or (name and name in {note.id, note.path.stem, note.path.name, note.relative})]
+                   or note.path == relative]
     require(len(matches) == 1, f"Missing or ambiguous note reference in {origin.id}: {ref}")
     return matches[0], fragment
 
 
-def links_in(text: str) -> list[str]:
+def link_references(text: str) -> list[tuple[str, str]]:
     links = []
 
     def wikilink(state, silent: bool) -> bool:
@@ -343,15 +344,50 @@ def links_in(text: str) -> list[str]:
     md = parser()
     md.inline.ruler.before("link", "enrich_wikilink", wikilink)
     for token in md.parse(text):
-        for child in token.children or []:
+        children = token.children or []
+        for index, child in enumerate(children):
             if child.type == "enrich_wikilink":
-                links.append("[[" + child.content + "]]")
+                _, _, label = child.content.partition("|")
+                links.append(("[[" + child.content + "]]", label))
             elif child.type == "link_open":
                 url = urlsplit(child.attrGet("href") or "")
                 if not url.scheme and not url.netloc and (
                         not url.path or url.path.lower().endswith(".md")):
-                    links.append(child.attrGet("href") or "")
+                    label = []
+                    for part in children[index + 1:]:
+                        if part.type == "link_close":
+                            break
+                        label.append(part.content)
+                    links.append((child.attrGet("href") or "", "".join(label)))
     return links
+
+
+def links_in(text: str) -> list[str]:
+    return [reference for reference, _ in link_references(text)]
+
+
+def require_wikilink_label(reference: str, origin: Note) -> None:
+    require(isinstance(reference, str) and reference.startswith("[[") and reference.endswith("]]"),
+            f"New aid frontmatter needs a labeled wikilink: {origin.relative}")
+    _, separator, label = reference[2:-2].partition("|")
+    require(bool(separator) and bool(label.strip()),
+            f"New aid link needs a display label: {origin.relative}: {reference}")
+
+
+def check_display_math(block: Block, address: str) -> None:
+    tokens = parser().parse(block.text)
+    protected = {
+        line for token in tokens if token.type in {"fence", "code_block"} and token.map
+        for line in range(*token.map)
+    }
+    lines = block.text.splitlines()
+    delimiters = [index for index, line in enumerate(lines)
+                  if line.strip() == "$$" and index not in protected]
+    require(len(delimiters) % 2 == 0, f"Unpaired display math delimiter: {address}")
+    for opening, closing in zip(delimiters[::2], delimiters[1::2]):
+        require((opening == 0 or not lines[opening - 1].strip())
+                and (closing == len(lines) - 1 or not lines[closing + 1].strip()),
+                f"Display math needs blank quoted lines before and after: {address}")
 
 
 def relationship_links(note: Note, block: Block | Unit, label: str) -> list[str]:
@@ -364,7 +400,7 @@ def relationship_links(note: Note, block: Block | Unit, label: str) -> list[str]
     return matches
 
 
-def validate(root: Path, baseline_path: Path) -> dict:
+def validate(root: Path, baseline_path: Path, *, drafts: dict[str, bytes] | None = None) -> dict:
     root, baseline_path = local_path(root), local_path(baseline_path)
     require(not baseline_path.is_relative_to(root), "Baseline must be outside the chapter.")
     baseline = json.loads(baseline_path.read_text(encoding="utf-8-sig"))
@@ -390,6 +426,19 @@ def validate(root: Path, baseline_path: Path) -> dict:
     added = sorted(set(current) - set(previous))
     require(all(name.startswith("aides/") and name.lower().endswith(".md") for name in added),
             f"Only new Markdown aid notes under aides/ are allowed: {added}")
+    if drafts is not None:
+        require(not added and not added_directories,
+                "Review drafts against the unchanged pre-edit chapter, not persisted additions.")
+        require(len({name.casefold() for name in drafts}) == len(drafts), "Duplicate draft destinations.")
+        existing_paths = {name.casefold() for name in current}
+        for relative, data in drafts.items():
+            require(relative.startswith("aides/") and relative.lower().endswith(".md")
+                    and Path(relative).parts == ("aides", Path(relative).name),
+                    f"Invalid draft destination: {relative}")
+            require(relative.casefold() not in existing_paths,
+                    f"Draft would overwrite an existing file: {relative}")
+            current[relative] = data
+        added = sorted(drafts)
     notes, aids = read_chapter(root, current)
     new_aids = set(added)
     for aid in aids:
@@ -453,25 +502,44 @@ def validate(root: Path, baseline_path: Path) -> dict:
                     f"Answers in correction unit disagree on exercise owner: {note.id}#{unit.identifier}")
 
     hints = explanations = 0
+    aid_targets: dict[tuple[str, str], int] = {}
+    new_question_keys = []
+    aid_details = []
     for aid in aids:
         question_ref = aid.metadata.get("question")
+        if aid.relative in new_aids:
+            require_wikilink_label(question_ref, aid)
         question_note, question_fragment = resolve(notes, question_ref, aid)
         question = question_note.block(question_fragment, "question")
         question_unit = question_note.unit_for(question.start, "exercise")
         require(question_note.role == "exercise" and question_unit is not None,
                 f"Aid targets a question outside an exercise: {aid.id}")
         question_key = (question_note.id, question_fragment)
+        aid_targets[question_key] = aid_targets.get(question_key, 0) + 1
+        if aid.relative in new_aids:
+            new_question_keys.append(question_key)
         correction_ref = aid.metadata.get("correction")
         if correction_ref is not None:
+            if aid.relative in new_aids:
+                require_wikilink_label(correction_ref, aid)
             answer_note, answer_fragment = resolve(notes, correction_ref, aid)
             answer_note.block(answer_fragment, "answer")
             require(answers.get((answer_note.id, answer_fragment), (None, None, None, None))[3]
                     == question_key, f"Aid correction/question mismatch: {aid.id}")
+        if aid.relative in new_aids:
+            for reference, label in link_references(aid.body):
+                require(bool(label.strip()), f"New aid link needs a display label: {aid.id}: {reference}")
+                target, fragment = resolve(notes, reference, aid)
+                if fragment or target.role == "course":
+                    target.check_fragment(fragment)
         additions = [block for block in aid.blocks if block.kind in {"hint", "explanation"}]
         require(bool(additions), f"Aid needs hints or explanations: {aid.id}")
+        course_links = []
         for block in additions:
             address = f"{aid.id}#^{block.anchor}"
             require(bool(block.anchor) and bool(block.text), f"Empty or unanchored aid: {address}")
+            if aid.relative in new_aids:
+                check_display_math(block, address)
             if block.kind == "explanation":
                 require(correction_ref is not None,
                         f"Explanation needs a supplied correction: {address}")
@@ -484,14 +552,33 @@ def validate(root: Path, baseline_path: Path) -> dict:
                 if target.role == "course":
                     target.check_fragment(fragment)
                     course_refs += 1
+                    course_links.append(ref)
                 elif fragment.startswith("^"):
                     require(len(target.anchors.get(fragment[1:], [])) == 1,
                             f"Invalid aid link: {address} -> {ref}")
             require(course_refs > 0, f"Aid needs a precise course link: {address}")
+        if aid.relative in new_aids:
+            aid_details.append({
+                "path": aid.relative, "sha256": sha256(current[aid.relative]),
+                "question": question_ref, "question_address": f"{question_note.id}#{question_fragment}",
+                "correction": correction_ref, "course_links": sorted(set(course_links)),
+                "hints": sum(block.kind == "hint" for block in additions),
+                "explanations": sum(block.kind == "explanation" for block in additions),
+            })
     corrected = {target for _, _, _, target in answers.values() if target}
+    for note_id, fragment in new_question_keys:
+        require(aid_targets[(note_id, fragment)] == 1,
+                f"Multiple aids target the same question: {note_id}#{fragment}")
     return {"status": "validated", "chapter": str(root), "new_aids": added,
             "documents": len(notes), "questions": len(questions), "supplied_answers": len(answers),
             "hints": hints, "explanations": explanations,
+            "aid_details": aid_details,
+            "new_hints": sum(row["hints"] for row in aid_details),
+            "new_explanations": sum(row["explanations"] for row in aid_details),
+            "new_aids_with_explanations": sum(row["explanations"] > 0 for row in aid_details),
+            "new_hint_only_aids": sum(row["explanations"] == 0 for row in aid_details),
+            "questions_without_aid": [f"{note}#{fragment}"
+                                      for note, fragment in sorted(set(questions) - set(aid_targets))],
             "questions_without_correction": [f"{note}#{fragment}"
                                              for note, fragment in sorted(set(questions) - corrected)],
             "limitations": ["Structural preservation and references checked; pedagogical correctness needs agent review."]}
