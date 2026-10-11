@@ -20,18 +20,20 @@ from datetime import datetime, timezone
 from pathlib import Path
 from types import TracebackType
 from typing import Literal
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 import pymupdf
 from azure.ai.documentintelligence import DocumentIntelligenceClient
 from azure.ai.documentintelligence.models import (
+    AnalyzeResult,
     AnalyzeOutputOption,
     DocumentAnalysisFeature,
     DocumentContentFormat,
     DocumentSpan,
     StringIndexType,
 )
-from azure.core.exceptions import AzureError, ClientAuthenticationError, ServiceRequestError
+from azure.core.exceptions import AzureError, ClientAuthenticationError, HttpResponseError, ServiceRequestError
+from azure.core.rest import HttpRequest
 from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 from markdown_it import MarkdownIt
 from markdown_it.token import Token
@@ -41,6 +43,10 @@ from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 from math_render import MathRenderError, VERSION as MATHJAX_VERSION, check_math, check_math_runtime
+from digestion_checkpoint import (
+    DigestionCheckpoint, DigestionError, fingerprint, output_lock, runtime_fingerprint, safe_path,
+    saved_response, replace_progress, PROGRESS_RETRY_DELAYS,
+)
 
 LOG = logging.getLogger("ingestion")
 DI_API_VERSION = "2024-11-30"
@@ -51,7 +57,7 @@ REFERENCE_INPUT_USD_PER_MILLION = 2.0
 REFERENCE_CACHED_INPUT_USD_PER_MILLION = 0.1
 REFERENCE_OUTPUT_USD_PER_MILLION = 10.0
 REFERENCE_PRICING_DATE = "2026-10-10"
-DIAGNOSTIC_RETRY_DELAYS = (0.1, 0.2, 0.4, 0.8, 1.6)
+DIAGNOSTIC_RETRY_DELAYS = PROGRESS_RETRY_DELAYS
 KEEP_KINDS = {
     "chart", "diagram", "map", "scientific_image", "instructional_photo", "screenshot"
 }
@@ -211,10 +217,6 @@ transcription. Mark genuinely unreadable content honestly rather than guessing.
 """
 
 
-class DigestionError(Exception):
-    """An extraction cannot safely be published."""
-
-
 class OutputExistsError(DigestionError):
     """An earlier output must be inspected, not overwritten."""
 
@@ -232,6 +234,7 @@ class RunDiagnostics:
     cloud_requested: bool = False
     error: dict[str, object] | None = None
     failure_saved: bool = False
+    checkpoint: DigestionCheckpoint | None = None
     started_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def __enter__(self) -> RunDiagnostics:
@@ -279,24 +282,7 @@ class RunDiagnostics:
             "artifact": str(self.artifact.resolve()) if self.artifact else None,
             "error": self.error,
         })
-        for attempt in range(len(DIAGNOSTIC_RETRY_DELAYS) + 1):
-            try:
-                pending.replace(self.report_path)
-            except OSError as error:
-                if (
-                    getattr(error, "winerror", None) not in (5, 32, 33)
-                    or attempt == len(DIAGNOSTIC_RETRY_DELAYS)
-                ):
-                    raise
-                delay = DIAGNOSTIC_RETRY_DELAYS[attempt]
-                LOG.warning(
-                    "Could not replace %s (WinError %s); local retry %s/%s in %.1f seconds.",
-                    self.report_path, error.winerror, attempt + 1,
-                    len(DIAGNOSTIC_RETRY_DELAYS), delay,
-                )
-                time.sleep(delay)
-            else:
-                return
+        replace_progress(pending, self.report_path)
 
 
 def error_details(error: BaseException) -> dict[str, object]:
@@ -332,7 +318,7 @@ def error_details(error: BaseException) -> dict[str, object]:
 
 
 def ensure_new_output(output: Path) -> None:
-    if not output.exists():
+    if not os.path.lexists(output):
         return
     lines = [f"Output already exists: {output.resolve()}"]
     if not output.is_dir():
@@ -374,6 +360,7 @@ def ensure_new_output(output: Path) -> None:
         "Existing files were left unchanged. This invocation did not start PDF analysis.",
         f'Choose a fresh path, for example --output "{retry}".',
         "Do not create that directory first; the script creates it. There is no automatic resume.",
+        "Checkpoint-enabled runs can be continued explicitly with --resume and the original options.",
     ])
     raise OutputExistsError("\n".join(lines))
 
@@ -423,7 +410,10 @@ def report_failure(run: RunDiagnostics, error: BaseException, debug: bool) -> No
     elif isinstance(error, OSError):
         LOG.error("Check file permissions, available disk space, and whether another program locks the files.")
     if run.report_path is not None:
-        LOG.error("Keep these diagnostics. For another attempt, choose a new --output directory.")
+        LOG.error(
+            "Keep these diagnostics. A checkpoint-enabled run may use --resume with the original "
+            "options after inspection and approval; otherwise choose a new --output directory."
+        )
     if debug:
         LOG.error("Traceback:\n%s", details.get("traceback") or "".join(traceback.format_exception(error)))
     else:
@@ -796,6 +786,8 @@ def analyze_image(
     usage_totals: UsageTotals,
     usage_kind: str,
     reasoning_effort: str | None = None,
+    checkpoint: DigestionCheckpoint | None = None,
+    request_key: str | None = None,
 ) -> str:
     request: dict[str, object] = {
         "model": deployment,
@@ -820,17 +812,48 @@ def analyze_image(
     }
     if reasoning_effort is not None:
         request["reasoning"] = {"effort": reasoning_effort}
-    response = client.responses.create(**request)
-    usage_totals.record(usage_kind, response)
-    # Persist even refused/truncated responses before validating their content.
-    write_json(response_path, response.model_dump(mode="json"))
-    if response.status != "completed":
-        raise DigestionError(
-            f"OpenAI response was {response.status!r}; inspect {response_path}. "
-            "For token exhaustion, increase --max-output-tokens within the deployment limit."
-        )
-    if not response.output_text.strip():
-        raise DigestionError(f"OpenAI returned no extraction (possibly a refusal); see {response_path}.")
+    key = request_key or response_path.name
+    call = checkpoint.cached_call(key, request) if checkpoint else None
+    if call is not None:
+        LOG.info("Reusing saved %s: %s", usage_kind, key)
+        data = checkpoint.response_data(call)
+        response = saved_response(data)
+    else:
+        call = checkpoint.begin_call(key, usage_kind, request) if checkpoint else None
+        response = client.responses.create(**request)
+        data = response.model_dump(mode="json")
+        usage_totals.record(usage_kind, response)
+        # Immutable evidence precedes validation, including refused/truncated responses.
+        if checkpoint and call:
+            checkpoint.write_json(checkpoint.output / call.response, data)
+            call.status = "received"
+            checkpoint.save()
+    if checkpoint:
+        checkpoint.write_json(response_path, data)
+    else:
+        write_json(response_path, data)
+    try:
+        if response.status != "completed":
+            raise DigestionError(
+                f"OpenAI response was {response.status!r}; inspect {response_path}. "
+                "For token exhaustion, start a separately approved run with a larger token budget."
+            )
+        if not response.output_text.strip():
+            raise DigestionError(f"OpenAI returned no extraction (possibly a refusal); see {response_path}.")
+        if schema is not None:
+            parsed = schema.model_validate_json(response.output_text)
+            if isinstance(parsed, FigureDecision):
+                validate_figure_decision(parsed)
+            elif isinstance(parsed, PageReview):
+                validate_page_review(parsed)
+    except (DigestionError, ValidationError):
+        if checkpoint and call:
+            call.status = "rejected"
+            checkpoint.save()
+        raise
+    if checkpoint and call:
+        call.status = "usable"
+        checkpoint.save()
     return response.output_text
 
 
@@ -861,19 +884,30 @@ def reconcile_page(
             client, deployment, PAGE_PROMPT if attempt == 1 else PAGE_REVISION_PROMPT,
             transcription_context, png, None, response_path, max_output_tokens,
             usage_totals, "page_transcription", PAGE_REASONING_EFFORT,
+            checkpoint=run.checkpoint,
+            request_key=f"{raw.name}.attempt-{attempt:02d}.transcription",
         )
         saved_markdown = raw.with_name(f"{attempt_stem}.md")
         if page_review:
             run.update(f"Retaining candidate for page {page_number}, attempt {attempt}", saved_response)
             if response_path != saved_response:
-                shutil.copyfile(response_path, saved_response)
-            saved_markdown.write_text(markdown, encoding="utf-8", newline="")
+                if run.checkpoint:
+                    run.checkpoint.copy(response_path, saved_response)
+                else:
+                    shutil.copyfile(response_path, saved_response)
+            if run.checkpoint:
+                run.checkpoint.write(saved_markdown, markdown.encode("utf-8"))
+            else:
+                saved_markdown.write_text(markdown, encoding="utf-8", newline="")
         run.update(f"Checking page {page_number} format", response_path)
         format_issues = review_page_format(markdown, page_number)
         math_path = raw.with_name(f"{attempt_stem}.math.json") if page_review else raw.with_suffix(".math.json")
         run.update(f"Rendering mathematics for page {page_number}, attempt {attempt}", math_path)
         math_report, math_issues, expressions = check_math(markdown, page_number, math_context)
-        write_json(math_path, math_report)
+        if run.checkpoint:
+            run.checkpoint.write_json(math_path, math_report)
+        else:
+            write_json(math_path, math_report)
         format_issues.extend(math_issues)
         if not page_review:
             return markdown, None, format_issues, expressions
@@ -885,6 +919,8 @@ def reconcile_page(
             {**context, "candidate_markdown": markdown, "local_format_issues": format_issues},
             png, PageReview, review_path, max_output_tokens,
             usage_totals, "page_review", PAGE_REASONING_EFFORT,
+            checkpoint=run.checkpoint,
+            request_key=f"{raw.name}.attempt-{attempt:02d}.review",
         ))
         validate_page_review(review)
         attempts.append({
@@ -916,8 +952,14 @@ def reconcile_page(
             )
         run.update(f"Selecting final transcription for page {page_number}", saved_response)
         if saved_response != canonical:
-            shutil.copyfile(saved_response, canonical)
-        shutil.copyfile(math_path, raw.with_suffix(".math.json"))
+            if run.checkpoint:
+                run.checkpoint.copy(saved_response, canonical)
+            else:
+                shutil.copyfile(saved_response, canonical)
+        if run.checkpoint:
+            run.checkpoint.copy(math_path, raw.with_suffix(".math.json"))
+        else:
+            shutil.copyfile(math_path, raw.with_suffix(".math.json"))
         return markdown, {
             "status": "needs_review" if format_issues else "passed",
             "attempts": attempts,
@@ -935,6 +977,85 @@ def validate_figure_decision(decision: FigureDecision) -> None:
             raise DigestionError("The model tried to keep a non-instructional figure or omitted alt text.")
 
 
+def resume_binding(
+    source: Path, deployment: str, *, pages: str | None, dpi: int,
+    high_resolution_ocr: bool, max_output_tokens: int, page_review: bool,
+    settings: Settings | None,
+) -> dict[str, object]:
+    if not source.is_file() or source.suffix.lower() != ".pdf":
+        raise DigestionError(f"Expected a readable PDF: {source}")
+    if source.stat().st_size > 500_000_000:
+        raise DigestionError("Document Intelligence accepts PDFs up to 500 MB on the paid tier.")
+    if not 72 <= dpi <= 600 or max_output_tokens < 1:
+        raise DigestionError("Use --dpi between 72 and 600 and a positive --max-output-tokens.")
+    safe_path(source.parent, source.name)
+    with source.open("rb") as stream:
+        source_hash = hashlib.file_digest(stream, "sha256").hexdigest()
+    with pymupdf.open(source) as pdf:
+        if not pdf.is_pdf:
+            raise DigestionError("The input is not a PDF, regardless of its filename.")
+        if pdf.needs_pass:
+            raise DigestionError("Unlock password-protected PDFs before ingestion.")
+        wanted = selected_pages(pages, len(pdf))
+        count = len(pdf)
+    return {
+        "source": {"name": source.name, "sha256": source_hash, "page_count": count},
+        "pages": wanted,
+        "options": {
+            "deployment": deployment, "dpi": dpi, "high_resolution_ocr": high_resolution_ocr,
+            "max_output_tokens": max_output_tokens, "page_review": page_review,
+        },
+        "configuration_sha256": (
+            fingerprint([settings.document_endpoint, settings.openai_base_url, settings.deployment])
+            if settings is not None else None
+        ),
+        "runtime_sha256": runtime_fingerprint(),
+    }
+
+
+def inspect_resume(
+    source: Path, output: Path, deployment: str, *, pages: str | None = None,
+    dpi: int = 200, high_resolution_ocr: bool = False, max_output_tokens: int = 16000,
+    page_review: bool = True, settings: Settings | None = None,
+) -> dict[str, object]:
+    binding = resume_binding(
+        source, deployment, pages=pages, dpi=dpi, high_resolution_ocr=high_resolution_ocr,
+        max_output_tokens=max_output_tokens, page_review=page_review, settings=settings,
+    )
+    with output_lock(output, inspect=True):
+        checkpoint = DigestionCheckpoint.load(output, binding)
+        return checkpoint.summary()
+
+
+def poll_saved_analysis(
+    client: DocumentIntelligenceClient, endpoint: str, operation_id: str,
+) -> AnalyzeResult:
+    url = (
+        f"{endpoint.rstrip('/')}/documentintelligence/documentModels/prebuilt-layout/"
+        f"analyzeResults/{quote(operation_id, safe='')}?api-version={DI_API_VERSION}"
+    )
+    while True:
+        response = client.send_request(HttpRequest("GET", url))
+        if response.status_code != 200:
+            raise HttpResponseError(
+                message="Could not retrieve the saved DI operation; it was not resubmitted.",
+                response=response,
+            )
+        data = response.json()
+        if not isinstance(data, dict):
+            raise DigestionError("DI polling returned an invalid operation response.")
+        if data.get("status") == "succeeded":
+            result = data.get("analyzeResult")
+            if not isinstance(result, dict):
+                raise DigestionError("DI polling omitted the analysis result.")
+            return AnalyzeResult(result)
+        if data.get("status") not in {"notStarted", "running"}:
+            raise DigestionError(
+                f"Saved DI operation has status {data.get('status')!r}; no PDF was resubmitted."
+            )
+        time.sleep(2)
+
+
 def digest_pdf(
     source: Path,
     output: Path,
@@ -948,26 +1069,70 @@ def digest_pdf(
     max_output_tokens: int = 16000,
     page_review: bool = True,
     diagnostics: RunDiagnostics | None = None,
+    resume: bool = False,
+    settings: Settings | None = None,
+    checkpoint_sha256: str | None = None,
 ) -> dict[str, object]:
     run = diagnostics or RunDiagnostics(source, output, pages=pages)
-    usage_totals = UsageTotals()
     run.update("Preflight: validating input and output paths")
-    ensure_new_output(output)
-    if not source.is_file():
-        raise DigestionError(f"PDF file not found or not readable: {source.resolve()}")
-    if source.suffix.lower() != ".pdf":
-        raise DigestionError(f"Expected a .pdf input, received: {source.name}")
-    if source.stat().st_size > 500_000_000:
-        raise DigestionError("Document Intelligence accepts PDFs up to 500 MB on the paid tier.")
-    if not 72 <= dpi <= 600 or max_output_tokens < 1:
-        raise DigestionError("Use --dpi between 72 and 600 and a positive --max-output-tokens.")
+    if not resume:
+        ensure_new_output(output)
+    binding = resume_binding(
+        source, deployment, pages=pages, dpi=dpi, high_resolution_ocr=high_resolution_ocr,
+        max_output_tokens=max_output_tokens, page_review=page_review, settings=settings,
+    )
     run.update("Preflight: checking offline MathJax runtime")
     check_math_runtime()
-    run.update("Reading the input PDF")
-    with source.open("rb") as stream:
-        source_hash = hashlib.file_digest(stream, "sha256").hexdigest()
+    if not resume:
+        output.mkdir(parents=True, exist_ok=False)
+    else:
+        DigestionCheckpoint.load(output, binding).summary()
+    with output_lock(output):
+        checkpoint = (
+            DigestionCheckpoint.load(output, binding) if resume
+            else DigestionCheckpoint.create(output, binding)
+        )
+        if checkpoint_sha256 is not None and checkpoint.summary()["checkpoint_sha256"] != checkpoint_sha256:
+            raise DigestionError("Checkpoint changed since approval; inspect and approve a new resume plan.")
+        if checkpoint.record.complete:
+            manifest = json.loads(safe_path(output, "manifest.json").read_bytes())
+            if not isinstance(manifest, dict):
+                raise DigestionError("Completed checkpoint has an invalid manifest.")
+            LOG.info("Digest is already complete; no work was repeated.")
+            return manifest
+        checkpoint.recover_write()
+        run.checkpoint = checkpoint
+        run.report_path = output / "run.json"
+        run.operation_id = checkpoint.record.operation_id
+        run.cloud_requested = checkpoint.record.analysis_attempted
+        if resume:
+            LOG.warning(
+                "Resuming saved work. Requests without a committed response may repeat paid work; "
+                "local checks are replayed."
+            )
+        return _continue_digest(
+            source, output, document_client, openai_client, deployment, run, checkpoint,
+            pages=pages, dpi=dpi, high_resolution_ocr=high_resolution_ocr,
+            max_output_tokens=max_output_tokens, page_review=page_review, settings=settings,
+        )
 
-    run.update("Opening the PDF")
+
+def _continue_digest(
+    source: Path, output: Path, document_client: DocumentIntelligenceClient,
+    openai_client: OpenAI, deployment: str, run: RunDiagnostics,
+    checkpoint: DigestionCheckpoint, *, pages: str | None, dpi: int,
+    high_resolution_ocr: bool, max_output_tokens: int, page_review: bool,
+    settings: Settings | None,
+) -> dict[str, object]:
+    usage_totals = UsageTotals()
+    for kind, response in checkpoint.usage():
+        usage_totals.record(kind, response)
+    source_record = checkpoint.record.binding["source"]
+    if not isinstance(source_record, dict):
+        raise DigestionError("Checkpoint source identity is invalid.")
+    source_hash = source_record["sha256"]
+    if not isinstance(source_hash, str):
+        raise DigestionError("Checkpoint source hash is invalid.")
     with run, pymupdf.open(source) as pdf:
         run.update("Reading PDF metadata and selecting pages")
         if not pdf.is_pdf:
@@ -976,18 +1141,16 @@ def digest_pdf(
             raise DigestionError("Unlock password-protected PDFs before ingestion.")
         wanted = selected_pages(pages, len(pdf))
         run.pages = page_ranges(wanted)
-        output.mkdir(parents=True, exist_ok=False)
-        run.report_path = output / "run.json"
         run.update("Preparing output directories")
         for directory in ("figures", "raw"):
-            (output / directory).mkdir()
+            (output / directory).mkdir(exist_ok=True)
         for directory in ("pages", "figures"):
-            (output / "raw" / directory).mkdir()
+            (output / "raw" / directory).mkdir(exist_ok=True)
 
         retained_source = output / "source" / source.name
         run.update("Preserving original PDF", retained_source)
-        retained_source.parent.mkdir()
-        shutil.copyfile(source, retained_source)
+        if "source/" + source.name not in checkpoint.record.files:
+            checkpoint.copy(source, retained_source)
         with retained_source.open("rb") as stream:
             retained_hash = hashlib.file_digest(stream, "sha256").hexdigest()
         if retained_hash != source_hash:
@@ -996,32 +1159,53 @@ def digest_pdf(
         features = [DocumentAnalysisFeature.FORMULAS]
         if high_resolution_ocr:
             features.append(DocumentAnalysisFeature.OCR_HIGH_RESOLUTION)
-        with source.open("rb") as stream:
-            run.cloud_requested = True
-            run.update(f"Document Intelligence: submitting {len(wanted)} PDF pages")
-            poller = document_client.begin_analyze_document(
-                model_id="prebuilt-layout",
-                body=stream,
-                content_type="application/octet-stream",
-                pages=page_ranges(wanted),
-                output_content_format=DocumentContentFormat.MARKDOWN,
-                features=features,
-                output=[AnalyzeOutputOption.FIGURES],
-                string_index_type=StringIndexType.UNICODE_CODE_POINT,
+        layout = output / "raw" / "document-intelligence.json"
+        if "raw/document-intelligence.json" in checkpoint.record.files:
+            run.update("Document Intelligence: reusing saved layout", layout)
+            data = json.loads(checkpoint.read(layout))
+            if not isinstance(data, dict):
+                raise DigestionError("Saved DI layout is not a JSON object.")
+            result = AnalyzeResult(data)
+        elif checkpoint.record.operation_id:
+            if settings is None:
+                raise DigestionError("Original Azure settings are required to poll a saved DI operation.")
+            run.update("Document Intelligence: polling saved analysis")
+            result = poll_saved_analysis(
+                document_client, settings.document_endpoint, checkpoint.record.operation_id,
             )
-            run.operation_id = poller.details.get("operation_id")
-            run.update("Document Intelligence: waiting for analysis")
-            result = poller.result()
+            checkpoint.write_json(layout, result.as_dict())
+        else:
+            checkpoint.summary()
+            with retained_source.open("rb") as stream:
+                run.cloud_requested = True
+                checkpoint.record.analysis_attempted = True
+                checkpoint.save()
+                run.update(f"Document Intelligence: submitting {len(wanted)} PDF pages")
+                poller = document_client.begin_analyze_document(
+                    model_id="prebuilt-layout",
+                    body=stream,
+                    content_type="application/octet-stream",
+                    pages=page_ranges(wanted),
+                    output_content_format=DocumentContentFormat.MARKDOWN,
+                    features=features,
+                    output=[AnalyzeOutputOption.FIGURES],
+                    string_index_type=StringIndexType.UNICODE_CODE_POINT,
+                )
+                run.operation_id = poller.details.get("operation_id")
+                checkpoint.record.operation_id = run.operation_id
+                checkpoint.save()
+                run.update("Document Intelligence: waiting for analysis")
+                result = poller.result()
+            checkpoint.write_json(layout, result.as_dict())
         run.update(
             "Document Intelligence: saving and validating layout",
             output / "raw" / "document-intelligence.json",
         )
-        write_json(output / "raw" / "document-intelligence.json", result.as_dict())
         if result.content is None or result.content_format != "markdown":
             raise DigestionError("Document Intelligence did not return Markdown content.")
         if result.string_index_type != "unicodeCodePoint":
             raise DigestionError("Document Intelligence did not return Python-compatible text spans.")
-        (output / "raw" / "document-intelligence.md").write_text(result.content, encoding="utf-8")
+        checkpoint.write(output / "raw" / "document-intelligence.md", result.content.encode("utf-8"))
         returned = [page.page_number for page in result.pages or []]
         if sorted(returned) != wanted:
             raise DigestionError(
@@ -1056,14 +1240,18 @@ def digest_pdf(
                 region.as_dict() for region in candidate.bounding_regions or []
             ]
             raw = output / "raw" / "figures" / figure_id
-            operation_id = poller.details.get("operation_id")
+            operation_id = checkpoint.record.operation_id
             if not operation_id:
                 raise DigestionError("Document Intelligence omitted the operation ID for figure crops.")
             run.update(f"Document Intelligence: downloading {figure_id}")
-            png = b"".join(document_client.get_analyze_result_figure(
-                model_id=result.model_id, result_id=operation_id, figure_id=source_id
-            ))
-            raw.with_suffix(".png").write_bytes(png)
+            crop = raw.with_suffix(".png")
+            if crop.relative_to(output).as_posix() in checkpoint.record.files:
+                png = checkpoint.read(crop)
+            else:
+                png = b"".join(document_client.get_analyze_result_figure(
+                    model_id=result.model_id, result_id=operation_id, figure_id=source_id
+                ))
+                checkpoint.write(crop, png)
             run.update(f"Validating crop {figure_id}", raw.with_suffix(".png"))
             validate_png(png)
             caption = candidate.caption.content if candidate.caption else ""
@@ -1088,6 +1276,8 @@ def digest_pdf(
                     {"caption": caption, "nearby_markdown": context[:12000]},
                     png, FigureDecision, raw.with_suffix(".response.json"), max_output_tokens,
                     usage_totals, "figure_classification",
+                    checkpoint=checkpoint,
+                    request_key=f"{figure_id}.classification",
                 ))
             run.update(f"Validating classification for {figure_id}", run.artifact)
             validate_figure_decision(decision)
@@ -1095,7 +1285,7 @@ def digest_pdf(
             figures.append(figure)
             if decision.decision == "keep":
                 run.update(f"Writing accepted figure {figure_id}", raw.with_suffix(".png"))
-                shutil.copyfile(raw.with_suffix(".png"), output / "figures" / figure.filename)
+                checkpoint.copy(raw.with_suffix(".png"), output / "figures" / figure.filename)
 
         combined: list[str] = []
         page_records: list[dict[str, object]] = []
@@ -1109,7 +1299,7 @@ def digest_pdf(
             stem = f"page-{number:04d}"
             raw = output / "raw" / "pages" / stem
             png = render_page_image(pdf, number, dpi)
-            raw.with_suffix(".png").write_bytes(png)
+            checkpoint.write(raw.with_suffix(".png"), png)
             page_figures = [
                 figure for figure in figures
                 if figure.pages[0] == number and figure.decision.decision != "discard"
@@ -1158,6 +1348,22 @@ def digest_pdf(
                 page_record["review"] = review_record
             page_records.append(page_record)
 
+        costs = usage_totals.report(
+            document_pages=len(wanted), high_resolution_ocr=high_resolution_ocr,
+        )
+        unobserved = sum(call.status == "pending" for call in checkpoint.record.calls)
+        openai_costs, limitations = costs.get("openai"), costs.get("limitations")
+        if not isinstance(openai_costs, dict) or not isinstance(limitations, list):
+            raise DigestionError("Invalid cost summary.")
+        openai_costs["unobserved_request_attempts"] = unobserved
+        if unobserved:
+            openai_costs.update(
+                estimated_cost_usd=None, estimate_complete=False, estimate_status="unobserved_requests",
+            )
+            limitations.append(
+                f"{unobserved} interrupted request attempt(s) have no saved response or usage; "
+                "they may have incurred charges."
+            )
         manifest: dict[str, object] = {
             "schema_version": 3,
             "status": "needs_review" if issues else "extracted",
@@ -1180,9 +1386,7 @@ def digest_pdf(
                 "mathjax_version": MATHJAX_VERSION,
                 "markdown_format": "commonmark+tables+dollarmath",
             },
-            "costs": usage_totals.report(
-                document_pages=len(wanted), high_resolution_ocr=high_resolution_ocr,
-            ),
+            "costs": costs,
             "pages": page_records,
             "figures": [figure.record() for figure in figures],
             "issues": issues,
@@ -1190,13 +1394,13 @@ def digest_pdf(
         markdown = "\n\n".join(combined)
         assembled = output / "raw" / "assembled.md"
         run.update("Checking assembled Markdown format", assembled)
-        assembled.write_text(markdown, encoding="utf-8", newline="")
+        checkpoint.write(assembled, markdown.encode("utf-8"))
         validate_markdown_format(markdown)
         run.update("Writing final Markdown and completion manifest", assembled)
-        pending_document = output / "document.md.tmp"
-        pending_document.write_text(markdown, encoding="utf-8", newline="")
-        pending_document.replace(output / "document.md")
-        write_json(output / "manifest.json", manifest)
+        checkpoint.write(output / "document.md", markdown.encode("utf-8"))
+        checkpoint.write_json(output / "manifest.json", manifest)
+        checkpoint.record.complete = True
+        checkpoint.save()
         run.status = "needs_review" if issues else "extracted"
         run.update("Complete", output / "manifest.json")
         return manifest
@@ -1224,7 +1428,13 @@ def log_cost_summary(costs: object) -> None:
             estimate, openai.get("pricing_model"),
         )
     else:
-        if openai.get("estimate_status") in {"model_mismatch", "model_unreported"}:
+        if openai.get("estimate_status") == "unobserved_requests":
+            LOG.warning(
+                "OpenAI reference estimate unavailable: %s interrupted request attempt(s) "
+                "have no saved response or usage.",
+                openai.get("unobserved_request_attempts"),
+            )
+        elif openai.get("estimate_status") in {"model_mismatch", "model_unreported"}:
             LOG.warning(
                 "OpenAI reference estimate unavailable: response model(s) are missing or do not match %s.",
                 openai.get("pricing_model"),
@@ -1251,6 +1461,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("pdf", type=Path, help="Source PDF, not learner-model data")
     parser.add_argument("--output", required=True, type=Path, help="New standalone digest directory")
+    parser.add_argument(
+        "--resume", action="store_true",
+        help="Continue a checkpoint-enabled digest using the original source and options",
+    )
+    parser.add_argument("--checkpoint-sha256", help="Require the checkpoint fingerprint from an approved resume plan")
     parser.add_argument("--pages", help="Original PDF page groups, e.g. 13-15,20 (one-based; default: all)")
     parser.add_argument("--dpi", type=int, default=200, help="Page rendering DPI (default: 200)")
     parser.add_argument("--high-resolution-ocr", action="store_true", help="Paid small-print OCR add-on")
@@ -1261,16 +1476,28 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument("--debug", action="store_true", help="Print full error tracebacks in the terminal")
     args = parser.parse_args(argv)
+    if args.checkpoint_sha256 and not args.resume:
+        parser.error("--checkpoint-sha256 requires --resume")
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
     LOG.setLevel(logging.INFO)
     run = RunDiagnostics(args.pdf, args.output, pages=args.pages)
     try:
         with run:
-            ensure_new_output(args.output)
+            if not args.resume:
+                ensure_new_output(args.output)
             run.update("Preflight: checking offline MathJax runtime")
             check_math_runtime()
             run.update("Loading Azure configuration")
             settings = settings_from_env(os.environ)
+            if args.resume:
+                run.update("Preflight: inspecting resumable checkpoint")
+                summary = inspect_resume(
+                    args.pdf, args.output, settings.deployment, pages=args.pages, dpi=args.dpi,
+                    high_resolution_ocr=args.high_resolution_ocr, max_output_tokens=args.max_output_tokens,
+                    page_review=not args.no_page_review, settings=settings,
+                )
+                if args.checkpoint_sha256 and summary["checkpoint_sha256"] != args.checkpoint_sha256:
+                    raise DigestionError("Checkpoint changed since approval; inspect a new resume plan.")
             run.update("Initializing Azure clients")
             with DefaultAzureCredential() as credential:
                 with (
@@ -1288,6 +1515,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                         pages=args.pages, dpi=args.dpi, high_resolution_ocr=args.high_resolution_ocr,
                         max_output_tokens=args.max_output_tokens, diagnostics=run,
                         page_review=not args.no_page_review,
+                        resume=args.resume, settings=settings,
+                        checkpoint_sha256=args.checkpoint_sha256,
                     )
                     run.update("Closing Azure clients", args.output / "manifest.json")
             run.update("Complete", args.output / "manifest.json")

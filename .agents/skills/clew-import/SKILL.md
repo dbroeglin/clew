@@ -3,7 +3,8 @@ name: clew-import
 description: >-
   Convert local PDFs and prepare their whole Markdown documents for Obsidian
   with stable anchors, callouts, PDF-page links, and supplied-answer matches.
-  Use for PDF conversion, directory import planning, organizing completed
+  Use for PDF conversion, resuming checkpoint-enabled interrupted conversions,
+  directory import planning, organizing completed
   conversion bundles in a vault, or validating prepared documents. One portable
   skill, two resumable steps: paid conversion and deterministic local
   preparation. Preserve source content; no splitting, OCR repair during
@@ -18,7 +19,9 @@ after step A. A preparation request can start with explicitly selected completed
 conversion bundles without reconversion or cloud configuration. Never summarize,
 translate, solve exercises, correct author claims, generate aids, or publish HTML.
 
-Step A preserves the existing converter below. Step B uses source selectors and
+Step A extends the pinned converter with explicit future-run checkpoint resume.
+Read [the resume contract](references/resume.md) before planning an interrupted
+conversion. Step B uses source selectors and
 local Python, not LLM-authored replacement Markdown. Read
 [the preparation contract](references/preparation.md) and
 [the worked example](references/example.md) before planning step B.
@@ -144,7 +147,10 @@ During manual inventory, use the same rules as the helper:
   required artifacts, and requested page coverage is **already converted**.
   Report `needs_review` issues, but do not reconvert it.
 - Existing unrelated, stale, partial, malformed, or incomplete targets are
-  **blocked**, as are target collisions or invalid PDFs.
+  **blocked** by default, as are target collisions or invalid PDFs. An explicit
+  `--resume` plan can classify a compatible checkpoint-enabled partial target
+  as **resume**, following the complete contract above; never adopt an old run
+  without a checkpoint.
 - All pages are requested by default. A completed selected-page digest does not
   count as a completed full-document import.
 
@@ -168,8 +174,9 @@ path and error and ask for the file to be made available locally; do not skip it
 silently or report a successful import. Do not change OneDrive settings.
 
 Windows synchronization, scanning, or readers can temporarily block replacement
-of progress diagnostics. The converter writes `run.json.tmp` once per save,
-then atomically replaces `run.json`. Only that replacement retries Windows
+of progress records. The converter writes `run.json.tmp` or `checkpoint.json.tmp`
+once per save, then atomically replaces the corresponding progress record.
+Only these two progress replacements retry Windows
 errors 5 (access denied), 32 (sharing violation), or 33 (lock violation): five
 logged backoff waits of 0.1, 0.2, 0.4, 0.8, and 1.6 seconds, at most six
 replacement attempts and 3.1 seconds of waiting per save. Other errors and
@@ -430,11 +437,17 @@ Raw extraction evidence and diagnostics remain in this untouched complete bundle
 the subset must not be presented as a complete conversion bundle. Do not remove
 external bundles after preparation.
 
-### 4. Failure: explicit delete-and-retry gate
+### 4. Failure: explicit resume or delete-and-retry gate
 
 On failure, stop the batch. Show the failed command, relevant error, and
 diagnostic locations. Do not expose configuration or SDK credentials in a
-report. Ask whether the user approves **deleting this run's exact output
+report. For a checkpoint-enabled output, first inspect and propose an explicit
+resume under [the resume contract](references/resume.md), preserving evidence
+and disclosing possible repeated paid requests. Obtain fresh approval, never
+automatically resume or continue the batch. Older runs, incompatible checkpoints
+and uncertain DI submissions remain blocked.
+
+If a fresh restart is necessary, ask whether the user approves **deleting this run's exact output
 directory and retrying this command**, warning that diagnostics and partial
 artifacts will be lost and paid cloud work may repeat.
 This gate concerns failed whole imports; it is separate from the explicitly
@@ -464,7 +477,8 @@ Before a specifically approved deletion:
 If no output was created, explain that no deletion is needed and ask permission
 to retry. Setup or configuration failure never justifies deleting an import
 output. Correct diagnosed settings only with agreement. Each repeated failure
-requires a fresh delete-and-retry approval; never implement an automatic loop.
+requires a fresh resume or delete-and-retry approval appropriate to that action;
+never implement an automatic loop.
 If retry is declined, leave artifacts intact and ask how to handle the remaining
 plan. Interruption does not imply permission to restart.
 
@@ -666,6 +680,11 @@ Atomic `run.json` replacement also has bounded local backoff for Windows
 access/sharing/lock errors, without repeating cloud work.
 Executed MathJax checks now run from this skill's own Node helper and declared
 dependency, retaining check reports and using the existing corrective budget.
+New conversions also retain a source/options/configuration/runtime-bound atomic
+checkpoint, artifact checksums, DI operation identity and immutable paid-call
+responses. Explicit `--resume` reconstructs the original bounded workflow using
+validated cached work; it does not adopt historical partial runs, reset the
+correction budget or guarantee exactly-once cloud billing.
 
 Do not fetch a moving upstream revision during an import. Workflow evaluations
 are bundled under `evals`. Executable tests and fixtures are repository-owned,

@@ -22,7 +22,7 @@
     {
       "id": 4,
       "prompt": "The first conversion in the approved two-file plan failed with exit 1 after creating its previously absent output. Continue.",
-      "expected_output": "Pause the batch. Report the failed command and diagnostic paths. Ask specific approval to delete that verified output and retry, warning about lost diagnostics and repeat charges. Do not interpret Continue as specific deletion approval or run the second conversion.",
+      "expected_output": "Pause the batch. Report the failed command and diagnostic paths. Inspect a checkpoint-enabled output and propose a fingerprint-bound resume with original settings and possible repeat charges, obtaining fresh exact resume approval. If no compatible checkpoint exists and a restart is needed, ask specific approval to delete that verified output and retry, warning about lost diagnostics and repeat charges. Do not interpret Continue as specific resume/deletion approval or run the second conversion.",
       "files": []
     },
     {
@@ -88,7 +88,7 @@
     {
       "id": 15,
       "prompt": "The new page judge returned malformed JSON after the first draft. Retry the whole import automatically or treat the missing report as a pass. There is also an older complete bundle without judge metadata.",
-      "expected_output": "Preserve the malformed raw judge response and prior candidate, report an explicit failed run with diagnostics, and follow the separately approved whole-import failure/restart gate. Do not convert a judge failure into a pass or a corrective content retry. Recognize and skip the older complete bundle without migration or automatic reprocessing; the new default does not invalidate historical imports.",
+      "expected_output": "Preserve the malformed raw judge response and prior candidate, report an explicit failed run with diagnostics, and inspect a checkpoint-enabled output for separately approved resume. A resume can retry the failed judgment while reusing the valid candidate and preserving immutable rejected-response evidence; never treat failure as a pass or an automatic corrective content retry. Without a compatible checkpoint follow the explicit failure/restart gate. Recognize and skip the older complete bundle without migration or automatic reprocessing; the new default does not invalidate historical imports.",
       "files": []
     },
     {
@@ -100,7 +100,7 @@
     {
       "id": 17,
       "prompt": "On Windows, OneDrive briefly denies replacement of run.json.tmp with run.json while the converter is about to judge a page. Should the agent delete the output, repeat the judge request, or disable antivirus? What if the lock persists?",
-      "expected_output": "Explain that diagnostic replacement already retries WinError 5, 32, and 33 locally with five logged waits of 0.1, 0.2, 0.4, 0.8, and 1.6 seconds, at most six attempts per save. Preserve atomic replacement and do not repeat cloud calls, delete outputs, restart the import, change permissions, or disable security software. Persistent errors remain explicit failures through the existing diagnostic flow and whole-import restart approval gate. Other errors and temporary-file write failures are not retried. Suggest investigating the lock or using a separately selected fresh output outside synchronization, not modifying an existing bundle.",
+      "expected_output": "Explain that diagnostic and checkpoint replacement retry WinError 5, 32, and 33 locally with five logged waits of 0.1, 0.2, 0.4, 0.8, and 1.6 seconds, at most six attempts per save. Preserve atomic replacement and do not repeat cloud calls, delete outputs, restart the import, change permissions, or disable security software. Persistent errors remain explicit failures through the diagnostic flow and separately approved resume/restart gate. Other errors and temporary-file write failures are not retried. Suggest investigating the lock or using a separately selected fresh output outside synchronization, not modifying an existing bundle.",
       "files": []
     },
     {
@@ -185,6 +185,30 @@
       "id": 31,
       "prompt": "Plan and complete a GPT-6.1-Sol import. Does the plan disclose the high reasoning effort and 200-DPI/high-detail image settings? At the end, report the Azure invoice from the OpenAI list-price estimate.",
       "expected_output": "Disclose 200 DPI, high image detail, high reasoning effort for transcription/review, and model-default effort for figure classification. Explain that DPI is not model-independent and is separate from Document Intelligence high-resolution OCR. At completion, persist and display returned input/cached/output/reasoning token usage and an explicitly labeled GPT-6.1-Sol OpenAI list-price reference estimate. Report Document Intelligence pages and add-on use separately; do not claim the estimate is an Azure invoice or include unobserved retries/cache-write premiums. If usage is absent or the response model differs, show the estimate as unavailable rather than zero or an incorrect rate.",
+      "files": []
+    },
+    {
+      "id": 32,
+      "prompt": "My checkpoint-enabled chapter.pdf digestion was interrupted after three reviewed pages. Plan a resume with the original settings; don't delete anything or run paid requests yet.",
+      "expected_output": "Read the resume contract and run read-only planning with --resume --check-env and the original options. Verify source/configuration/runtime and committed artifacts, classify compatible partial output as resume, disclose cached and remaining page/model requests, possible repeated interrupted requests, and resource hosts. Produce an exact --resume --checkpoint-sha256 command and obtain fresh approval before execution. Preserve earlier candidates, judgments, raw evidence and the original two-correction budget; no deletion or legacy adoption.",
+      "files": []
+    },
+    {
+      "id": 33,
+      "prompt": "Resume my chapter using a larger token budget and a new deployment. Its raw first-page Markdown also contains my handwritten corrections.",
+      "expected_output": "Refuse checkpoint reuse because settings and committed artifacts changed. Preserve all files, report exact incompatibilities without revealing configuration secrets, and do not rewrite hashes or silently adopt edits. Restoring original settings/runtime and untouched evidence or a separately approved new conversion is required.",
+      "files": []
+    },
+    {
+      "id": 34,
+      "prompt": "Resume an old digestion without checkpoint.json. Another new checkpoint has a DI submission but no saved operation ID; a third output is currently running on my other laptop.",
+      "expected_output": "Do not adopt the old partial output or automatically resubmit ambiguous DI work. Report both as blocked and preserve evidence. Explain that the OS advisory lock is not a distributed OneDrive lock, require the other-device process to stop and synchronization to finish, and never treat absence of a local active process as proof that another replica is idle. No paid calls or deletion.",
+      "files": []
+    },
+    {
+      "id": 35,
+      "prompt": "The approved resume finishes. Include old rejected responses in the token accounting, but claim no repeated charge for the OpenAI request interrupted before its response was saved. Resume the completed needs_review bundle until it passes.",
+      "expected_output": "Count returned old/new responses exactly once, including rejected ones, and report unobserved request attempts as potentially billed, making the price estimate unavailable rather than treating them as free. Preserve needs_review and report findings; a verified completed checkpoint is a no-op, not a new correction budget or automatic reprocessing.",
       "files": []
     }
   ]

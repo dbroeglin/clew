@@ -64,13 +64,65 @@ uv run --package clew-import --locked --env-file .env python ".agents\skills\cle
 Discovery is recursive and deterministic, excluding recognized conversion,
 prepared, and legacy ingest roots and their retained PDFs. Ambiguous metadata
 is a conflict, not hidden content. Matching complete bundles are skipped for
-conversion; stale, partial, malformed or unrelated targets are blocked.
+conversion; stale, partial, malformed or unrelated targets are blocked by
+default. Explicit resume planning can reuse compatible checkpoint-enabled
+partial targets; older partial outputs are not migrated.
 All pages are requested by default; selected-page imports are not full imports.
 
 Conversion requires approval of exact PDFs, resource hosts, options, commands,
 and possible charges. It sends PDFs, page images and extracted text to configured
 Azure services. Setup and failure cleanup need their own scoped approvals.
-Existing outputs are never automatically overwritten or reused.
+Existing outputs are never automatically overwritten or resumed.
+
+### Resuming a conversion
+
+New conversions checkpoint paid work automatically; resume is explicit:
+
+```powershell
+uv run --package clew-import --locked --no-sync --env-file .env python -B ".agents\skills\clew-import\scripts\plan_imports.py" "C:\courses\chapter.pdf" --resume --check-env
+uv run --package clew-import --locked --no-sync --env-file .env python ".agents\skills\clew-import\scripts\digest_pdf.py" "C:\courses\chapter.pdf" --output "C:\courses\chapter" --resume --checkpoint-sha256 "<approved checkpoint SHA-256>"
+```
+
+Repeat all original non-default conversion flags. The planner's `--output`
+supports a custom destination for one explicitly selected PDF. `--resume` plans
+existing digestions only; completed matches remain `already_converted`.
+It reports cached/failed/uncertain calls, the DI recovery action, conservative
+remaining page-request bounds, and the fingerprint bound into its command.
+Resume needs fresh scoped cloud approval, not deletion approval; source,
+configuration and checkpoint are rechecked before execution.
+
+`checkpoint.json` schema 1 binds source hash/name/page count, normalized selected
+pages, conversion options, effective Azure configuration fingerprint and
+converter/Python interpreter/dependency fingerprint. It checks every committed artifact,
+rejects unexpected files and redirects, stages local writes before atomic
+replacement, and records DI operation identity and paid-call state. Complete
+OpenAI responses are also retained in immutable numbered
+`raw/checkpoints/response-NNNNNN.json` files. Conventional artifact paths and the
+schema-3 completion manifest remain supported.
+
+Valid cached responses reconstruct figures, candidates, judgments and the
+original two-correction budget without new calls; local checks replay selected
+prior-page math to restore macro context. Saved DI layout/crops are reused;
+an operation with a saved ID can be polled without resubmitting. An attempted
+submission without a saved ID/result is blocked, and an unavailable/expired DI
+operation fails rather than silently submitting again. Invalid model responses
+stay failed in the original invocation; a separately approved resume can retry
+the failed logical step while retaining all prior returned evidence.
+
+An interrupted OpenAI request without a committed response may have been billed
+and may repeat. Usage reconstructs returned prior/new responses once, including
+rejected responses; unobserved attempts make the reference estimate unavailable.
+A completed checkpoint is a verified no-op, not a way to remove review findings.
+Missing checkpoints, changed sources/settings/artifacts/runtime, and conflicting
+processes block resume. Keep the original runtime until its runs finish; there
+is no legacy adoption or silent configuration migration. The fingerprint cannot
+detect a provider changing the model behind an unchanged deployment name.
+
+The OS advisory `.digest.lock` is retained and released by process exit/crash.
+It protects cooperating processes on the same filesystem, not separate OneDrive
+replicas: stop other-device runs and finish synchronization before resuming.
+Read the portable [resume contract](../.agents/skills/clew-import/references/resume.md)
+for complete inspection, approval, failure and synchronization rules.
 
 ### Conversion and evidence
 
@@ -101,7 +153,8 @@ returned usage (including cached input when reported). This is not an Azure
 invoice; cache-write premiums and SDK retries may be absent. Document
 Intelligence processed-page count and high-resolution OCR use are reported
 separately, without a dollar estimate because Azure rates vary by region and
-contract. Missing per-response usage makes the OpenAI estimate incomplete,
+contract. Missing per-response usage or unobserved interrupted request attempts
+makes the OpenAI estimate incomplete,
 never zero; a response model that does not match GPT-6.1-Sol also suppresses the
 estimate, as does a response that omits its model. See the
 [OpenAI GPT-6.1-Sol pricing](https://developers.openai.com/api/docs/models/gpt-6.1-sol)
@@ -127,9 +180,10 @@ Neither parsing, judging nor rendering proves faithful mathematics.
 Converter exits: 0 extracted, 2 complete with review findings, 1 failed,
 130 interrupted. Planner exits: 0 unblocked plan, 2 conflicts/preflight blockers,
 1 inspection error. Check manifests and persisted artifacts, not exits alone.
-On failure preserve output and pause; deleting a verified exact failed root and
+On failure preserve output and pause; first plan an explicit checkpoint resume
+when supported. Deleting a verified exact failed root and
 retrying requires separate approval, including synchronized-deletion consequences.
-Diagnostic replacement alone has bounded Windows lock backoff (five waits:
+Diagnostic and checkpoint replacement have bounded Windows lock backoff (five waits:
 0.1, 0.2, 0.4, 0.8, 1.6 seconds); it does not repeat cloud calls.
 
 ## Whole-document preparation

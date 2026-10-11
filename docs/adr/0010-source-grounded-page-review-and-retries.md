@@ -39,7 +39,7 @@ Combine [ADR-0005](0005-conservative-import-and-latex-leakage-review.md)'s
 conservative transcription with
 [ADR-0009](0009-direct-markdown-page-transcription.md)'s direct page text.
 Existing failure,
-output ownership, cloud approval, and delete-and-restart gates from
+output ownership, cloud approval, explicit checkpoint-resume and delete-and-restart gates from
 [ADR-0002](0002-pdf-import-skill-and-project-runtime.md) remain in force.
 
 Review each candidate in a fresh Responses API request to the same configured
@@ -69,6 +69,12 @@ guessing. Select the latest candidate unchanged and retain unresolved findings
 as `needs_review` with exit `2`. A failed/incomplete/refused/malformed service
 response is a failed import, not an automatic content retry or a success-shaped
 fallback.
+
+Explicit checkpoint resume reuses previously validated requests and reconstructs
+the same candidate/judgment history and selected-page math context. It does not
+reset the two-correction budget. A saved invalid response remains a failure;
+retrying that logical request is allowed only in a separately approved resume,
+with immutable prior evidence, not an automatic in-run content retry.
 
 Preserve existing non-mutating LaTeX leakage review. Add a local scan for Unicode
 `Cc` controls except newline, carriage return, and tab. Supply both checks to
@@ -111,7 +117,10 @@ estimate at GPT-6.1-Sol OpenAI standard list rates; label it as a reference, not
 an Azure charge. Report Document Intelligence page/add-on usage separately
 without a dollar amount. Missing usage makes the reference estimate incomplete;
 do not substitute zero. Azure contract/region pricing, cache-write premiums, and
-unobserved SDK transport retries are outside the estimate.
+unobserved SDK transport retries are outside the estimate. Resume reconstructs
+all returned usage once, including rejected responses; interrupted request
+attempts without a committed response are reported explicitly and make the
+reference price estimate unavailable.
 
 Keep complete operating instructions and evals inside the portable Import
 skill; keep offline executable tests under `tests/clew_import/`. Update the
