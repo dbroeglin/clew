@@ -17,12 +17,13 @@ Obsidian preparation. Keep one complete note per PDF beside its PDF and figures.
 Preparation adds structure/anchors/links without regenerating source text.
 Conversion and local preparation have separate concrete approvals.
 
-Enrich and Generate remain separate skills with different input contracts.
+Enrich and Generate remain separate skills with distinct responsibilities.
 Enrich optionally consumes completed whole-document chapters, using
 document-internal exercise/correction units and stable question/answer anchors;
-it writes new help notes without changing imported documents. Generate remains
-a legacy exercise-per-note consumer. Do not claim whole-document HTML
-publication or end-to-end new-format output works yet. Current notes are
+it writes new help notes without changing imported documents. Generate consumes
+current document-internal units and optional aids to publish offline HTML.
+It requires no producer records, baselines or installed sibling skills.
+Legacy exercise-per-note archives are not supported or migrated. Current notes are
 authoritative for learning/editing; HTML remains derived. Retain immutable
 conversion evidence and preparation baselines.
 
@@ -35,5 +36,6 @@ preparation in ADR-0004 and unit identities in ADR-0008.
 
 Users invoke one import skill without forcing a reconversion. Source storage
 is independent of learning-unit presentation. Enrich can use prepared unit
-anchors without changing or splitting source documents; Generate's document
-consumer and archive migration remain separate future work.
+anchors without changing or splitting source documents; Generate publishes
+those current units and aids without coupling publication to source fidelity.
+Archive migration remains outside this workflow.

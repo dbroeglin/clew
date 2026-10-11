@@ -307,8 +307,8 @@ answer associations, and precise course links. It needs the prepared Import
 artifact but no Import runtime installation or cloud credentials. See its
 [format](../.agents/skills/clew-enrich/references/formats.md).
 
-Generate remains a legacy exercise-per-note consumer. It does not yet publish
-Import's whole-document chapters or the corresponding Enrich aids.
+Generate publishes current document-internal units and these aids. It does not
+require the Enrich baseline or validator and never edits source notes.
 
 ```powershell
 uv run --package clew-enrich --locked --no-sync python -B ".agents\skills\clew-enrich\scripts\validate_enrich.py" "C:\vault\prepared-chapter" --capture "C:\scratch\before.json"
@@ -322,10 +322,18 @@ broader learning enrichment, legacy archive migration, or revision framework.
 
 ## Offline HTML Generate
 
-[`clew-generate`](../.agents/skills/clew-generate/SKILL.md) likewise remains a
-legacy-note consumer. It does not yet publish new `type: document` chapters.
-Existing course/exercise/correction/help notes can still be published without
-Import runtime, a producer record or snapshot validation.
+[`clew-generate`](../.agents/skills/clew-generate/SKILL.md) consumes current
+`clew_schema: 1`, `type: document` notes with explicit roles, scoped
+exercise/correction units and stable question/answer anchors. A chapter folder
+or its `type: chapter` index discovers visible document/help notes; explicit
+current-format files work too. Private `.clew/`, retained `sources/` and vault
+configuration are excluded. Legacy exercise-per-note archives are unsupported,
+not automatically migrated.
+
+Current edits are authoritative. Publication requires no Import runtime,
+`.clew/preparation.json`, retained baselines, hashes or Enrich validator.
+Generate checks current publication structure and selected references, not
+producer completion or original-source fidelity.
 
 ```powershell
 uv run --package clew-generate --locked --no-sync python -B ".agents\skills\clew-generate\scripts\inspect_notes.py" "C:\vault" --list-chapters
@@ -333,8 +341,20 @@ uv run --package clew-generate --locked --no-sync python -B ".agents\skills\clew
 uv run --package clew-generate --locked --no-sync python ".agents\skills\clew-generate\scripts\generate_html.py" "C:\plans\layout.json"
 ```
 
-Legacy topology uses `courses/`, `exercices/`, `corriges/`, optional `aides/`.
-One exercise note owns all its questions; supplied correction units stay intact.
+The small layout remains version 1. Whole worksheets expand to their exercise
+units, retaining introductions, section context and review warnings once in
+source order. `sheet#^ex-1` selects an exercise scope; native Obsidian links
+still address only its entry. Partial question selectors group by their owning
+unit, not document ID, and retain shared unit context. Duplicate/overlapping
+selections and unsafe ranges are errors.
+
+Exact `Exercise` / `Question` relationship footers determine correction/answer
+ownership. Correction context is scoped to one unit, selected answers stay in
+source order, and variants remain separate even within one document. Missing
+matches warn rather than invent associations. Help notes reuse existing
+question/correction references and precise course passages; human-authored
+methods can also be consumed, while Enrich authors only hints/explanations.
+
 Python renders current Markdown and embeds figures, fixed HTML-first templates,
 CSS, interaction code and pinned offline MathJax. No runtime CDN/server or
 source-note changes. Hints/explanations/course excerpts use contextual panels;
@@ -359,8 +379,9 @@ Tests use independently authored synthetic material and mocked/local transports,
 not real cloud calls or user archives. Import tests cover both steps, negative
 structure/link diagnostics, source preservation, warnings, lifecycle, relocation
 and standalone runtime. Enrich tests cover prepared-document consumption and additive preservation.
-Generate's suite covers its unchanged legacy behavior; there is no claim of
-new-format HTML publication.
+Generate's suite covers multi-unit current-document publication, current Enrich
+integration, source preservation, selection/ownership failures, supported
+newline variants, relocation, standalone runtime and offline interactions.
 Standalone fixtures use temporary local wheels from installed locked
 distributions via `tests/runtime_fixtures.py`, outside the copied skill.
 

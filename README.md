@@ -113,9 +113,19 @@ prove semantic matches, theorem boundaries, or mathematical correctness.
 `clew-enrich` adds question-specific hints and supplied-answer explanations to
 completed whole-document Import chapters, in separate help notes that leave
 imported documents unchanged. `clew-generate` publishes selected current notes
-as an offline interactive HTML file, but still supports only the legacy
-exercise-per-note layout. Whole-document HTML publication is not yet supported;
-existing legacy archives are not migrated.
+as one offline interactive HTML file. Exercises and supplied corrections stay
+grouped by their document-internal units; hints and explanations use existing
+Enrich links. Publication reads your current edits without requiring original
+baselines or producer records. Legacy exercise-per-note archives are not supported
+or migrated.
+
+```text
+Use clew-enrich to propose hints and supplied-answer explanations for
+C:\vault\Maths\algebre, without changing the imported documents.
+
+Use clew-generate to publish C:\vault\Maths\algebre as
+C:\publications\algebre.html, including existing aids.
+```
 
 PDF is the only implemented conversion input. TeX, Word, PowerPoint, generated
 exercises/answers, general OCR repair, and broader enrichment are outside this

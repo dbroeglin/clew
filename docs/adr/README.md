@@ -10,12 +10,12 @@ skills, not in ADRs.
 | ADR | Decision | Status | Summary |
 | --- | --- | --- | --- |
 | [ADR-0000](0000-record-architecture-decisions.md) | Record architecture decisions | Accepted | Stable IDs, progressive discovery and in-place revisions. |
-| [ADR-0001](0001-document-processing-pipeline.md) | Document processing pipeline | Accepted | Enrich consumes prepared units; Generate remains a legacy consumer. |
+| [ADR-0001](0001-document-processing-pipeline.md) | Document processing pipeline | Accepted | Whole-document Import, optional Enrich aids and current-unit offline publication. |
 | [ADR-0002](0002-pdf-import-skill-and-project-runtime.md) | PDF Import and project runtime | Accepted | Pinned conversion, retained bundles, version-bound future checkpoints and explicit cloud/resume/restart gates. |
 | [ADR-0003](0003-autonomous-portable-skills.md) | Autonomous portable skills | Accepted | Skill-owned runtime intent, host-owned resolution, external tests and documentation integrity. |
 | [ADR-0004](0004-faithful-multi-bundle-ingest.md) | Whole-document preparation | Accepted | One note per PDF, typed edits, compact provenance, Obsidian comments, final review appendices and pedantic validation. |
 | [ADR-0005](0005-conservative-import-and-latex-leakage-review.md) | Conservative transcription and leakage review | Accepted | Image-evidenced transcription and non-mutating review. |
-| [ADR-0006](0006-current-note-offline-html-generation.md) | Current-note offline HTML | Accepted | Legacy-note publication and offline HTML-first views; new document-unit support deferred. |
+| [ADR-0006](0006-current-note-offline-html-generation.md) | Current-note offline HTML | Accepted | Current document-unit publication without producer records; offline HTML-first views. |
 | [ADR-0007](0007-course-linked-question-enrichment.md) | Course-linked question enrichment | Accepted | Additive course-linked hints/explanations for prepared document-internal units. |
 | [ADR-0008](0008-exercise-unit-pipeline-contract.md) | Document-internal learning units | Accepted | Heading navigation, stable entries, scoped ownership and compact relationship/PDF callout footers. |
 | [ADR-0009](0009-direct-markdown-page-transcription.md) | Direct Markdown page transcription | Accepted | Direct page text, strict figure JSON and retained raw responses. |

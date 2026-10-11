@@ -1,4 +1,4 @@
-"""Current-note inspection and explicit selection, independent of Ingest."""
+"""Inspect current whole-document notes without producer records or snapshots."""
 from __future__ import annotations
 
 import json
@@ -6,6 +6,7 @@ import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
+from urllib.parse import unquote, urlsplit
 
 import yaml
 from markdown_it import MarkdownIt
@@ -19,24 +20,6 @@ class GenerateError(ValueError):
 def require(condition: bool, message: str) -> None:
     if not condition:
         raise GenerateError(message)
-
-
-def normalized_heading_reference(value: str) -> str:
-    value = re.sub(r"(?<!\\)\\\\([A-Za-z]+)", r"\\\1", value)
-    return re.sub(r"(?<!\\)(\*{1,3}|_{1,3})(.+?)\1", r"\2", value)
-
-
-def bold_marker_span(body: str, marker: str) -> tuple[int, int] | None:
-    lines = body.splitlines()
-    match = re.compile(rf"^\*\*{re.escape(marker)}\*\*\s*$")
-    starts = [index for index, line in enumerate(lines) if match.fullmatch(line)]
-    if len(starts) != 1:
-        return None
-    start = starts[0]
-    for index in range(start + 1, len(lines)):
-        if re.fullmatch(r"^\*\*.+?\*\*\s*$", lines[index]) or re.match(r"^#{1,6}\s", lines[index]):
-            return start, index
-    return start, len(lines)
 
 
 def local_path(path: Path) -> Path:
@@ -57,20 +40,95 @@ def parser() -> MarkdownIt:
     return MarkdownIt("commonmark", {"html": False}).enable("table").use(dollarmath_plugin)
 
 
+def normalized_heading_reference(value: str) -> str:
+    value = re.sub(r"(?<!\\)\\\\([A-Za-z]+)", r"\\\1", value)
+    return re.sub(r"(?<!\\)(\*{1,3}|_{1,3})(.+?)\1", r"\2", value)
+
+
+def protected_lines(body: str) -> set[int]:
+    return {line for token in parser().parse(body)
+            if token.type in {"fence", "code_block", "math_block"} and token.map
+            for line in range(*token.map)}
+
+
+def hide_comments(body: str) -> str:
+    protected = protected_lines(body)
+    offsets = [0]
+    for line in body.splitlines(keepends=True):
+        offsets.append(offsets[-1] + len(line))
+    spans = [(offsets[line], offsets[line + 1]) for line in protected]
+    spans.extend(match.span() for match in re.finditer(
+        r"(`+)[^\n]*?\1|(?<!\\)\$[^\n$]+\$", body))
+
+    def mask(match: re.Match) -> str:
+        if any(start <= match.start() < end for start, end in spans):
+            return match[0]
+        return re.sub(r"[^\n]", " ", match[0])
+
+    return re.sub(r"%%.*?%%", mask, body, flags=re.S)
+
+
 @dataclass
 class Part:
     kind: str
     text: str
     label: str = ""
     block: str = ""
-    fields: str = ""
     start: int = 0
     end: int = 0
 
     def display(self) -> str:
-        if self.label and self.kind in {"note", "warning", "tip", "method", "hint", "explanation"}:
-            return self.label + "\n\n" + self.text
-        return self.text
+        return (self.label + "\n\n" if self.label else "") + self.text
+
+
+@dataclass
+class Unit:
+    kind: str
+    id: str
+    start: int
+    end: int
+    title: str = ""
+
+
+UNIT_OPEN = re.compile(r"%% clew:unit (section|exercise|correction) ([A-Za-z0-9-]+) %%")
+UNIT_CLOSE = re.compile(r"%% /clew:unit ([A-Za-z0-9-]+) %%")
+CALLOUT_KINDS = {
+    "question", "reponse", "method", "hint", "explanation", "note", "warning", "tip",
+    "definition", "theorem", "property", "lemma", "proposition", "corollary",
+    "example", "remark", "proof",
+}
+
+
+def split_parts(body: str) -> list[Part]:
+    lines = hide_comments(body).splitlines()
+    parts: list[Part] = []
+    for token in parser().parse("\n".join(lines)):
+        if token.level != 0 or not token.map or token.type == "inline":
+            continue
+        start, end = token.map
+        text = "\n".join(lines[start:end]).strip()
+        if not text:
+            continue
+        callout = re.fullmatch(r"> \[!([A-Za-z-]+)\][+-]?(?: (.*))?", lines[start])
+        if token.type == "blockquote_open" and callout and callout[1] in CALLOUT_KINDS:
+            quoted = lines[start + 1:end]
+            require(all(line == ">" or line.startswith("> ") for line in quoted),
+                    f"Callout needs explicit quote prefixes at body line {start + 1}.")
+            parts.append(Part(callout[1], "\n".join(
+                line[2:] if line.startswith("> ") else "" for line in quoted).strip(),
+                callout[2] or "", start=start, end=end))
+        elif token.type == "paragraph_open":
+            anchor = re.search(r"(?:^|\s)\^([A-Za-z0-9-]+)$", text)
+            if anchor and not text[:anchor.start()].strip():
+                require(bool(parts) and not parts[-1].block, "Block anchor has no unique content.")
+                parts[-1].block = anchor[1]
+                parts[-1].end = end
+            else:
+                parts.append(Part("text", text[:anchor.start()].rstrip() if anchor else text,
+                                  block=anchor[1] if anchor else "", start=start, end=end))
+        else:
+            parts.append(Part("text", text, start=start, end=end))
+    return parts
 
 
 @dataclass
@@ -81,31 +139,44 @@ class Note:
     body: str
     parts: list[Part] = field(default_factory=list)
     blocks: dict[str, Part] = field(default_factory=dict)
+    units: list[Unit] = field(default_factory=list)
 
     @property
     def id(self) -> str:
-        return str(self.metadata.get("id", self.path.stem))
+        return self.metadata["id"]
 
     @property
     def title(self) -> str:
-        return str(self.metadata.get("title", self.path.stem))
+        return self.metadata.get("title", self.path.stem)
+
+    @property
+    def role(self) -> str:
+        return self.metadata.get("role", "")
+
+    def owner(self, part: Part, kind: str) -> Unit:
+        matches = [unit for unit in self.units if unit.kind == kind
+                   and unit.start < part.start and part.end <= unit.end - 1]
+        require(len(matches) == 1, f"Expected one {kind} owner: {self.id}#^{part.block}")
+        return matches[0]
+
+    def unit(self, fragment: str, kind: str) -> Unit:
+        matches = [unit for unit in self.units
+                   if unit.kind == kind and fragment == "^" + unit.id]
+        require(len(matches) == 1, f"Expected {kind} entry: {self.id}#{fragment}")
+        return matches[0]
+
+    def span_parts(self, start: int, end: int) -> list[Part]:
+        selected = [part for part in self.parts if part.start < end and start < part.end]
+        require(all(start <= part.start and part.end <= end for part in selected),
+                f"Selection bisects content: {self.id}, body lines {start + 1}-{end}")
+        return selected
+
+    def select_parts(self, fragment: str = "") -> list[Part]:
+        return self.span_parts(*self.selection_span(fragment))
 
     def select(self, fragment: str = "") -> str:
         return "\n\n".join(part.display() for part in self.select_parts(fragment)
                           if part.text.strip())
-
-    def select_parts(self, fragment: str = "") -> list[Part]:
-        if not fragment:
-            return self.parts
-        if fragment.startswith("^"):
-            require(fragment[1:] in self.blocks, f"Missing block: {self.id}#{fragment}")
-            return [self.blocks[fragment[1:]]]
-        start, end = self.selection_span(fragment)
-        parts = split_parts("\n".join(self.body.splitlines()[start:end]))
-        for part in parts:
-            part.start += start
-            part.end += start
-        return parts
 
     def selection_span(self, fragment: str = "") -> tuple[int, int]:
         if not fragment:
@@ -116,238 +187,171 @@ class Note:
             return part.start, part.end
         match = re.fullmatch(r"L([1-9]\d*)-L([1-9]\d*)", fragment)
         if match:
-            start, end = map(int, match.groups())
-            lines = self.text.splitlines(keepends=True)
-            require(1 <= start <= end <= len(lines), f"Invalid line range: {self.id}#{fragment}")
-            header_lines = len(self.text[:len(self.text) - len(self.body)].splitlines())
-            require(start > header_lines, "Select note content, not frontmatter.")
-            protected = set()
-            for token in parser().parse(self.text):
-                if token.map and token.type not in {"ordered_list_open", "bullet_list_open"}:
-                    protected.update(range(token.map[0] + 1, token.map[1]))
-            require(start - 1 not in protected and end not in protected,
-                    f"Range bisects Markdown: {self.id}#{fragment}")
-            selected = "".join(lines[start - 1:end])
-            require(not selected.startswith("---"), "Select note content, not frontmatter.")
-            return start - 1 - header_lines, end - header_lines
-        tokens = parser().parse(self.body)
-        matches = []
-        for index, token in enumerate(tokens):
-            if token.type == "heading_open" and tokens[index + 1].content == fragment:
-                matches.append((index, token))
+            first, last = map(int, match.groups())
+            header = len(self.text.splitlines()) - len(self.body.splitlines())
+            start, end = first - 1 - header, last - header
+            require(0 <= start < end <= len(self.body.splitlines()),
+                    f"Invalid line range or frontmatter selection: {self.id}#{fragment}")
+            self.span_parts(start, end)
+            return start, end
+        tokens = parser().parse(hide_comments(self.body))
+        matches = [(index, token) for index, token in enumerate(tokens)
+                   if token.type == "heading_open" and tokens[index + 1].content == fragment]
         if not matches:
-            normalized = normalized_heading_reference(fragment)
-            for index, token in enumerate(tokens):
-                if (token.type == "heading_open"
-                        and normalized_heading_reference(tokens[index + 1].content) == normalized):
-                    matches.append((index, token))
-        marker_span = bold_marker_span(self.body, fragment) if not matches else None
-        if marker_span:
-            return marker_span
+            matches = [(index, token) for index, token in enumerate(tokens)
+                       if token.type == "heading_open" and
+                       normalized_heading_reference(tokens[index + 1].content)
+                       == normalized_heading_reference(fragment)]
         require(len(matches) == 1, f"Missing or ambiguous heading: {self.id}#{fragment}")
-        index, token = matches[0]
-        start = token.map[0]
+        index, heading = matches[0]
         end = len(self.body.splitlines())
-        for following in tokens[index + 1:]:
-            if following.type == "heading_open" and int(following.tag[1:]) <= int(token.tag[1:]):
-                end = following.map[0]
+        for token in tokens[index + 1:]:
+            if token.type == "heading_open" and int(token.tag[1:]) <= int(heading.tag[1:]):
+                end = token.map[0]
                 break
-        return start, end
-
-
-def split_parts(body: str) -> list[Part]:
-    # Only exact Ingest structural markers and known field lines are removed.
-    lines = body.splitlines()
-    parts: list[Part] = []
-    plain: list[str] = []
-    positions: list[int] = []
-
-    def flush() -> None:
-        if plain:
-            parts.append(Part("text", "\n".join(plain).strip(),
-                              start=positions[0], end=positions[-1] + 1))
-            plain.clear()
-            positions.clear()
-
-    index = 0
-    while index < len(lines):
-        line = lines[index]
-        if re.fullmatch(r"<!-- /?clew-part:\d+ -->", line):
-            index += 1
-            continue
-        if re.match(r"^\s*(`{3,}|~{3,})", line):
-            fence = re.match(r"^\s*(`{3,}|~{3,})", line).group(1)
-            plain.append(line)
-            positions.append(index)
-            index += 1
-            while index < len(lines):
-                plain.append(lines[index])
-                positions.append(index)
-                closing = re.fullmatch(r"\s*" + re.escape(fence[0]) + r"{" + str(len(fence)) + r",}\s*", lines[index])
-                index += 1
-                if closing:
-                    break
-            continue
-        callout = re.match(r"^> \[!(question|reponse|method|hint|explanation|note|warning|tip)\][+-]?(?: (.*))?$", line)
-        if callout:
-            flush()
-            start = index
-            quoted = []
-            index += 1
-            while index < len(lines) and (lines[index] == ">" or lines[index].startswith("> ")):
-                quoted.append(lines[index][2:] if lines[index].startswith("> ") else "")
-                index += 1
-            fields = ""
-            if quoted and re.match(r"^\[(src|question|needs)::", quoted[0]):
-                fields = quoted.pop(0)
-            while index < len(lines) and not lines[index].strip():
-                index += 1
-            anchor = ""
-            if index < len(lines) and re.fullmatch(r"\^[A-Za-z0-9-]+", lines[index]):
-                anchor = lines[index][1:]
-                index += 1
-            parts.append(Part(callout[1], "\n".join(quoted).strip(),
-                              callout[2] or "", anchor, fields, start, index))
-            continue
-        anchor = re.fullmatch(r"\^([A-Za-z0-9-]+)", line)
-        if anchor:
-            if plain:
-                plain_text = "\n".join(plain)
-                tokens = parser().parse(plain_text)
-                starts = [token.map[0] for token in tokens
-                          if token.map and token.level == 0]
-                if starts:
-                    start = starts[-1]
-                    if start:
-                        parts.append(Part("text", "\n".join(plain[:start]).strip(),
-                                          start=positions[0], end=positions[start - 1] + 1))
-                        plain[:] = plain[start:]
-                        positions[:] = positions[start:]
-                flush()
-            require(bool(parts) and not parts[-1].block, "Block anchor has no unique content.")
-            parts[-1].block = anchor[1]
-            parts[-1].end = index + 1
-        else:
-            plain.append(line)
-            positions.append(index)
-        index += 1
-    flush()
-    return parts
+        return heading.map[0], end
 
 
 def read_note(path: Path) -> Note:
     path = local_path(path)
     require(path.is_file() and path.suffix.lower() == ".md", f"Expected Markdown note: {path}")
     text = path.read_text(encoding="utf-8-sig")
-    body = text
-    metadata = {}
-    match = re.match(r"\A---\r?\n(.*?)\r?\n---(?:\r?\n|$)", text, re.S)
-    if match:
-        metadata = yaml.safe_load(match[1]) or {}
-        require(isinstance(metadata, dict), f"Frontmatter must be an object: {path}")
-        for key in ("id", "title", "type", "question", "correction"):
-            if key in metadata:
-                require(isinstance(metadata[key], str) and bool(metadata[key]),
-                        f"Frontmatter {key} must be a nonempty string: {path}")
-        body = text[match.end():]
-    parts = split_parts(body)
-    blocks = {}
-    for part in parts:
+    match = re.match(r"\A---\n(.*?)\n---(?:\n|$)", text, re.S)
+    require(match is not None, f"Current notes require frontmatter; legacy input unsupported: {path}")
+    metadata = yaml.safe_load(match[1])
+    require(isinstance(metadata, dict), f"Frontmatter must be an object: {path}")
+    require(metadata.get("type") in {"document", "chapter", "help"},
+            f"Legacy input unsupported; select current document/help notes: {path}")
+    if metadata["type"] in {"document", "chapter"}:
+        require(type(metadata.get("clew_schema")) is int and metadata["clew_schema"] == 1,
+                f"Expected clew_schema: 1: {path}")
+    if metadata["type"] == "document":
+        require(metadata.get("role") in {"course", "exercise", "correction", "mixed", "unknown"},
+                f"Invalid document role: {path}")
+    for key in ("id", "title", "question", "correction"):
+        if key == "id" or key in metadata:
+            require(isinstance(metadata.get(key), str) and bool(metadata[key].strip()),
+                    f"Frontmatter {key} must be a nonempty string: {path}")
+    body = text[match.end():]
+    note = Note(path, text, metadata, body, split_parts(body))
+    for part in note.parts:
         if part.block:
-            require(part.block not in blocks, f"Duplicate block: {path}#^{part.block}")
-            blocks[part.block] = part
-    return Note(path, text, metadata, body, parts, blocks)
+            require(part.block not in note.blocks, f"Duplicate block: {path}#^{part.block}")
+            note.blocks[part.block] = part
+    stack: list[Unit] = []
+    protected = protected_lines(body)
+    lines = body.splitlines()
+    tokens = parser().parse(hide_comments(body))
+    headings = [(token.map[0], tokens[index + 1].content)
+                for index, token in enumerate(tokens) if token.type == "heading_open"]
+    for index, line in enumerate(lines):
+        if index in protected:
+            continue
+        opening, closing = UNIT_OPEN.fullmatch(line), UNIT_CLOSE.fullmatch(line)
+        if line.startswith(("%% clew:unit", "%% /clew:unit")):
+            require(bool(opening or closing), f"Malformed unit marker: {path}, line {index + 1}")
+        if opening:
+            require(not stack or stack[-1].kind == "section", f"Invalid nested unit: {path}")
+            require(not any(unit.id == opening[2] for unit in stack + note.units),
+                    f"Duplicate unit ID: {note.id}#{opening[2]}")
+            stack.append(Unit(opening[1], opening[2], index, len(lines)))
+        elif closing:
+            require(bool(stack) and stack[-1].id == closing[1],
+                    f"Mismatched unit boundary: {path}, line {index + 1}")
+            unit = stack.pop()
+            unit.end = index + 1
+            if unit.kind != "section":
+                entry = note.blocks.get(unit.id)
+                require(entry is not None and unit.start < entry.start
+                        and entry.end <= unit.end - 1,
+                        f"Missing {unit.kind} entry anchor: {note.id}#^{unit.id}")
+                require(entry.kind not in {"question", "reponse"},
+                        f"Unit entry cannot also be a question or answer: {note.id}#^{unit.id}")
+                if entry.kind == "text" and entry.text == unit.kind.title():
+                    entry.text = ""
+            titles = [title for line, title in headings if unit.start < line < unit.end]
+            unit.title = titles[0] if titles else unit.kind.title()
+            note.units.append(unit)
+    require(not stack, f"Unclosed unit: {path}")
+    note.units.sort(key=lambda unit: unit.start)
+    for part in note.parts:
+        if part.kind in {"question", "reponse"}:
+            kind = "exercise" if part.kind == "question" else "correction"
+            require(note.role in {kind, "mixed"} and bool(part.block) and bool(part.text),
+                    f"Expected anchored {kind} callout in a document: {note.id}")
+            note.owner(part, kind)
+    return note
+
+
+def note_links(text: str, *, label: str | None = None) -> list[str]:
+    md = parser()
+
+    def wikilink(state, silent: bool) -> bool:
+        match = re.match(r"\[\[([^\]\n]+)\]\]", state.src[state.pos:])
+        if not match:
+            return False
+        if not silent:
+            token = state.push("note_wikilink", "", 0)
+            token.content = match[1]
+        state.pos += len(match[0])
+        return True
+
+    md.inline.ruler.before("link", "note_wikilink", wikilink)
+    links = []
+    for token in md.parse(text):
+        children = token.children or []
+        for index, child in enumerate(children):
+            if child.type == "note_wikilink" and label is None:
+                links.append("[[" + child.content + "]]")
+            elif child.type == "link_open":
+                following = children[index + 1:index + 3]
+                if label is None or (len(following) == 2 and following[0].type == "text"
+                                     and following[0].content == label
+                                     and following[1].type == "link_close"):
+                    links.append(child.attrGet("href") or "")
+    return links
+
+
+def chapter_directory(root: Path) -> bool:
+    index = local_path(root / "index.md")
+    if not root.is_dir() or not index.is_file():
+        return False
+    text = index.read_text(encoding="utf-8-sig")
+    match = re.match(r"\A---\n(.*?)\n---(?:\n|$)", text, re.S)
+    metadata = yaml.safe_load(match[1]) if match else {}
+    return isinstance(metadata, dict) and metadata.get("type") == "chapter"
 
 
 def discover_chapter(root: Path) -> tuple[list[Note], dict]:
     root = local_path(root)
-    require(root.is_dir(), f"Expected chapter directory: {root}")
-    roles = {"courses": "course", "exercices": "exercise",
-             "corriges": "correction", "aides": "help"}
-    require(any((root / name).is_dir() for name in ("courses", "exercices", "corriges")),
-            f"Not a chapter directory; expected courses/, exercices/, or corriges/: {root}")
-    found: list[Note] = []
-    omitted: list[str] = []
+    require(chapter_directory(root), f"Expected current chapter index: {root}")
+    found = []
+    omitted = []
 
-    def walk(directory: Path, role: str) -> None:
-        local_path(directory)
-        for entry in sorted(directory.iterdir(), key=lambda path: (path.name.casefold(), path.name)):
-            if entry.name.startswith("."):
-                omitted.append(entry.relative_to(root).as_posix())
+    def walk(directory: Path) -> None:
+        for entry in sorted(directory.iterdir(), key=lambda item: (item.name.casefold(), item.name)):
+            if entry.name.startswith(".") or entry.name == "sources":
                 continue
             entry = local_path(entry)
             if entry.is_dir():
-                walk(entry, role)
+                walk(entry)
             elif entry.suffix.lower() == ".md":
-                note = read_note(entry)
-                note.metadata.setdefault("type", role)
-                found.append(note)
+                if entry != root / "index.md":
+                    found.append(read_note(entry))
+            elif entry.suffix.lower() not in {".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp"}:
+                omitted.append(entry.relative_to(root).as_posix())
 
-    for name, role in roles.items():
-        directory = root / name
-        if directory.exists() or directory.is_symlink():
-            require(local_path(directory).is_dir(), f"Expected note directory: {directory}")
-            walk(directory, role)
-    index = None
-    for entry in sorted(root.iterdir(), key=lambda path: (path.name.casefold(), path.name)):
-        if entry.name.lower() == "index.md":
-            index = read_note(entry)
-        elif not entry.name.startswith(".") and entry.suffix.lower() == ".md":
-            note = read_note(entry)
-            if note.metadata.get("type") == "help":
-                found.append(note)
-            else:
-                omitted.append(entry.name)
-    require(bool(found), f"No learning notes found in chapter: {root}")
-
-    def order(note: Note) -> int:
-        value = note.metadata.get("order", 1_000_000_000)
-        require(type(value) is int and value > 0, f"Invalid note order: {note.path}")
-        return value
-
-    courses = {note.id: note for note in found if note.metadata.get("type") == "course"}
-
-    def rank(note: Note) -> tuple:
-        kind = note.metadata.get("type")
-        parent = note
-        if kind == "section":
-            targets = note.metadata.get("courses", [])
-            require(isinstance(targets, list) and all(isinstance(ref, str) for ref in targets),
-                    f"Invalid section courses: {note.path}")
-            if len(targets) == 1:
-                identifier = targets[0].removeprefix("[[").removesuffix("]]").split("|", 1)[0]
-                parent = courses.get(identifier, note)
-        group = {"course": 0, "section": 0, "exercise": 1, "correction": 2, "help": 3}.get(kind, 4)
-        return (group, order(parent), parent.id if group == 0 else "",
-                kind == "section", order(note), note.id, note.path.as_posix())
-
-    found.sort(key=rank)
-    return found, {"root": str(root), "title": index.title if index else root.name,
+    walk(root)
+    require(bool(found), f"No current document/help notes in chapter: {root}")
+    return found, {"root": str(root), "title": read_note(root / "index.md").title,
                    "notes": len(found), "omitted": omitted,
-                   "excluded": ["sources/", "ingest.json", "index.md", "hidden entries"]}
-
-
-def chapter_directory(root: Path) -> bool:
-    if not root.is_dir():
-        return False
-    if (root / "ingest.json").is_file():
-        return True
-    index = root / "index.md"
-    if index.is_file() and read_note(index).metadata.get("type") == "ingest":
-        return True
-    for name in ("courses", "exercices", "corriges"):
-        directory = local_path(root / name)
-        if directory.is_dir() and any(entry.suffix.lower() == ".md"
-                                     for entry in directory.iterdir()):
-            return True
-    return False
+                   "excluded": ["sources/", "index.md", "hidden entries (including .clew/)"]}
 
 
 def list_chapters(root: Path, *, depth: int = 8, limit: int = 512) -> dict:
     root = local_path(root)
     require(root.is_dir(), f"Expected vault or material container: {root}")
-    chapters = []
-    omitted = []
+    chapters, omitted = [], []
     visited = 0
 
     def walk(directory: Path, level: int) -> None:
@@ -356,18 +360,14 @@ def list_chapters(root: Path, *, depth: int = 8, limit: int = 512) -> dict:
             omitted.append(str(directory))
             return
         visited += 1
-        directory = local_path(directory)
         if chapter_directory(directory):
-            index = directory / "index.md"
-            chapters.append({"root": str(directory),
-                             "title": read_note(index).title if index.is_file() else directory.name})
+            chapters.append({"root": str(directory), "title": read_note(directory / "index.md").title})
             return
-        for entry in sorted(directory.iterdir(), key=lambda path: (path.name.casefold(), path.name)):
-            if entry.name.startswith(".") or entry.name == "sources":
-                continue
-            entry = local_path(entry)
-            if entry.is_dir():
-                walk(entry, level + 1)
+        for entry in sorted(directory.iterdir(), key=lambda item: (item.name.casefold(), item.name)):
+            if not entry.name.startswith(".") and entry.name != "sources":
+                entry = local_path(entry)
+                if entry.is_dir():
+                    walk(entry, level + 1)
 
     walk(root, 0)
     return {"root": str(root), "chapters": chapters, "omitted": omitted,
@@ -377,66 +377,74 @@ def list_chapters(root: Path, *, depth: int = 8, limit: int = 512) -> dict:
 class Library:
     def __init__(self, paths: list[Path]):
         require(bool(paths), "Select at least one note.")
-        selected = [local_path(path) for path in paths]
-        require(len(set(selected)) == len(selected), "Duplicate selected input.")
         self.notes: list[Note] = []
         self.chapters: list[dict] = []
-        chapter_roots = set()
         seen = set()
-        for path in selected:
-            note = None if path.is_dir() else read_note(path)
-            if path.is_dir() or (path.name.lower() == "index.md"
-                                 and note.metadata.get("type") == "ingest"):
+        roots = set()
+        for path in paths:
+            path = local_path(path)
+            index = not path.is_dir() and path.name.lower() == "index.md"
+            if path.is_dir() or (index and read_note(path).metadata["type"] == "chapter"):
                 root = path if path.is_dir() else path.parent
                 require(chapter_directory(root),
-                        f"Not a chapter directory: {root}. Use --list-chapters on the vault first.")
-                if root in chapter_roots:
+                        f"Not a current chapter: {root}. Use --list-chapters on the vault first.")
+                if root in roots:
                     continue
-                chapter_roots.add(root)
+                roots.add(root)
                 notes, report = discover_chapter(root)
                 self.chapters.append(report)
             else:
-                notes = [note]
-            for item in notes:
-                if item.path not in seen:
-                    seen.add(item.path)
-                    self.notes.append(item)
+                notes = [read_note(path)]
+            for note in notes:
+                require(note.metadata["type"] != "chapter", "Select a chapter by its index.md.")
+                if note.path not in seen:
+                    seen.add(note.path)
+                    self.notes.append(note)
+        require(len({note.id for note in self.notes}) == len(self.notes),
+                "Duplicate learning-note IDs.")
 
     def resolve(self, ref: str, origin: Note | None = None) -> tuple[Note, str]:
         require(isinstance(ref, str) and bool(ref), "Expected nonempty note reference.")
         if ref.startswith("[[") and ref.endswith("]]"):
             ref = ref[2:-2].split("|", 1)[0]
-        name, _, fragment = ref.partition("#")
-        if not name and origin:
-            return origin, fragment
-        relative_path = Path(os.path.abspath(origin.path.parent / name)) if origin else None
-        matches = []
-        for note in self.notes:
-            if name in {note.id, note.path.stem, note.path.name, str(note.path),
-                        note.path.as_posix()}:
-                matches.append(note)
-            elif relative_path == note.path:
-                matches.append(note)
+        parsed = urlsplit(ref)
+        # Layout selectors can use absolute Windows paths, unlike content URLs.
+        absolute = bool(re.match(r"^[A-Za-z]:[\\/]", ref))
+        require(absolute or (not parsed.scheme and not parsed.netloc),
+                f"Expected local note reference: {ref}")
+        if absolute:
+            name, _, fragment = ref.partition("#")
+        else:
+            name, fragment = unquote(parsed.path), unquote(parsed.fragment)
+        relative = Path(os.path.abspath(origin.path.parent / name)) if origin and name else None
+        local_matches = [note for note in self.notes if note.path == relative]
+        if local_matches:
+            return local_matches[0], fragment
+        matches = [note for note in self.notes if
+                   (not name and origin is note)
+                   or name in {note.id, note.path.stem, note.path.name, str(note.path),
+                               note.path.as_posix()}]
         require(len(matches) == 1, f"Missing or ambiguous selected note: {ref}")
         return matches[0], fragment
 
-    def select(self, ref: str, origin: Note | None = None) -> tuple[Note, str]:
-        note, fragment = self.resolve(ref, origin)
-        return note, note.select(fragment)
-
     def inventory(self) -> list[dict]:
         return [{"path": str(note.path), "id": note.id, "title": note.title,
-                 "type": note.metadata.get("type"), "lines": len(note.text.splitlines()),
-                 "order": note.metadata.get("order"),
-                 "relationships": {key: note.metadata[key]
-                                   for key in ("courses", "exercises", "corrections", "question", "correction")
+                 "type": note.metadata["type"], "role": note.role,
+                 "lines": len(note.text.splitlines()),
+                 "relationships": {key: note.metadata[key] for key in ("question", "correction")
                                    if key in note.metadata},
+                 "units": [{"kind": unit.kind, "id": unit.id, "title": unit.title,
+                            "ref": f"{note.id}#^{unit.id}" if unit.kind != "section" else None}
+                           for unit in note.units],
                  "blocks": [{"ref": f"{note.id}#^{part.block}", "kind": part.kind,
-                             "label": part.label, "relationships": part.fields}
+                             "label": part.label,
+                             "owner": note.owner(part, "exercise" if part.kind == "question"
+                                                else "correction").id
+                             if part.kind in {"question", "reponse"} else None}
                             for part in note.parts if part.block],
-                 "headings": [token.content for token in parser().parse(note.body)
-                              if token.type == "inline" and token.map and
-                              note.body.splitlines()[token.map[0]].lstrip().startswith("#")]}
+                 "headings": [tokens[index + 1].content for tokens in
+                              [parser().parse(hide_comments(note.body))]
+                              for index, token in enumerate(tokens) if token.type == "heading_open"]}
                 for note in self.notes]
 
 

@@ -148,8 +148,9 @@ Read the persisted changes and review pedagogical correctness yourself.
 Mechanical checks cannot prove a hint's usefulness or mathematical correctness.
 Report changed files, aid counts, and unresolved questions accurately.
 
-Enrich does not publish HTML. `clew-generate` remains a legacy exercise-per-note
-consumer and does not consume this prepared-document format or its aids.
+Enrich does not publish HTML. `clew-generate` consumes current document-internal
+units and these question-addressed aids, publishing supplied corrections inline
+and hints, explanations and precise course passages in its side panel.
 Generate is optional and is not a runtime dependency of Enrich.
 
 ## Maintenance

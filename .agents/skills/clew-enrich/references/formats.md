@@ -6,7 +6,7 @@ complete PDF as one Markdown note with frontmatter such as:
 
 ```yaml
 ---
-schema_version: 1
+clew_schema: 1
 id: sheet
 type: document
 role: exercise
@@ -64,8 +64,8 @@ Correction ^corr-01
 
 > [!reponse] Answer 1
 > Since $|2/5|<1$, the limit is $0$.
-> [Question](../Exercise-sheet/sheet.md#^ex-01-q-01)
-> [PDF p. 1](solutions.pdf#page=1)
+>
+> [Question](../Exercise-sheet/sheet.md#^ex-01-q-01) · [PDF p. 1](solutions.pdf#page=1)
 
 ^ex-01-r-01
 
@@ -91,7 +91,7 @@ hints do not.
 
 ```markdown
 ---
-clew_schema: 1
+schema_version: 1
 id: aid-ex-01-q-01
 type: help
 question: "[[sheet#^ex-01-q-01]]"
@@ -138,6 +138,7 @@ checks prepared document identities against `.clew/preparation.json`, unit
 ownership, unique anchors, answer/question links, aid references, and precise
 course passages. It is read-only and cannot establish semantic correctness.
 
-There is no migration path for legacy archives in this increment. Generate
-remains a legacy-layout consumer and does not publish these prepared-document
-aid notes.
+There is no migration path for legacy archives. Generate consumes current
+document-internal units and these aids without requiring this validator or
+its baseline. Supplied answers reveal inline; hints/explanations and their
+precise course links open in the side panel.

@@ -28,8 +28,9 @@ local Python, not LLM-authored replacement Markdown. Read
 Do not import runtime code from a sibling skill or require repository ADRs/tests.
 `clew-enrich` consumes this skill's completed whole-document output, using its
 document-internal exercise/correction units and question/answer anchors to add
-separate help notes without changing imported documents. `clew-generate` remains
-a legacy exercise-per-note consumer and does not publish this new format.
+separate help notes without changing imported documents. `clew-generate` publishes
+current document-internal units and optional aids as offline HTML without
+requiring this skill's runtime or preparation record.
 
 The executable is `scripts/digest_pdf.py` relative to this skill. Python
 dependencies and supported Python versions are declared in this skill's
@@ -656,7 +657,7 @@ and `1` for errors. A completed prepared root requires version 1 and
 planner/converter exits keep their documented separate meanings.
 Report the chapter root/index, one-note-per-PDF count, roles, validation mode,
 and all unresolved warnings. Enrich can optionally consume the completed root;
-Generate support for the new format remains deferred. Existing legacy note
+Generate can publish its current document units and optional aids. Existing legacy note
 archives are neither migrated nor modified.
 
 ## Provenance and maintenance

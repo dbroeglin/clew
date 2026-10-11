@@ -1,4 +1,4 @@
-"""Local synthetic regression checks; no document or cloud service is used."""
+"""Current-document publication, preservation, portability and offline checks."""
 from __future__ import annotations
 
 import base64
@@ -14,496 +14,453 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 SKILL = ROOT / ".agents" / "skills" / "clew-generate"
+FIXTURE = Path(__file__).parent / "fixtures" / "chapter"
 sys.path.insert(0, str(SKILL / "scripts"))
 sys.path.insert(0, str(ROOT / "tests"))
 
 from generate_html import generate
-from notes import GenerateError, Library, list_chapters
+from notes import GenerateError, Library, list_chapters, read_note
 from publication import compile_layout, load_layout
 from render_html import Renderer
 from runtime_fixtures import build_wheelhouse
 
 
-def fixture(root: Path) -> Path:
-    course = root / "cours.md"
-    course.write_text(
-        '---\nid: cours\ntype: course\ntitle: "Algèbre"\n---\n'
-        '# Sous-espace\n\nCritère $f+\\lambda g$.\n\n'
-        '$$\\begin{pmatrix}1&0\\\\0&1\\end{pmatrix}$$\n\n'
-        '## Exemple\n\nUne table :\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\n'
-        '![Figure](figure.png)\n\n[Source](original.pdf#page=2)\n',
-        encoding="utf-8")
-    (root / "figure.png").write_bytes(base64.b64decode(
-        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aO1cAAAAASUVORK5CYII="))
-    (root / "original.pdf").write_bytes(b"%PDF-1.4\n")
-    notes = [course.name]
-    for number, count in [(1, 2), (2, 1), (3, 3)]:
-        answer = [f'---\nid: corrige-{number}\ntype: correction\n'
-                  f'exercises: ["[[ex-{number}]]"]\n---\n'
-                  f'Shared correction context {number}.\n\n']
-        filename = f"exercice-{number}.md"
-        notes.append(filename)
-        text = (f'---\nid: ex-{number}\ntype: exercise\ntitle: Exercice {number}\n'
-                'courses: ["[[cours#Sous-espace]]"]\n---\n'
-                f'Contexte commun {number}.\n\n')
-        for question in range(1, count + 1):
-            text += (f'<!-- clew-part:{question} -->\n'
-                     f'> [!question] Question {question}\n'
-                     '> [src:: feuille; pages 1]\n'
-                     f'> Énoncé {number}-{question} : $x_{question}^2$.\n\n'
-                     f'^q-{question}\n<!-- /clew-part:{question} -->\n\n')
-            answer.append(f'> [!reponse] Réponse {question}\n'
-                          f'> [src:: corrige-{number}; pages 1] [question:: [[ex-{number}#^q-{question}]]]\n'
-                          f'> Correction {number}-{question} : $\\frac{{1}}{{2}}$.\n\n'
-                          f'^r-{number}-{question}\n\n')
-        (root / filename).write_text(text, encoding="utf-8")
-        correction = f"corrige-{number}.md"
-        (root / correction).write_text("".join(answer), encoding="utf-8")
-        notes.append(correction)
-    (root / "aides.md").write_text(
-        '---\nid: aides\ntype: help\nquestion: "[[ex-1#^q-1]]"\n---\n'
-        '> [!method]\n> Méthode distincte du corrigé.\n\n^methode\n\n'
-        '> [!hint]\n> Premier indice $x$.\n\n^indice-1\n\n'
-        '> [!hint]\n> Deuxième indice $y$.\n\n^indice-2\n\n'
-        '> [!hint]\n> Troisième indice $z$.\n\n^indice-3\n',
-        encoding="utf-8")
-    notes.append("aides.md")
-    layout = root / "layout.json"
-    layout.write_text(json.dumps({"schema_version": 1, "title": "Algèbre",
-                                 "notes": notes, "output": "publication.html"}),
-                      encoding="utf-8")
-    return layout
-
-
 class GenerateTests(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory()
-        self.addCleanup(self.temporary.cleanup)
-        self.root = Path(self.temporary.name)
-        self.layout = fixture(self.root)
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.chapter = self.root / "chapter"
+        shutil.copytree(FIXTURE, self.chapter)
+        self.sheet = self.chapter / "Exercise-sheet" / "sheet.md"
+        self.solutions = self.chapter / "Correction-solutions" / "solutions.md"
+        self.course = self.chapter / "Course-course" / "course.md"
+        self.aid = self.chapter / "aides" / "q-1.md"
+        self.layout = self.root / "layout.json"
+        self.layout.write_text(json.dumps({
+            "schema_version": 1, "title": "Sequences", "notes": [str(self.chapter)],
+            "output": "publication.html",
+        }), encoding="utf-8")
 
     def model(self):
         layout, library = load_layout(self.layout)
         renderer = Renderer(library, Path(layout["output"]))
-        model = compile_layout(layout, library, renderer)
+        data = compile_layout(layout, library, renderer)
         renderer.validate_links()
-        return model
+        return data
 
     def modify(self, **changes):
-        data = json.loads(self.layout.read_text(encoding="utf-8"))
-        data.update(changes)
-        self.layout.write_text(json.dumps(data), encoding="utf-8")
+        layout = json.loads(self.layout.read_text(encoding="utf-8"))
+        layout.update(changes)
+        self.layout.write_text(json.dumps(layout), encoding="utf-8")
 
-    def test_six_questions_fidelity_and_optional_aids(self):
+    def edit(self, path, old, new):
+        text = path.read_text(encoding="utf-8")
+        self.assertIn(old, text)
+        path.write_text(text.replace(old, new), encoding="utf-8")
+
+    def test_document_units_and_optional_aids(self):
         model = self.model()
-        self.assertEqual([e["address"] for e in model["exercises"]], ["ex-1", "ex-2", "ex-3"])
-        self.assertEqual([q["address"] for q in model["questions"]],
-                         ["ex-1#^q-1", "ex-1#^q-2", "ex-2#^q-1",
-                          "ex-3#^q-1", "ex-3#^q-2", "ex-3#^q-3"])
-        self.assertEqual([len(e["questions"]) for e in model["exercises"]], [2, 1, 3])
-        self.assertEqual(len(model["questions"]), 6)
-        self.assertEqual(len(model["questions"][0]["hints"]), 3)
-        self.assertTrue(all(not q["hints"] for q in model["questions"][1:]))
-        self.assertTrue(all(len(q["corrections"]) == 1 for q in model["questions"]))
-        self.assertNotIn("src::", str(model))
-        self.assertNotIn("clew-part:", str(model))
-        self.assertIn("data:image/png;base64,", str(model))
-        self.assertIn("original.pdf#page=2", str(model))
-
-    def test_check_writes_nothing_and_output_is_deterministic(self):
-        self.assertEqual(generate(self.layout, check=True)["status"], "checked")
-        self.assertFalse((self.root / "publication.html").exists())
-        generate(self.layout)
-        first = (self.root / "publication.html").read_bytes()
-        with self.assertRaisesRegex(GenerateError, "Output exists"):
-            generate(self.layout)
-        generate(self.layout, overwrite=True)
-        self.assertEqual(first, (self.root / "publication.html").read_bytes())
-        self.assertNotIn(b'<script src=', first)
-        self.assertNotIn(b'<link ', first)
-
-    def test_current_edits_are_used_without_ingest_record(self):
-        path = self.root / "exercice-1.md"
-        path.write_text(path.read_text(encoding="utf-8").replace("Énoncé 1-1", "Énoncé édité"),
-                        encoding="utf-8")
-        self.assertIn("Énoncé édité", self.model()["questions"][0]["html"])
-
-    def question_range(self, number=1):
-        lines = (self.root / "exercice-1.md").read_text(encoding="utf-8").splitlines()
-        start = lines.index(f"> [!question] Question {number}") + 1
-        end = lines.index(f"^q-{number}") + 1
-        if end < len(lines) and lines[end] == f"<!-- /clew-part:{number} -->":
-            end += 1
-        return f"ex-1#L{start}-L{end}"
-
-    def test_disjoint_question_selectors_group_by_exercise_and_source_order(self):
-        self.modify(exercises=["ex-1#^q-2", "[[exercice-1#^q-1|First]]", "ex-2#^q-1"])
-        model = self.model()
-        self.assertEqual([e["address"] for e in model["exercises"]], ["ex-1", "ex-2"])
+        self.assertEqual([e["address"] for e in model["exercises"]], ["sheet#^ex-1", "sheet#^ex-2"])
+        self.assertEqual([e["title"] for e in model["exercises"]], ["Exercise 1", "Exercise 2"])
         self.assertEqual([len(e["questions"]) for e in model["exercises"]], [2, 1])
         self.assertEqual([q["address"] for q in model["questions"]],
-                         ["ex-1#^q-1", "ex-1#^q-2", "ex-2#^q-1"])
-        self.assertIn("Correction 1-1", model["questions"][0]["corrections"][0])
-        self.assertNotIn("Correction 2-1", model["questions"][0]["corrections"][0])
-        self.assertEqual(len(model["questions"][0]["hints"]), 3)
+                         ["sheet#^q-1", "sheet#^q-2", "sheet#^q-3"])
+        self.assertEqual([len(q["corrections"]) for q in model["questions"]], [2, 1, 0])
+        self.assertEqual([len(q["hints"]) for q in model["questions"]], [2, 0, 0])
+        self.assertEqual([len(q["explanations"]) for q in model["questions"]], [1, 0, 0])
+        self.assertNotIn("clew:unit", str(model))
+        self.assertNotIn("clew:review", str(model))
+        self.assertNotIn("Exercise ^ex", str(model))
 
-    def test_heading_and_range_containers_keep_internal_questions_and_context(self):
-        path = self.root / "exercice-1.md"
-        text = path.read_text(encoding="utf-8").replace("Contexte commun 1.", "## Container\n\nContexte commun 1.")
-        text = text.replace("<!-- clew-part:2 -->", "Intermediate instruction.\n\n<!-- clew-part:2 -->")
-        path.write_text(text, encoding="utf-8")
-        start = text.splitlines().index("## Container") + 1
-        for selector in ("ex-1#Container", f"ex-1#L{start}-L{len(text.splitlines())}"):
-            with self.subTest(selector=selector):
-                self.modify(exercises=[selector], questions={"ex-1#^q-2": {"hints": []}})
-                model = self.model()
-                self.assertEqual([q["address"] for q in model["questions"]],
-                                 ["ex-1#^q-1", "ex-1#^q-2"])
-                segments = model["exercises"][0]["segments"]
-                self.assertIn("Contexte commun 1", segments[0]["html"])
-                self.assertEqual(segments[1]["question"], "question-1")
-                self.assertIn("Intermediate instruction", segments[2]["html"])
-                self.assertEqual(segments[3]["question"], "question-2")
-                self.assertEqual(len(model["exercises"]), 1)
+    def test_document_context_and_review_are_kept_once_in_order(self):
+        stream = self.model()["worksheet"]
+        self.assertIn("Worksheet introduction", stream[1]["html"])
+        first = next(i for i, item in enumerate(stream) if item.get("exercise") == "sheet#^ex-1")
+        second = next(i for i, item in enumerate(stream) if item.get("exercise") == "sheet#^ex-2")
+        self.assertIn("Shared section instruction", str(stream[first + 1:second]))
+        self.assertIn("Check the unanswered question", str(stream[second + 1:]))
+        self.assertEqual(str(stream).count("Worksheet introduction"), 1)
+        self.assertIn("Review required in sheet", str(generate(self.layout, check=True)["warnings"]))
 
-    def test_question_range_uses_its_canonical_internal_address(self):
-        self.modify(exercises=[self.question_range()],
-                    questions={"ex-1#^q-1": {"hints": []}})
-        model = self.model()
-        self.assertEqual(model["questions"][0]["address"], "ex-1#^q-1")
-        self.assertTrue(model["questions"][0]["corrections"])
-        self.assertFalse(model["questions"][0]["hints"])
-
-    def test_whole_child_alias_heading_and_range_overlaps_are_rejected(self):
-        path = self.root / "exercice-1.md"
-        path.write_text(path.read_text(encoding="utf-8").replace(
-            "Contexte commun 1.", "## Container\n\nContexte commun 1."), encoding="utf-8")
-        cases = [
-            ["ex-1", "ex-1#^q-1"],
-            ["ex-1#^q-1", "exercice-1.md#^q-1"],
-            ["ex-1#Container", "ex-1#^q-2"],
-            [self.question_range(), "ex-1#^q-1"],
-            ["ex-1", "[[exercice-1]]"],
-        ]
-        for selectors in cases:
-            with self.subTest(selectors=selectors):
-                self.modify(exercises=selectors)
-                with self.assertRaisesRegex(GenerateError, "Duplicate/overlapping exercise selection"):
-                    self.model()
-
-    def test_disjoint_context_and_question_selections_keep_one_unit(self):
-        path = self.root / "exercice-1.md"
-        path.write_text(path.read_text(encoding="utf-8").replace(
-            "Contexte commun 1.", "Selected instructions.\n\n^instructions"), encoding="utf-8")
-        self.modify(exercises=["ex-1#^q-2", "ex-1#^instructions", self.question_range()])
-        model = self.model()
-        self.assertEqual(len(model["exercises"]), 1)
-        segments = model["exercises"][0]["segments"]
-        self.assertIn("Selected instructions", segments[0]["html"])
-        self.assertEqual([segment["question"] for segment in segments if "question" in segment],
-                         ["question-1", "question-2"])
-        self.modify(exercises=["ex-1#^instructions"])
-        with self.assertRaisesRegex(GenerateError, "contains no questions"):
-            self.model()
-
-    def test_unit_link_resolves_when_only_internal_questions_are_selected(self):
-        path = self.root / "exercice-1.md"
-        path.write_text(path.read_text(encoding="utf-8").replace(
-            "Énoncé 1-1", "[[ex-1|Owning exercise]] : Énoncé 1-1"), encoding="utf-8")
-        self.modify(exercises=["ex-1#^q-1"])
-        self.assertIn("Owning exercise", self.model()["questions"][0]["html"])
-
-    def test_correction_context_is_preserved_once_per_selected_unit(self):
-        path = self.root / "corrige-1.md"
-        path.write_text(path.read_text(encoding="utf-8").replace(
-            "[[ex-1#^q-2]]", "[[ex-1#^q-1]]"), encoding="utf-8")
-        question = self.model()["questions"][0]
-        self.assertEqual(len(question["corrections"]), 1)
-        panel = question["corrections"][0]
-        self.assertEqual(panel.count("Shared correction context 1."), 1)
-        self.assertLess(panel.index("Shared correction context"), panel.index("Correction 1-1"))
-        self.assertLess(panel.index("Correction 1-1"), panel.index("Correction 1-2"))
-
-    def test_supplied_correction_variants_remain_separate_panels(self):
-        variant = self.root / "variant.md"
-        text = (self.root / "corrige-1.md").read_text(encoding="utf-8")
-        variant.write_text(text.replace("id: corrige-1\n", "id: variant\n"), encoding="utf-8")
-        data = json.loads(self.layout.read_text(encoding="utf-8"))
-        self.modify(notes=[*data["notes"], variant.name])
+    def test_correction_context_is_unit_scoped_and_variants_are_separate(self):
         panels = self.model()["questions"][0]["corrections"]
         self.assertEqual(len(panels), 2)
-        self.assertTrue(all(panel.count("Shared correction context 1.") == 1 for panel in panels))
+        self.assertEqual(panels[0].count("Shared correction context 1."), 1)
+        self.assertNotIn("Variant context", panels[0])
+        self.assertNotIn("Use the inequality", panels[0])
+        self.assertIn("Variant context", panels[1])
+        self.assertNotIn("Shared correction context 1.", panels[1])
 
-    def test_unlinked_supplied_answer_is_warned_not_auto_matched(self):
-        path = self.root / "corrige-2.md"
-        path.write_text(path.read_text(encoding="utf-8").replace(
-            " [question:: [[ex-2#^q-1]]]", ""), encoding="utf-8")
-        self.modify(exercises=["ex-2"])
+    def test_current_edits_and_no_producer_record(self):
+        self.assertFalse((self.chapter / ".clew").exists())
+        self.edit(self.sheet, "Determine its limit", "Determine its edited limit")
+        self.assertIn("edited limit", self.model()["questions"][0]["html"])
+        generate(self.layout)
+
+    def test_no_aids_or_corrections_are_valid(self):
+        self.aid.unlink()
+        self.solutions.unlink()
+        model = self.model()
+        self.assertEqual(len(model["questions"]), 3)
+        self.assertTrue(all(not q["corrections"] and not q["hints"] for q in model["questions"]))
+
+    def test_explicit_files_and_index_are_equivalent(self):
+        base = self.model()
+        for paths in ([str(self.chapter / "index.md")],
+                      [str(self.sheet), str(self.solutions), str(self.course), str(self.aid)]):
+            self.modify(notes=paths)
+            self.assertEqual([e["address"] for e in self.model()["exercises"]],
+                             [e["address"] for e in base["exercises"]])
+
+    def test_chapter_discovery_excludes_private_and_retained_sources(self):
+        for name in (".clew", ".obsidian", "sources"):
+            folder = self.chapter / name
+            folder.mkdir()
+            (folder / "private.md").write_text("not a learning note", encoding="utf-8")
+        library = Library([self.chapter, self.chapter / "index.md", self.sheet])
+        self.assertEqual(len(library.notes), 4)
+        self.assertFalse(library.chapters[0]["omitted"])
+        report = list_chapters(self.root)
+        self.assertEqual(report["chapters"], [{"root": str(self.chapter), "title": "Sequence worksheet"}])
+        self.assertTrue(list_chapters(self.root, depth=0)["omitted"])
+        with self.assertRaisesRegex(GenerateError, "list-chapters"):
+            Library([self.root])
+
+    def test_inventory_has_units_owners_and_native_section_headings(self):
+        result = subprocess.run([sys.executable, "-B", str(SKILL / "scripts" / "inspect_notes.py"),
+                                 str(self.chapter)], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        notes = json.loads(result.stdout)["notes"]
+        sheet = next(note for note in notes if note["id"] == "sheet")
+        self.assertEqual(sheet["units"][0]["ref"], None)
+        self.assertEqual(sheet["blocks"][1]["owner"], "ex-1")
+        self.assertIn("Exercise 1", sheet["headings"])
+        with self.assertRaisesRegex(GenerateError, "Missing block"):
+            read_note(self.sheet).select("^sec-sheet")
+
+    def test_document_navigation_anchor_precedes_exercise_views(self):
+        model = self.model()
+        self.assertIn('id="note-', model["worksheet"][0]["html"])
+
+    def test_course_only_and_exercise_only(self):
+        self.modify(exercises=[])
+        self.assertFalse(self.model()["exercises"])
+        self.modify(exercises=["sheet"], courses=[])
+        model = self.model()
+        self.assertFalse(model["reading"])
+        self.assertEqual(len(model["course_links"]), 2)
+        self.assertIn("Geometric limit result", str(model["courses"]))
+
+    def test_course_callout_excerpt_keeps_title_and_body(self):
+        self.modify(courses=["course#^theorem"], exercises=[])
+        html = self.model()["courses"][0]["html"]
+        self.assertIn("Geometric limit result", html)
+        self.assertIn("tends to zero", html)
+        self.assertNotIn("[!theorem]", html)
+        self.assertNotIn("Bounds", html)
+
+    def test_partial_questions_group_in_source_order_with_context(self):
+        self.modify(exercises=["sheet#^q-2", "sheet.md#^q-1"])
+        model = self.model()
+        self.assertEqual(len(model["exercises"]), 1)
+        self.assertEqual([q["address"] for q in model["questions"]], ["sheet#^q-1", "sheet#^q-2"])
+        self.assertIn("Let", str(model["exercises"][0]["segments"]))
+        self.assertIn("Intermediate instruction", str(model["exercises"][0]["segments"]))
+        self.assertNotIn("Worksheet introduction", str(model["worksheet"]))
+
+    def test_unit_entry_selection_expands_scope_but_native_anchor_does_not(self):
+        self.assertEqual(read_note(self.sheet).select("^ex-1"), "")
+        self.modify(exercises=["sheet#^ex-1"])
+        self.assertEqual(len(self.model()["questions"]), 2)
+
+    def test_source_entry_anchor_and_human_edits_are_not_scaffolding(self):
+        self.edit(self.sheet, "Exercise ^ex-1", "Keep this source instruction. ^ex-1")
+        self.modify(exercises=["sheet#^ex-1"])
+        self.assertEqual(read_note(self.sheet).select("^ex-1"), "Keep this source instruction.")
+        self.assertIn("Keep this source instruction", str(self.model()["exercises"][0]["segments"]))
+
+    def test_heading_and_safe_range_keep_question_addresses(self):
+        lines = self.sheet.read_text(encoding="utf-8").splitlines()
+        first = lines.index("> [!question] Question 1") + 1
+        last = lines.index("^q-1") + 1
+        for selector, count in (("sheet#Exercise 1", 2), (f"sheet#L{first}-L{last}", 1)):
+            self.modify(exercises=[selector])
+            self.assertEqual(len(self.model()["exercises"]), 1)
+            self.assertEqual(len(self.model()["questions"]), count)
+            self.assertEqual(self.model()["questions"][0]["address"], "sheet#^q-1")
+        self.modify(exercises=[f"sheet#L{first + 2}-L{last}"])
+        with self.assertRaisesRegex(GenerateError, "bisects"):
+            self.model()
+
+    def test_setext_exercise_heading_keeps_its_title(self):
+        self.edit(self.sheet, "## Exercise 1", "Exercise 1\n----------")
+        self.assertEqual(self.model()["exercises"][0]["title"], "Exercise 1")
+
+    def test_overlaps_and_aliases_are_rejected(self):
+        for refs in (["sheet", "sheet#^q-1"], ["sheet#^ex-1", "sheet#^q-1"],
+                     ["sheet#^q-1", "sheet.md#^q-1"], ["sheet#Exercise 1", "sheet#^q-1"]):
+            self.modify(exercises=refs)
+            with self.assertRaisesRegex(GenerateError, "overlapping"):
+                self.model()
+
+    def test_repeated_local_anchors_in_different_documents_are_distinct(self):
+        another = self.chapter / "Exercise-sheet" / "another.md"
+        another.write_text(self.sheet.read_text(encoding="utf-8").replace("id: sheet", "id: another")
+                           .replace("sheet.md#^q-3", "another.md#^q-3"), encoding="utf-8")
+        self.modify(exercises=["sheet#^q-1", "another#^q-1"])
+        model = self.model()
+        self.assertEqual([e["address"] for e in model["exercises"]], ["sheet#^ex-1", "another#^ex-1"])
+        self.assertFalse(model["questions"][1]["corrections"])
+        self.assertFalse(model["questions"][1]["hints"])
+
+    def test_unmatched_answer_is_warned_and_can_be_explicitly_selected(self):
+        self.edit(self.solutions, "[Question](../Exercise-sheet/sheet.md#^q-2) · ", "")
         report = generate(self.layout, check=True)
-        self.assertIn("Unmatched supplied answer: corrige-2#^r-2-1", report["warnings"])
-        self.assertFalse(self.model()["questions"][0]["corrections"])
+        self.assertIn("Unmatched supplied answer: solutions#^r-2", report["warnings"])
+        self.assertFalse(self.model()["questions"][1]["corrections"])
+        self.modify(questions={"sheet#^q-2": {"corrections": ["solutions#^r-2"]}})
+        self.assertTrue(self.model()["questions"][1]["corrections"])
 
-    def test_empty_explicit_correction_cannot_create_an_empty_control(self):
-        path = self.root / "corrige-1.md"
-        path.write_text('---\nid: corrige-1\ntype: correction\nexercises: ["[[ex-1]]"]\n---\n',
-                        encoding="utf-8")
-        self.modify(questions={"ex-1#^q-1": {"corrections": ["corrige-1"]}})
-        with self.assertRaisesRegex(GenerateError, "Empty correction selection"):
+    def test_compact_and_separate_relationship_footers(self):
+        original = self.model()["questions"][0]["corrections"]
+        self.edit(self.solutions, ") · [PDF", ")\n> [PDF")
+        self.assertEqual(len(self.model()["questions"][0]["corrections"]), len(original))
+
+    def test_wrong_unit_and_question_links_are_rejected(self):
+        self.edit(self.solutions, "sheet.md#^ex-1", "sheet.md#^ex-2")
+        with self.assertRaisesRegex(GenerateError, "exercise owner"):
             self.model()
 
-    def test_wrong_but_resolvable_correction_owner_is_rejected(self):
-        path = self.root / "corrige-1.md"
-        path.write_text(path.read_text(encoding="utf-8").replace(
-            "[[ex-1#^q-1]]", "[[ex-2#^q-1]]"), encoding="utf-8")
-        with self.assertRaisesRegex(GenerateError, "different exercise than its correction unit"):
+    def test_explicit_answer_and_correction_unit_selection(self):
+        self.modify(questions={"sheet#^q-1": {"corrections": ["solutions#^corr-1"]}})
+        panel = self.model()["questions"][0]["corrections"][0]
+        self.assertIn("limit is", panel)
+        self.assertNotIn("Use the inequality", panel)
+        self.modify(questions={"sheet#^q-1": {"corrections": ["solutions"]}})
+        with self.assertRaisesRegex(GenerateError, "multi-unit"):
             self.model()
-
-    def test_undeclared_correction_cannot_combine_exercise_owners(self):
-        path = self.root / "corrige-1.md"
-        text = path.read_text(encoding="utf-8").replace('exercises: ["[[ex-1]]"]\n', "")
-        path.write_text(text.replace("[[ex-1#^q-2]]", "[[ex-2#^q-1]]"), encoding="utf-8")
-        with self.assertRaisesRegex(GenerateError, "different exercise than its correction unit"):
-            self.model()
-
-    def test_explicit_correction_selector_must_belong_to_the_published_exercise(self):
-        self.modify(questions={"ex-2#^q-1": {"corrections": ["corrige-1#^r-1-1"]}})
-        with self.assertRaisesRegex(GenerateError, "belongs to another exercise"):
-            self.model()
-        self.modify(questions={"ex-1#^q-2": {"corrections": ["corrige-1#^r-1-1"]}})
+        self.modify(questions={"sheet#^q-1": {"corrections": ["solutions#^r-2"]}})
         with self.assertRaisesRegex(GenerateError, "Correction/question mismatch"):
             self.model()
+        self.modify(questions={"sheet#^q-3": {"corrections": ["solutions#^r-1"]}})
+        with self.assertRaisesRegex(GenerateError, "another exercise"):
+            self.model()
 
-    def test_duplicate_unit_ids_cannot_be_hidden_by_filename_selectors(self):
-        path = self.root / "duplicate.md"
-        path.write_text("---\nid: ex-1\ntype: exercise\n---\nA different exercise.", encoding="utf-8")
-        data = json.loads(self.layout.read_text(encoding="utf-8"))
-        self.modify(notes=[*data["notes"], path.name], exercises=["exercice-1.md", "duplicate.md"])
+    def test_aid_suppression_and_answer_filtering(self):
+        self.modify(questions={"sheet#^q-1": {"corrections": []}})
+        question = self.model()["questions"][0]
+        self.assertFalse(question["corrections"])
+        self.assertFalse(question["explanations"])
+        self.assertEqual(len(question["hints"]), 2)
+        self.modify(questions={"sheet#^q-1": {"hints": [], "explanations": []}})
+        self.assertFalse(self.model()["questions"][0]["hints"])
+
+    def test_bad_aid_mappings_fail_explicitly(self):
+        self.edit(self.aid, "solutions#^r-1", "solutions#^r-2")
+        with self.assertRaisesRegex(GenerateError, "correction/question mismatch"):
+            self.model()
+
+    def test_explanation_needs_selected_answer(self):
+        self.modify(questions={"sheet#^q-1": {
+            "corrections": ["solutions#^r-variant"],
+            "explanations": ["aid-q-1#^explanation"],
+        }})
+        with self.assertRaisesRegex(GenerateError, "unselected correction"):
+            self.model()
+
+    def test_markdown_course_links_resolve_url_encoded_paths(self):
+        renamed = self.course.with_name("course name.md")
+        self.course.rename(renamed)
+        self.edit(self.aid, "[[course#^theorem|the geometric limit result]]",
+                  "[the geometric limit result](../Course-course/course%20name.md#%5Etheorem)")
+        self.assertEqual(len(self.model()["course_links"]), 2)
+
+    def test_relative_self_links_precede_ambiguous_filename_aliases(self):
+        folder = self.chapter / "Another-sheet"
+        folder.mkdir()
+        duplicate = folder / "sheet.md"
+        duplicate.write_text(self.sheet.read_text(encoding="utf-8").replace(
+            "id: sheet", "id: another"), encoding="utf-8")
+        library = Library([self.sheet, duplicate])
+        target, fragment = library.resolve("sheet.md#^q-1", library.notes[0])
+        self.assertEqual((target.id, fragment), ("sheet", "^q-1"))
+        with self.assertRaisesRegex(GenerateError, "ambiguous"):
+            library.resolve("sheet.md#^q-1")
+
+    def test_methods_are_consumed_not_authored(self):
+        self.aid.write_text(self.aid.read_text(encoding="utf-8") +
+                            "\n> [!method]\n> Use [[course#^theorem]].\n\n^method\n", encoding="utf-8")
+        self.assertIn("Use", self.model()["questions"][0]["method"])
+        self.modify(questions={"sheet#^q-1": {"method": None}})
+        self.assertFalse(self.model()["questions"][0]["method"])
+
+    def test_mixed_documents_use_explicit_scopes(self):
+        self.edit(self.sheet, "role: exercise", "role: mixed")
+        self.assertEqual(len(self.model()["exercises"]), 2)
+
+    def test_unstructured_unit_is_not_an_invented_question(self):
+        self.aid.unlink()
+        self.solutions.unlink()
+        text = self.sheet.read_text(encoding="utf-8")
+        start = text.index("> [!question]")
+        end = text.index("[PDF p. 1](sheet.pdf#page=1)\n\n%% /clew:unit ex-1")
+        self.sheet.write_text(text[:start] + "Preserved unstructured exercise.\n\n" + text[end:],
+                              encoding="utf-8")
+        self.modify(exercises=["sheet#^ex-1"])
+        self.assertFalse(self.model()["questions"])
+        self.assertIn("Preserved unstructured exercise", str(self.model()))
+
+    def test_legacy_inputs_and_missing_frontmatter_are_rejected(self):
+        for text in ("Plain legacy note.", "---\nid: legacy\ntype: exercise\n---\nText"):
+            path = self.root / "legacy.md"
+            path.write_text(text, encoding="utf-8")
+            with self.assertRaisesRegex(GenerateError, "[Ll]egacy"):
+                Library([path])
+
+    def test_duplicate_identity_anchor_and_invalid_units(self):
+        original = self.sheet.read_text(encoding="utf-8")
+        for text, message in ((original.replace("^q-2", "^q-1"), "Duplicate block"),
+                              (original.replace("%% /clew:unit ex-1 %%", ""), "nested unit"),
+                              (original.replace("Exercise ^ex-1", "Exercise"), "entry anchor"),
+                              (original.replace("%% clew:unit exercise ex-2 %%",
+                                                "%% clew:unit exercise ex-1 %%"), "Duplicate unit")):
+            self.sheet.write_text(text, encoding="utf-8")
+            with self.assertRaisesRegex(GenerateError, message):
+                self.model()
+        self.sheet.write_text(original, encoding="utf-8")
+        duplicate = self.chapter / "duplicate.md"
+        shutil.copyfile(self.sheet, duplicate)
         with self.assertRaisesRegex(GenerateError, "Duplicate learning-note IDs"):
             self.model()
 
-    def test_template_tokens_in_content_are_not_expanded(self):
+    def test_unowned_question_is_rejected(self):
+        self.sheet.write_text(self.sheet.read_text(encoding="utf-8") +
+                              "\n> [!question]\n> Outside unit.\n\n^outside\n", encoding="utf-8")
+        with self.assertRaisesRegex(GenerateError, "owner"):
+            self.model()
+
+    def test_code_math_and_comment_lookalikes_are_not_structure(self):
+        text = ("\n```\n%% clew:unit exercise fake %%\n> [!question]\n^q-1\n```\n\n"
+                "$$\n\\text{%% clew:unit exercise fake %%}\n$$\n\n"
+                "Source %%hidden comment%% text and `%%literal%%`.\n")
+        self.course.write_text(self.course.read_text(encoding="utf-8") + text, encoding="utf-8")
+        note = read_note(self.course)
+        self.assertEqual(len(note.units), 1)
+        self.assertIn("%%literal%%", note.select())
+        self.assertNotIn("hidden comment", note.select())
+        self.assertIn("exercise fake", note.select())
+
+    def test_all_supported_newlines_and_relocation_preserve_inputs(self):
+        for newline in ("\n", "\r\n", "\r"):
+            with self.subTest(newline=repr(newline)):
+                for path in self.chapter.rglob("*.md"):
+                    text = path.read_text(encoding="utf-8")
+                    path.write_bytes(text.replace("\n", newline).encode("utf-8"))
+                before = {path: path.read_bytes() for path in self.chapter.rglob("*") if path.is_file()}
+                self.assertEqual(len(self.model()["questions"]), 3)
+                generate(self.layout, check=True)
+                self.assertEqual(before, {path: path.read_bytes() for path in before})
+        moved = self.root / "relocated"
+        self.chapter.rename(moved)
+        self.modify(notes=[str(moved)])
+        self.assertEqual(len(self.model()["questions"]), 3)
+
+    def test_check_determinism_atomic_output_and_input_preservation(self):
+        before = {path: path.read_bytes() for path in self.chapter.rglob("*") if path.is_file()}
+        generate(self.layout, check=True)
+        output = self.root / "publication.html"
+        self.assertFalse(output.exists())
+        generate(self.layout)
+        first = output.read_bytes()
+        with self.assertRaisesRegex(GenerateError, "Output exists"):
+            generate(self.layout)
+        generate(self.layout, overwrite=True)
+        self.assertEqual(first, output.read_bytes())
+        self.modify(questions={"sheet#^q-1": {"method": "missing"}})
+        with self.assertRaises(GenerateError):
+            generate(self.layout, overwrite=True)
+        self.assertEqual(first, output.read_bytes())
+        self.assertFalse(list(self.root.glob("*.tmp")))
+        self.assertEqual(before, {path: path.read_bytes() for path in before})
+        self.assertNotIn(b'<script src=', first)
+        self.assertNotIn(b'<link ', first)
+
+    def test_figures_tables_and_pdf_rebasing(self):
+        (self.course.parent / "figure.png").write_bytes(base64.b64decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aO1cAAAAASUVORK5CYII="))
+        self.course.write_text(self.course.read_text(encoding="utf-8") +
+                               "\n![Figure](figure.png)\n\n| A | B |\n|---|---|\n| 1 | 2 |\n",
+                               encoding="utf-8")
+        model = self.model()
+        self.assertIn("data:image/png;base64,", str(model))
+        self.assertIn("<table>", str(model))
+        self.assertIn("Course-course/course.pdf#page=1", str(model))
+
+    def test_unsupported_assets_html_plugins_and_math(self):
+        original = self.course.read_text(encoding="utf-8")
+        (self.course.parent / "figure.svg").write_text("<svg/>", encoding="utf-8")
+        for text, message in (("![Figure](figure.svg)", "Unsupported or invalid"),
+                              ("![Figure](missing.png)", "Missing figure"),
+                              ("![Figure](https://example.com/figure.png)", "local raster"),
+                              ("![[sheet.md]]", "transclusion"),
+                              ("```dataview\nTABLE\n```", "Dataview"),
+                              ("$\\require{html}$", "externally loaded")):
+            self.course.write_text(original + "\n" + text, encoding="utf-8")
+            with self.assertRaisesRegex(GenerateError, message):
+                self.model()
+        self.course.write_text(original + "\n<script>alert(1)</script>", encoding="utf-8")
+        self.assertNotIn("<script>", str(self.model()["courses"]))
+
+    def test_invalid_layout_unused_overrides_and_unpublished_targets(self):
+        self.modify(questions={"sheet#^q-3": {"unknown": []}})
+        with self.assertRaisesRegex(GenerateError, "Invalid question options"):
+            self.model()
+        self.modify(exercises=["sheet#^q-1"], questions={"sheet#^q-3": {"hints": []}})
+        with self.assertRaisesRegex(GenerateError, "unpublished questions"):
+            self.model()
+        self.modify(exercises=["sheet#^q-1"], questions={})
+        self.edit(self.sheet, "Determine its limit.", "Determine its limit. [[sheet#^q-3]]")
+        with self.assertRaisesRegex(GenerateError, "outside the publication"):
+            self.model()
+
+    def test_heading_aliases_ambiguity_and_block_navigation(self):
+        self.course.write_text(self.course.read_text(encoding="utf-8") +
+                               "\n## *A formula* $f(I)\\\\subset I$\n\nText.\n",
+                               encoding="utf-8")
+        note = read_note(self.course)
+        self.assertIn("Text", note.select(r"A formula $f(I)\subset I$"))
+        self.course.write_text(self.course.read_text(encoding="utf-8") +
+                               "\n## Bounds\n\nAnother bound.\n", encoding="utf-8")
+        with self.assertRaisesRegex(GenerateError, "ambiguous heading"):
+            read_note(self.course).select("Bounds")
+
+    def test_template_hooks_and_tokens_are_preserved(self):
         self.modify(title="{{DATA}}")
         generate(self.layout)
         page = (self.root / "publication.html").read_text(encoding="utf-8")
         self.assertIn("<title>{{DATA}}</title>", page)
-        self.assertIn('"title":"{{DATA}}"', page)
-
-    def test_repeated_markup_is_owned_by_native_html_templates(self):
         template = (SKILL / "assets" / "template.html").read_text(encoding="utf-8")
         script = (SKILL / "assets" / "interaction.js").read_text(encoding="utf-8")
-        for name in ("course", "exercise", "question", "course-link", "content",
-                     "method", "hints", "hint", "correction"):
+        for name in ("course", "exercise", "question", "content", "method", "hints",
+                     "hint", "correction", "explanations"):
             self.assertIn(f'<template id="template-{name}">', template)
         self.assertNotIn("createElement", script)
-        self.assertNotIn('<p class=', script)
-        self.assertNotIn('<div>', script)
-        self.assertIn('data-label-open="Afficher la correction"', template)
 
-    def test_course_only_and_unnumbered_exercise(self):
-        self.modify(exercises=[], courses=["cours"])
-        self.assertEqual(len(self.model()["reading"]), 1)
-        (self.root / "simple.md").write_text("Une seule question $x$.", encoding="utf-8")
-        self.modify(notes=["simple.md"], courses=[], exercises=["simple"])
-        model = self.model()
-        self.assertEqual(len(model["questions"]), 1)
-        self.assertEqual(model["exercises"][0]["context"], "")
-        self.assertEqual(str(model).count("Une seule question"), 1)
-
-    def chapter_fixture(self) -> Path:
-        chapter = self.root / "vault" / "courses" / "PT" / "maths" / "algebre"
-        chapter.mkdir(parents=True)
-        for role in ("courses", "exercices", "corriges", "sources"):
-            (chapter / role).mkdir()
-        for filename, role in [("cours.md", "courses"), ("exercice-1.md", "exercices"),
-                               ("exercice-2.md", "exercices"), ("exercice-3.md", "exercices"),
-                               ("corrige-1.md", "corriges"), ("corrige-2.md", "corriges"),
-                               ("corrige-3.md", "corriges")]:
-            shutil.copyfile(self.root / filename, chapter / role / filename)
-        for filename in ("figure.png", "original.pdf"):
-            shutil.copyfile(self.root / filename, chapter / "courses" / filename)
-        shutil.copyfile(self.root / "aides.md", chapter / "aides.md")
-        (chapter / "index.md").write_text(
-            '---\ntype: ingest\nid: algebre\ntitle: "Révision algèbre"\n---\n'
-            '[[cours]]\n[[ex-1]]\n[[corrige-1]]\n[[corrige-2]]\n[[corrige-3]]\n', encoding="utf-8")
-        (chapter / "ingest.json").write_text("Not consulted by Generate", encoding="utf-8")
-        (chapter / "sources" / "document.md").write_text(
-            "---\n: deliberately malformed frontmatter\n---\n", encoding="utf-8")
-        (chapter / ".obsidian").mkdir()
-        (chapter / ".obsidian" / "private.md").write_text("not a learning note", encoding="utf-8")
-        for filename, value in [("exercice-1.md", 30), ("exercice-2.md", 10),
-                                 ("exercice-3.md", 20)]:
-            path = chapter / "exercices" / filename
-            path.write_text(path.read_text(encoding="utf-8").replace(
-                "type: exercise", f"type: exercise\norder: {value}"), encoding="utf-8")
-        return chapter
-
-    def test_discover_ingest_chapter_and_index_with_metadata_order(self):
-        chapter = self.chapter_fixture()
-        for selected in (chapter, chapter / "index.md"):
-            library = Library([selected])
-            self.assertEqual(len(library.notes), 8)
-            self.assertEqual(library.chapters[0]["title"], "Révision algèbre")
-            exercises = [note.id for note in library.notes if note.metadata.get("type") == "exercise"]
-            self.assertEqual(exercises, ["ex-2", "ex-3", "ex-1"])
-            self.assertFalse(any(note.path.parent.name == "sources" for note in library.notes))
-        self.modify(notes=[str(chapter)])
-        model = self.model()
-        self.assertEqual([exercise["title"] for exercise in model["exercises"]],
-                         ["Exercice 2", "Exercice 3", "Exercice 1"])
-        self.assertTrue(all(len(question["corrections"]) == 1 for question in model["questions"]))
-        generate(self.layout)
-
-    def test_find_chapter_within_vault_without_publishing_entire_vault(self):
-        chapter = self.chapter_fixture()
-        vault = self.root / "vault"
-        report = list_chapters(vault)
-        self.assertEqual(report["chapters"], [{"root": str(chapter), "title": "Révision algèbre"}])
-        self.assertEqual(report["omitted"], [])
-        with self.assertRaisesRegex(GenerateError, "list-chapters"):
-            Library([vault])
-        limited = list_chapters(vault, depth=1)
-        self.assertFalse(limited["chapters"])
-        self.assertTrue(limited["omitted"])
-
-    def test_course_only_topology_without_ingest_metadata(self):
-        chapter = self.root / "simple-chapter"
-        (chapter / "courses").mkdir(parents=True)
-        (chapter / "courses" / "cours.md").write_text("# Cours\n\nTexte actuel.", encoding="utf-8")
-        self.modify(notes=[str(chapter)])
-        model = self.model()
-        self.assertEqual(len(model["reading"]), 1)
-        self.assertFalse(model["exercises"])
-
-    def test_discovered_sections_follow_their_parent_and_inspector_reports_links(self):
-        chapter = self.chapter_fixture()
-        (chapter / "courses" / "section.md").write_text(
-            '---\nid: section\ntype: section\norder: 1\ncourses: ["[[cours]]"]\n---\n'
-            '## Section\n\nTexte.', encoding="utf-8")
-        library = Library([chapter, chapter / "index.md"])
-        courses = [note.id for note in library.notes
-                   if note.metadata.get("type") in {"course", "section"}]
-        self.assertEqual(courses, ["cours", "section"])
-        result = subprocess.run(
-            [sys.executable, "-B", str(SKILL / "scripts" / "inspect_notes.py"), str(chapter)],
-            capture_output=True, text=True)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        report = json.loads(result.stdout)
-        section = next(note for note in report["notes"] if note["id"] == "section")
-        self.assertEqual(section["relationships"]["courses"], ["[[cours]]"])
-        self.assertEqual(section["order"], 1)
-        result = subprocess.run(
-            [sys.executable, "-B", str(SKILL / "scripts" / "inspect_notes.py"),
-             str(self.root / "vault"), "--list-chapters"],
-            capture_output=True, text=True)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(len(json.loads(result.stdout)["containers"][0]["chapters"]), 1)
-
-    def test_plain_heading_and_block_overrides(self):
-        (self.root / "simple.md").write_text("# Question\n\nCalculer $x$.\n\n^q\n",
-                                           encoding="utf-8")
-        self.modify(notes=["simple.md", "cours.md"], courses=["cours"],
-                    exercises=["simple#^q"], questions={"simple#^q": {
-                        "corrections": ["cours#Sous-espace"], "hints": ["cours#Exemple"]}})
-        self.assertEqual(len(self.model()["questions"][0]["corrections"]), 1)
-
-    def test_heading_references_normalize_doubled_tex_command_backslashes(self):
-        path = self.root / "cours.md"
-        path.write_text(
-            "# Cas où $f(I)\\\\subset I$\n\nTexte actuel.\n",
-            encoding="utf-8")
-        library = Library([path])
-        self.assertEqual(
-            library.notes[0].select(r"Cas où $f(I)\subset I$"),
-            "# Cas où $f(I)\\\\subset I$\n\nTexte actuel.")
-
-    def test_heading_references_ignore_inline_emphasis_delimiters(self):
-        path = self.root / "cours.md"
-        path.write_text(
-            "## Proposition 24 *Croissances comparées*\n\nTexte actuel.\n",
-            encoding="utf-8")
-        library = Library([path])
-        self.assertEqual(
-            library.notes[0].select("Proposition 24 Croissances comparées"),
-            "## Proposition 24 *Croissances comparées*\n\nTexte actuel.")
-
-    def test_bold_marker_reference_selects_the_marked_course_excerpt(self):
-        path = self.root / "cours.md"
-        path.write_text(
-            "**Remarque 3**\n\nContenu de la remarque.\n\n**Proposition 2**\n\nSuite.",
-            encoding="utf-8")
-        library = Library([path])
-        self.assertEqual(
-            library.notes[0].select("Remarque 3"),
-            "**Remarque 3**\n\nContenu de la remarque.")
-
-    def test_shared_context_stays_in_source_order_and_code_markers_survive(self):
-        path = self.root / "exercice-1.md"
-        path.write_text(path.read_text(encoding="utf-8").replace(
-            "<!-- clew-part:2 -->", "Instruction intermédiaire.\n\n<!-- clew-part:2 -->"),
-            encoding="utf-8")
-        segments = self.model()["exercises"][0]["segments"]
-        self.assertIn("Contexte commun", segments[0]["html"])
-        self.assertEqual(segments[1]["question"], "question-1")
-        self.assertIn("Instruction intermédiaire", segments[2]["html"])
-        self.assertEqual(segments[3]["question"], "question-2")
-        path.write_text("```\n<!-- clew-part:1 -->\n> [!question]\n```\n", encoding="utf-8")
-        library = Library([path])
-        self.assertIn("clew-part:1", library.notes[0].select())
-        self.assertNotIn("question", [part.kind for part in library.notes[0].parts])
-
-    def test_internal_block_links_and_heading_links_within_whole_course(self):
-        path = self.root / "cours.md"
-        path.write_text(path.read_text(encoding="utf-8") +
-                        "\nDéfinition importante.\n\n^definition\n\n"
-                        "[[cours#^definition|Définition]] et [[cours#Exemple]].\n",
-                        encoding="utf-8")
-        model = self.model()
-        self.assertIn('href="#note-1-XmRlZmluaXRpb24"', str(model))
-        self.assertIn('id="note-1-XmRlZmluaXRpb24"', str(model))
-
-    def test_errors_and_safe_source_html(self):
-        self.modify(questions={"ex-1#^q-1": {"method": "absent"}})
-        with self.assertRaisesRegex(GenerateError, "Missing or ambiguous"):
+    def test_multiple_methods_require_explicit_selection(self):
+        self.aid.write_text(self.aid.read_text(encoding="utf-8") +
+                            "\n> [!method]\n> First.\n\n^method-1\n\n"
+                            "> [!method]\n> Second.\n\n^method-2\n", encoding="utf-8")
+        with self.assertRaisesRegex(GenerateError, "Multiple methods"):
             self.model()
-        self.modify(questions={"ex-1#^q-1": {"unknown": []}})
-        with self.assertRaisesRegex(GenerateError, "Invalid question options"):
-            self.model()
-        self.modify(questions={})
-        path = self.root / "exercice-1.md"
-        path.write_text(path.read_text(encoding="utf-8").replace("Énoncé 1-1",
-                        "<script>alert(1)</script>"), encoding="utf-8")
-        self.assertNotIn("<script>", self.model()["questions"][0]["html"])
+        self.modify(questions={"sheet#^q-1": {"method": "aid-q-1#^method-2"}})
+        self.assertIn("Second", self.model()["questions"][0]["method"])
 
-    def test_missing_svg_and_active_math_are_rejected(self):
-        path = self.root / "cours.md"
-        original = path.read_text(encoding="utf-8")
-        for replacement, message in [("figure.svg", "Unsupported or invalid"),
-                                     ("missing.png", "Missing figure")]:
-            if replacement.endswith(".svg"):
-                (self.root / replacement).write_text("<svg/>", encoding="utf-8")
-            path.write_text(original.replace("figure.png", replacement), encoding="utf-8")
-            with self.assertRaisesRegex(GenerateError, message):
-                self.model()
-        path.write_text(original + "\n$\\require{html}$\n", encoding="utf-8")
-        with self.assertRaisesRegex(GenerateError, "externally loaded"):
-            self.model()
-
-    def test_unsafe_line_range_and_ambiguous_id(self):
-        library = Library([self.root / "cours.md"])
-        with self.assertRaisesRegex(GenerateError, "bisects"):
-            library.notes[0].select("L18-L18")
-        duplicate = self.root / "duplicate.md"
-        duplicate.write_text("---\nid: cours\n---\nDuplicate", encoding="utf-8")
-        library = Library([self.root / "cours.md", duplicate])
-        with self.assertRaisesRegex(GenerateError, "ambiguous"):
-            library.resolve("cours")
-
-    def test_id_reference_resolution_does_not_restat_selected_notes(self):
-        library = Library([self.root / "cours.md", self.root / "exercice-1.md"])
+    def test_id_resolution_does_not_restat_notes(self):
+        library = Library([self.course, self.sheet])
         with patch("notes.local_path", side_effect=AssertionError("unexpected filesystem access")):
-            note, fragment = library.resolve("cours#Sous-espace", library.notes[1])
-        self.assertEqual(note.id, "cours")
-        self.assertEqual(fragment, "Sous-espace")
+            note, fragment = library.resolve("course#^theorem", library.notes[1])
+        self.assertEqual((note.id, fragment), ("course", "^theorem"))
 
     def test_copied_skill_without_repository_runtime(self):
         copied = self.root / "standalone"
@@ -521,80 +478,69 @@ class GenerateTests(unittest.TestCase):
                                cwd=self.root, capture_output=True, text=True)
         self.assertEqual(setup.returncode, 0, setup.stderr)
         result = subprocess.run(["uv", "run", "--directory", str(copied), "--no-sync",
-                                 "python", "-B", "scripts\\generate_html.py", str(self.layout)],
-                                cwd=self.root, capture_output=True, text=True)
+                                 "python", "-B", str(copied / "scripts" / "generate_html.py"),
+                                 str(self.layout)], cwd=self.root, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(json.loads(result.stdout)["questions"], 6)
-        self.assertTrue((self.root / "publication.html").is_file())
+        self.assertEqual(json.loads(result.stdout)["questions"], 3)
 
     @unittest.skipUnless(os.environ.get("CLEW_TEST_BROWSER") == "1",
                          "Set CLEW_TEST_BROWSER=1 for local browser checks.")
     def test_browser_offline_file_and_interactions(self):
         from playwright.sync_api import sync_playwright
-        self.modify(exercises=["ex-1#^q-2", "ex-1#^q-1", "ex-2", "ex-3"])
+        self.test_methods_are_consumed_not_authored()
+        self.modify(questions={})
+        self.edit(self.sheet, "Worksheet introduction.", "Worksheet introduction. $x^2$.")
+        self.course.write_text(self.course.read_text(encoding="utf-8") +
+                               "\n$$\\begin{pmatrix}1&0\\\\0&1\\end{pmatrix}$$\n",
+                               encoding="utf-8")
         assets = self.root / "edited-assets"
         shutil.copytree(SKILL / "assets", assets)
         template = assets / "template.html"
-        markup = template.read_text(encoding="utf-8")
-        markup = markup.replace(
-            '<section class="question" data-slot="question">',
-            '<article class="question" data-slot="question">').replace(
-            "</section>\n</template>", "</article>\n</template>")
-        markup = markup.replace('<div data-slot="statement"></div>',
-                                '<div class="edited-layout"><div data-slot="statement"></div></div>')
-        template.write_text(markup, encoding="utf-8")
+        template.write_text(template.read_text(encoding="utf-8").replace(
+            '<div data-slot="statement"></div>',
+            '<div class="edited-layout"><div data-slot="statement"></div></div>'),
+            encoding="utf-8")
         shutil.copyfile(SKILL / "LICENSE", self.root / "LICENSE")
         with patch("render_html.ASSETS", assets):
             generate(self.layout)
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch(channel="msedge", headless=True)
             page = browser.new_page()
-            failures = []
-            requests = []
+            failures, requests = [], []
             page.on("pageerror", lambda error: failures.append(str(error)))
             page.route("http://**/*", lambda route: (requests.append(route.request.url), route.abort()))
             page.route("https://**/*", lambda route: (requests.append(route.request.url), route.abort()))
             page.goto((self.root / "publication.html").as_uri())
             page.wait_for_function("!!window.MathJax?.startup?.document")
-            self.assertEqual(page.locator("article.question .edited-layout").count(), 6)
-            self.assertEqual(page.locator('[data-help="method"]').count(), 1)
-            self.assertEqual(page.locator('[data-help="hints"]').count(), 1)
-            self.assertEqual(page.locator(".exercise").count(), 3)
+            self.assertEqual(page.locator(".exercise").count(), 2)
+            self.assertEqual(page.locator(".question").count(), 3)
+            self.assertEqual(page.locator(".edited-layout").count(), 3)
+            self.assertEqual(page.get_by_text("Worksheet introduction.", exact=False).count(), 1)
+            page.wait_for_selector('#exercises > [data-slot="content"] mjx-container svg')
             page.get_by_role("button", name="Commencer l'exercice").first.click()
-            self.assertEqual(page.locator(".exercise[open]").count(), 1)
-            page.wait_for_selector(".exercise[open] mjx-container svg")
-            page.get_by_role("button", name="Méthode", exact=True).click()
-            page.get_by_role("heading", name="Méthode · Question 1").wait_for()
-            self.assertTrue(page.get_by_role("heading", name="Méthode · Question 1").evaluate(
-                "node => node === document.activeElement"))
-            page.get_by_role("button", name="Indices", exact=True).click()
-            page.wait_for_function("document.querySelectorAll('#panel-content .hint:not([hidden])').length === 1")
-            reveal = page.get_by_role("button", name="Révéler l'indice suivant")
-            reveal.click()
-            self.assertEqual(page.locator("#panel-content .hint:not([hidden])").count(), 2)
-            reveal.click()
-            self.assertTrue(reveal.is_hidden())
-            page.get_by_role("button", name="Indices", exact=True).click()
+            question = page.locator(".question").first
+            question.get_by_role("button", name="Méthode", exact=True).click()
+            self.assertTrue(page.locator("#panel-title").evaluate("node => node === document.activeElement"))
+            question.get_by_role("button", name="Indices", exact=True).click()
             self.assertEqual(page.locator("#panel-content .hint:not([hidden])").count(), 1)
-            first = page.locator(".question").first.locator('[data-action="correction"]')
-            first.click()
-            self.assertEqual(page.locator(".correction:not([hidden])").count(), 1)
-            self.assertEqual(first.get_attribute("aria-expanded"), "true")
+            page.get_by_role("button", name="Révéler l'indice suivant").click()
+            self.assertEqual(page.locator("#panel-content .hint:not([hidden])").count(), 2)
+            page.locator("#panel-content").get_by_role("link", name="the geometric limit result").click()
+            self.assertIn("Geometric limit result", page.locator("#panel-content").inner_text())
+            self.assertNotIn("Bounds", page.locator("#panel-content").inner_text())
+            question.get_by_role("button", name="Afficher la correction").click()
+            question.get_by_role("button", name="Explications").click()
+            self.assertIn("supplied answer", page.locator("#panel-content").inner_text())
             page.locator(".question").nth(1).get_by_role("button", name="Afficher la correction").click()
             self.assertEqual(page.locator(".correction:not([hidden])").count(), 1)
-            self.assertEqual(first.get_attribute("aria-expanded"), "false")
-            page.get_by_role("button", name="Masquer la correction").click()
-            self.assertEqual(page.locator(".correction:not([hidden])").count(), 0)
-            page.locator(".question").first.get_by_role("button", name="Cours · Sous-espace").first.click()
-            page.wait_for_selector("#panel-content mjx-container svg")
-            self.assertTrue(page.locator("#error").is_hidden())
+            self.assertEqual(page.locator(".question").nth(2).locator('[data-action="correction"]').count(), 0)
             page.set_viewport_size({"width": 390, "height": 844})
-            page.locator(".question").first.get_by_role("button", name="Indices", exact=True).click()
+            question.get_by_role("button", name="Indices", exact=True).click()
+            page.wait_for_selector("#panel-content mjx-container svg")
             self.assertEqual(page.evaluate("document.documentElement.scrollWidth"), 390)
+            self.assertTrue(page.locator("#error").is_hidden())
             self.assertFalse(failures, failures)
             self.assertFalse(requests, requests)
-            if os.environ.get("CLEW_TEST_SCREENSHOT"):
-                page.screenshot(path=os.environ["CLEW_TEST_SCREENSHOT"], full_page=True)
             browser.close()
 
 

@@ -152,7 +152,16 @@
     document.getElementById("reading").append(fragment);
     details.addEventListener("toggle", () => { if (details.open) typeset(body); });
   });
-  data.exercises.forEach(exercise => {
+  const exercises = new Map(data.exercises.map(item => [item.address, item]));
+  data.worksheet.forEach(segment => {
+    if (!segment.exercise) {
+      const fragment = content(segment.html);
+      const target = slot(fragment, "content");
+      document.getElementById("exercises").append(fragment);
+      typeset(target);
+      return;
+    }
+    const exercise = exercises.get(segment.exercise);
     const fragment = clone("exercise");
     const details = required(fragment, "details");
     slot(details, "title").textContent = exercise.title;

@@ -1,226 +1,219 @@
-# Generate layout and supported notes
+# Current documents and publication layout
+
+## Input contract
+
+Source notes have `clew_schema: 1`, a unique `id`, `type: document` and a
+`role` of `course`, `exercise`, `correction`, `mixed` or `unknown`.
+Chapter indexes have `clew_schema: 1` and `type: chapter`.
+Help notes have unique IDs, `type: help`, and question/optional correction
+references. Enrich's new aids use `schema_version: 1`.
+
+A selected chapter folder or its `index.md` expands recursively to visible
+document/help Markdown, excluding the index, hidden/configuration entries,
+`.clew/` and `sources/`. No preparation record or baseline is read. Explicit
+files preserve input order; discovered files have deterministic path order.
+All IDs must be unique across selected notes. Roles never come from filenames.
+Legacy source types and notes without current frontmatter are unsupported.
+
+An exercise/correction unit is a source span:
+
+```markdown
+%% clew:unit exercise ex-1 %%
+
+## Exercise 1
+
+Exercise ^ex-1
+
+Shared source instructions.
+
+> [!question] Question 1
+>
+> Supplied question text.
+>
+> [PDF p. 1](sheet.pdf#page=1)
+
+^q-1
+
+[PDF p. 1](sheet.pdf#page=1)
+
+%% /clew:unit ex-1 %%
+```
+
+Sections use `%% clew:unit section section-id %%` with matching closing
+comments and navigate by actual headings. Their IDs are private bookkeeping,
+not generated block anchors. Only sections may enclose other units.
+Questions/answers must have unique native block anchors and one enclosing
+exercise/correction scope. Inline `Exercise ^ex-1` / `Correction ^corr-1`
+entry paragraphs are navigation scaffolding, hidden in HTML but addressable.
+An entry anchor reused on supplied text, or a human-edited entry paragraph,
+retains that text; only the exact generated navigation label is hidden.
+The native entry block does not embed every following paragraph.
+
+Current course statement callouts (`definition`, `theorem`, `property`, `lemma`,
+`proposition`, `corollary`, `example`, `remark`, `proof`) retain their supplied
+titles and text, without displaying Obsidian wrapper syntax. Block selectors
+select the entire anchored statement, not its interior. Source comments are
+hidden; code/math lookalikes remain literal content. LF, CRLF and CR are supported.
 
 ## Layout version 1
 
 ```json
 {
   "schema_version": 1,
-  "title": "Algebre",
-  "output": "algebre.html",
-  "notes": ["cours.md", "exercice.md", "corrige.md", "aides.md"],
-  "courses": ["cours"],
-  "exercises": ["exercice"],
+  "title": "Sequences",
+  "output": "sequences.html",
+  "notes": ["chapter"],
+  "courses": ["course"],
+  "exercises": ["sheet#^ex-1"],
   "questions": {
-    "exercice#^q-1": {
-      "corrections": ["corrige#^r-1"],
-      "method": "aides#^methode",
-      "hints": ["aides#^indice-1", "aides#^indice-2"],
-      "explanations": ["aides#^explication-1"],
-      "courses": ["cours#Sous-espace vectoriel"]
+    "sheet#^q-1": {
+      "corrections": ["solutions#^r-1"],
+      "method": null,
+      "hints": ["aid-q-1#^hint-1"],
+      "explanations": ["aid-q-1#^explanation"],
+      "courses": ["course#Geometric limits"]
     }
   }
 }
 ```
 
-Required: `schema_version`, nonempty `title`, `output`, and nonempty `notes`.
-Unknown layout/options keys are rejected. Paths are absolute or relative to the
-layout file; output must be `.html` under an existing parent.
-Nothing requires a fixed vault layout, Ingest record, or immutable notes.
+Required keys are `schema_version`, nonempty `title`, `output` and nonempty
+`notes`. Unknown keys are rejected. Paths are absolute or relative to the layout;
+the output must be `.html` under an existing parent. JSON relative paths use `/`.
+The layout selects existing content; never copy or author teaching prose in it.
 
-For normal Ingest content, `notes: ["C:/vault/courses/PT/maths/algebre"]`
-is sufficient. A chapter directory or its schema-1 `type: ingest` `index.md`
-expands to current Markdown under `courses/`, `exercices/`, and `corriges/`,
-recursively within those role directories. Optional `aides/` and chapter-root
-notes with `type: help` are included. Explicit files can be combined with chapter
-inputs; overlapping discovered notes are included once.
+Optional `courses` and `exercises` arrays set reading/display order. Defaults
+read `role: course` documents and publish exercise units from `exercise`/`mixed`
+documents. Empty arrays suppress a role. At least one course/exercise selection
+is needed. Listed correction/help notes supply targets, not independent views.
 
-Existing frontmatter supplies IDs/roles/order. Notes without a type inherit the
-known directory role. Discovered roles follow course/exercise/correction/help
-order; notes follow positive integer `order` metadata with deterministic ID/path
-ties. Section `courses` links group sections with their parent course.
-An explicit file list still preserves user-specified ordering.
-No `ingest.json` content is read or validated. The index supplies chapter title
-but is not itself rendered as a learning note; `sources/` and hidden entries
-are excluded. A vault root is not a publication scope: first use
-`inspect_notes.py <vault> --list-chapters`, then select the desired chapter.
-The list operation stops at chapter roots and reports inventory-limit omissions.
+Selectors accept unique document ID, stem, filename or selected absolute path,
+and wikilinks such as `[[sheet#^q-1|label]]`. Markdown references resolve relative
+to their originating note; URL-encoded paths/fragments are decoded.
 
-Optional `courses` and `exercises` are ordered arrays of selectors. Defaults
-select notes with frontmatter `type: course`/`section` or `type: exercise`.
-Explicit empty arrays suppress that role. For explicit files without metadata,
-specify the role; chapter-discovered notes inherit their directory role.
-At least one course or exercise is required. Unselected notes can
-still provide correction/help/excerpt targets; listing a note does not imply
-displaying its entire body.
-Exercise groups follow their first appearance in `exercises`; selected parts
-inside each group follow source order, even if question selectors were listed
-in another order.
+- `sheet`: expand its exercise scopes and retain surrounding worksheet content
+  once in source order.
+- `sheet#^ex-1`: publish the owning exercise scope using its entry address.
+- `sheet#^q-1`: publish that question in its owning exercise with unit context.
+  Several question selectors from one unit stay grouped in source order.
+- `course` or `course#^theorem`: read a whole course or one anchored statement.
+- `note#Exact heading`: select that heading through the next same/higher-level
+  heading. Duplicate headings are ambiguous. After exact matching fails,
+  inline emphasis delimiters and doubled TeX command backslashes are normalized
+  for reference matching only; displayed source text is not changed.
+- `note#L12-L20`: one-based inclusive physical source lines, including
+  frontmatter in numbering. Select complete parser-safe parts outside
+  frontmatter; never bisect a callout, paragraph, list, table, code or math.
 
-References accept frontmatter `id`, filename stem, filename, absolute path, or
-an existing wikilink `[[id#^block|label]]`. Relative paths within ordinary
-Markdown links resolve from the originating note. IDs/names must resolve
-uniquely among selected notes. Selectors:
+Whole documents/heading containers expand into distinct owning exercises,
+not an invented sheet-sized question. Partial selections keep a unit's
+non-question context; they do not add its unselected questions. Whole worksheet
+streams retain introductions, section headings, inter-unit prose and visible
+review appendices. A context-only selection within a unit creates no question.
+An unstructured exercise remains source prose with a warning and no question
+controls. Overlaps, including whole/child or aliases, are errors.
 
-- `note`: its current displayed body, without frontmatter/known structural fields.
-- `note#^block`: an existing standalone block anchor.
-- `note#Exact heading`: that heading and content until the next same/higher-level
-  heading. Duplicate headings are ambiguous; select a block or range instead.
-  After an exact match fails, doubled backslashes before a TeX command (for
-  example, `\\subset`) are matched as the equivalent single command backslash
-  in a heading reference, and inline emphasis delimiters are ignored. Displayed
-  source text is unchanged.
-- `note#Bold marker`: an exact standalone bold marker (for example,
-  `**Remarque 3**`) and the following content until the next heading or
-  standalone bold marker. Use this only for current notes that present
-  course items as marker lines rather than Markdown headings.
-- `note#L12-L20`: physical one-based inclusive UTF-8 source lines, including
-  frontmatter in numbering. Both boundaries must be parser-safe and outside
-  frontmatter. Do not split a paragraph, callout, table, code fence, or formula.
+## Corrections and ownership
 
-`questions` maps published question addresses to optional overrides:
-`corrections`, `hints`, `explanations`, and `courses` arrays, plus `method` as a
-selector or null.
-Aid/course arrays preserve order. Correction panels follow the first appearance
-of each supplied correction unit, with selected answers in source order inside
-that panel. Explicit empty arrays suppress auto-selected material;
-`method: null` suppresses automatic methods. Unused overrides are errors.
-Mappings are semantic agent decisions; the script checks references, not their
-pedagogical truth. Explanations require a selected correction. When selecting
-an explanation from a question-addressed help note, its question and correction
-links must agree with the published question and selected supplied answer.
+Supplied answers remain inside correction scopes, with relative footer links:
 
-For an exercise containing anchored `[!question]` callouts, each callout is a
-question and surrounding plain text is shared context. Otherwise the selected
-body is one explicitly selected unnumbered question, with no duplicated
-introduction. Native Ingest output already contains anchored questions, even
-before optional Enrich. This version does not guess numbered-list boundaries.
+```markdown
+%% clew:unit correction corr-1 %%
 
-Exercise identity is the resolved owning note ID, not the number of selectors
-or files. Multiple distinct question selectors from one note are grouped in one
-exercise view. A heading/range containing several anchored question blocks
-retains those questions and its selected context. Duplicate/overlapping question
-selections are errors, including whole-note plus child-block selection.
-Prefer one whole-note selector per exercise for native output.
-Overlaps are checked by source spans, including selector aliases and shared
-context. A context-only selection in a structured exercise needs selected
-question blocks from that same note; it does not invent another question.
-The derived model's exercise `address` is the owning note ID; each question
-`address` contains that ID and its existing local block anchor.
+## Correction 1
 
-Store one source exercise per exercise note and one supplied correction unit
-per correction note; keep all subquestions/answers and shared context inside.
-Separate supplied variants may have separate correction notes. Do not create
-question/answer-sized source files for HTML. Full note/block addresses distinguish
-the same local anchor in different exercises. Auxiliary `type: help` notes do
-not change source-unit granularity.
+Correction ^corr-1
 
-## Current Ingest notes
+Shared supplied reasoning.
 
-Consume note-schema-1 frontmatter, `question`/`reponse` callouts, standalone
-anchors, and `[question:: [[exercise#^q-id]]]` fields. Answer fields provide
-automatic correction matches. Multiple supplied answers are displayed in
-selected-note order unless overridden. Exercise `courses` frontmatter supplies
-default contextual links; explicit question `courses` narrows them to excerpts.
-Supplied-answer targets must agree with the correction unit's exercise
-association. Selected shared correction context remains available with the
-answers rather than disappearing through answer-only selection.
-The `exercises` association is an array resolving to at most one whole exercise
-note. With no declared association, linked answers must still share one owner.
-Explicit correction selections cannot point to another exercise's unit or a
-known answer for another question. Unlinked supplied answers produce visible
-warnings, not invented matches.
+> [!reponse] Answer 1
+>
+> Supplied answer text.
+>
+> [Question](../Exercise-sheet/sheet.md#^q-1) · [PDF p. 1](solutions.pdf#page=1)
 
-Automatic and explicit answer-block selections include the correction unit's
-non-answer context once per panel, interleaved with the selected answers in
-source order. Whole-note/heading/range selections keep their selected context.
-Other answers are not added merely to supply context. Separate supplied
-correction variants remain separate panels.
+^r-1
 
-Remove only recognized frontmatter, exact `clew-part` structural comments,
-known structural field lines, callout wrappers, and standalone anchors from
-display. Keep current content and Sources sections. Retained original Markdown
-is not used to overwrite or verify current notes. No Ingest validator is called.
+[Exercise](../Exercise-sheet/sheet.md#^ex-1)
+[PDF p. 1](solutions.pdf#page=1)
 
-## Optional existing aids
+%% /clew:unit corr-1 %%
+```
 
-A minimal additional note can contain:
+Exact `Exercise` / `Question` labels identify relationships; PDF links are
+provenance, not matches. Relationship lookalikes in code/math do not count.
+Unit association and answer links must agree on one exercise entry, including
+the document identity. Identical local anchors in other documents are distinct.
+If no association is declared, linked answers must still share one owner.
+Unmatched answers generate warnings, not guessed associations.
+
+Question options may override ordered `corrections`, `hints`, `explanations`,
+`courses` arrays or `method` (a selector or null). Empty arrays suppress automatic
+choices. Duplicate options/unused question overrides are errors.
+
+Correction selectors target an answer or one correction unit (entry, heading,
+safe range, or a document with only one unit). A whole multi-unit correction
+document is ambiguous. Selected panels include that unit's non-answer context
+once in source order and only answers for the published question. Variants
+remain separate even inside the same source document. Explicit choices can
+resolve unlinked answers but cannot contradict an established owner or target.
+
+## Optional aids and course excerpts
 
 ```markdown
 ---
-id: aide-sev
+schema_version: 1
+id: aid-q-1
 type: help
-question: "[[exercice#^q-1]]"
-correction: "[[corrige#^r-1]]"
+question: "[[sheet#^q-1]]"
+correction: "[[solutions#^r-1]]"
 ---
 
-> [!method]
-> Utiliser le critere du cours.
-
-^methode
-
 > [!hint]
-> Examiner la fonction nulle.
+> Compare the ratio with one using [[course#^theorem|the course result]].
 
-^indice-1
-
-> [!hint]
-> Examiner une combinaison lineaire.
-
-^indice-2
+^hint-1
 
 > [!explanation]
-> La correction applique le critere de stabilite par combinaison lineaire.
-> Voir [[cours#Sous-espace vectoriel|le critere du cours]].
+> The supplied reasoning applies [[course#Geometric limits|this result]].
 
-^explication-1
+^explanation
 ```
 
-Anchored `method` and `hint` callouts are selected automatically for the exact
-question target. At most one automatic method is allowed; multiple methods
-require an explicit selection. Hints follow selected-note and in-note order,
-with no fixed count. An explicit layout can reference other preexisting
-Markdown instead. No aids are authored by Generate.
+Automatically consume ordered anchored hints and explanations. Existing method
+callouts can also be consumed; multiple methods require explicit selection.
+Enrich authors hints/explanations, not methods, and is not a runtime dependency.
 
-Anchored `explanation` callouts are selected automatically only when the help
-note's `correction` points to a supplied answer linked to that same question.
-The answer must be included in the selected corrections, either directly or
-inside a selected note/heading. Wrong question/answer links are errors.
-Explanations appear in the side panel from the revealed inline correction;
-they are never appended to the supplied answer's prose.
+Each aid's question must resolve to an anchored question. Its optional
+`correction` must target a supplied answer linked to that question.
+Explanations require that correction and appear only for selected answers.
+Hints remain valid without an answer. Existing human edits are read directly;
+no Enrich baseline or validator is needed.
 
-Course links inside help notes register exact heading/block excerpts
-automatically. They open in the side panel, including when the course is also
-selected for reading or the reading view is suppressed. No extra layout mapping
-is necessary for those authored links. Target notes must still be in `notes`.
+Course links inside aids register exact selected course heading/block excerpts
+and open them in the side panel, even without the whole-course reading view.
+Whole-course aid links are rejected as imprecise. No extra layout mapping is
+needed. Every referenced note must be among the selected inputs.
 
-This publication convention consumes legacy question-addressed help notes.
-The current `clew-enrich` skill writes aids for Import's prepared
-document-internal unit format, which Generate does not yet publish. Generate
-needs no installed Enrich skill or validation snapshot.
-Humans can author/edit the same notes; a general revision/provenance contract
-remains outside this version.
+## Rendering and persistence
 
-## Markdown, links, and assets
+Python renders CommonMark, tables, dollar math, safe headings/blocks and
+recognized callouts. Native templates provide the existing interactive views.
+Missing/ambiguous/unpublished note targets are errors, not broken links.
+Visible review warnings remain content and are also reported.
 
-CommonMark with tables and dollar-delimited math is rendered in Python.
-Lists, code, blockquotes, known callouts, and heading/block references are
-supported. Link targets must be published somewhere: add their view to the
-layout rather than accepting a broken internal link. Contextual course targets
-can open in the side panel. All target notes must be included by a selected
-chapter or selected explicitly in `notes`.
+Local PNG/JPEG/GIF/WebP images, including image wikilinks, are embedded after
+signature checks. Raw HTML is escaped; SVG, remote figures, note transclusions
+and Dataview are rejected. Active URL schemes are not emitted. HTTP(S)/mailto
+links remain optional navigation. Local PDF links preserve `#page=N` and are
+rebased to the output location; missing PDFs warn, and relocation can break
+external PDF links without affecting offline reading.
 
-Local PNG/JPEG/GIF/WebP figures, including `![[figure.png]]`, are embedded after
-checking type signatures. Use Markdown syntax for relative image paths.
-Raw HTML is escaped and warned about; SVG and remote figures are rejected.
-Note transclusions and Dataview are rejected rather than silently evaluated.
-HTTP(S)/mailto links remain optional navigation. JavaScript and other active
-URL schemes are not emitted as links.
+Bundled MathJax uses base/AMS/newcommand/configmacros and local SVG fonts.
+Dynamic/active TeX is rejected; browser math failures remain visible.
+No claim of mathematical correctness follows from successful generation.
 
-Local `.pdf` links, including original `#page=N`, are rebased to the output
-directory. Missing PDFs produce warnings, not a rendering failure.
-Other local attachment link types are unsupported.
-
-Bundled MathJax uses base, AMS, newcommand, and configmacros with local SVG
-fonts. Dynamic extensions and active/external TeX commands are rejected.
-Unsupported formulas are reported visibly in the browser; generation is not
-a mathematical correctness checker.
+`--check` reads fresh inputs and builds in memory without writing. Output
+parents must exist. Existing HTML requires explicitly requested `--overwrite`;
+completed rendering precedes atomic replacement. Source notes and producer
+records are never modified.

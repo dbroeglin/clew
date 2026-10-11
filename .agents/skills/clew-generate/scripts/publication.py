@@ -1,11 +1,10 @@
-"""Resolve the minimal publication layout without semantic inference."""
+"""Resolve document-internal publication units without semantic inference."""
 from __future__ import annotations
 
 import json
-import re
 from pathlib import Path
 
-from notes import Library, Note, local_path, require
+from notes import Library, Note, Part, Unit, local_path, note_links, require
 
 
 def load_layout(path: Path) -> tuple[dict, Library]:
@@ -22,12 +21,12 @@ def load_layout(path: Path) -> tuple[dict, Library]:
     require(isinstance(paths, list) and all(isinstance(p, str) and p for p in paths),
             "notes must be an array of paths.")
     library = Library([path.parent / name for name in paths])
-    layout["output"] = str(local_path(path.parent / layout["output"]))
-    output = Path(layout["output"])
+    output = local_path(path.parent / layout["output"])
     require(output.suffix.lower() == ".html", "Output must be an .html file.")
     require(output not in {note.path for note in library.notes} and output != path,
             "Output cannot replace an input.")
     require(output.parent.is_dir(), f"Output parent does not exist: {output.parent}")
+    layout["output"] = str(output)
     return layout, library
 
 
@@ -39,244 +38,292 @@ def refs(value, label: str) -> list[str]:
 
 
 def compile_layout(layout: dict, library: Library, render) -> dict:
-    require(len({note.id for note in library.notes}) == len(library.notes),
-            "Duplicate learning-note IDs.")
+    for note in library.notes:
+        for part in note.parts:
+            if part.kind == "warning" and part.label == "Clew review":
+                render.warn(f"Review required in {note.id}: {part.text.splitlines()[0]}")
+
+    def resolve(ref: str, origin: Note | None = None) -> tuple[Note, str]:
+        return library.resolve(ref, origin)
+
+    def key(note: Note, fragment: str) -> tuple[str, str]:
+        return note.id, fragment
+
+    def address(note: Note, unit: Unit) -> str:
+        return note.id + "#^" + unit.id
+
+    def selected_span(note: Note, fragment: str, kind: str) -> tuple[int, int]:
+        matches = [unit for unit in note.units
+                   if unit.kind == kind and fragment == "^" + unit.id]
+        if matches:
+            return matches[0].start, matches[0].end
+        return note.selection_span(fragment)
+
     overrides = layout.get("questions", {})
     require(isinstance(overrides, dict), "questions must map references to options.")
-    courses = refs(layout.get("courses", [
-        note.id for note in library.notes if note.metadata.get("type") in {"course", "section"}
-    ]), "courses")
-    exercises = refs(layout.get("exercises", [
-        note.id for note in library.notes if note.metadata.get("type") == "exercise"
-    ]), "exercises")
-    require(bool(courses or exercises), "Select courses or exercises in the layout.")
-    canonical_overrides = {}
+    canonical = {}
     for ref, options in overrides.items():
-        note, fragment = library.resolve(ref)
-        key = (str(note.path), fragment)
-        require(key not in canonical_overrides, f"Duplicate question override: {ref}")
+        note, fragment = resolve(ref)
+        require(fragment.startswith("^") and fragment[1:] in note.blocks
+                and note.blocks[fragment[1:]].kind == "question",
+                f"Override requires an anchored question: {ref}")
+        require(key(note, fragment) not in canonical, f"Duplicate question override: {ref}")
         require(isinstance(options, dict) and not set(options) -
-                {"corrections", "method", "hints", "explanations", "courses"}, f"Invalid question options: {ref}")
-        canonical_overrides[key] = options
-    consumed = set()
-    question_data = []
-    exercise_data = []
-    excerpts: dict[str, dict] = {}
-    units = {}
-    for ref in exercises:
-        note, fragment = library.resolve(ref)
-        require(note.metadata.get("type") in {None, "exercise"},
-                f"Exercise selection targets a non-exercise: {ref}")
-        start, end = note.selection_span(fragment)
-        selections = units.setdefault(note.id, (note, []))[1]
-        require(all(end <= previous_start or previous_end <= start
-                    for previous_start, previous_end, _, _ in selections),
-                f"Duplicate/overlapping exercise selection: {ref}")
-        selections.append((start, end, fragment, note.select_parts(fragment)))
+                {"corrections", "method", "hints", "explanations", "courses"},
+                f"Invalid question options: {ref}")
+        canonical[key(note, fragment)] = options
 
+    course_refs = refs(layout.get("courses", [
+        note.id for note in library.notes if note.role == "course"
+    ]), "courses")
+    exercise_refs = refs(layout.get("exercises", [
+        note.id for note in library.notes if note.role in {"exercise", "mixed"}
+        and any(unit.kind == "exercise" for unit in note.units)
+    ]), "exercises")
+    require(bool(course_refs or exercise_refs), "Select courses or exercise units in the layout.")
+    selections = {}
+    groups = {}
+    whole_documents = set()
+    for ref in exercise_refs:
+        note, fragment = resolve(ref)
+        require(note.role in {"exercise", "mixed"}, f"Exercise selection targets a non-exercise: {ref}")
+        start, end = selected_span(note, fragment, "exercise")
+        previous = selections.setdefault(note.id, [])
+        require(all(end <= a or b <= start for a, b in previous),
+                f"Duplicate/overlapping exercise selection: {ref}")
+        previous.append((start, end))
+        candidates = []
+        for unit in note.units:
+            if unit.kind == "exercise" and unit.start < end and start < unit.end:
+                parts = note.span_parts(max(start, unit.start), min(end, unit.end))
+                if parts:
+                    candidates.append((unit, parts))
+        require(bool(candidates), f"Selection is outside exercise units: {ref}")
+        if not fragment:
+            whole_documents.add(note.id)
+        for unit, parts in candidates:
+            entry = groups.setdefault(address(note, unit), (note, unit, []))
+            entry[2].extend(parts)
+    document_anchors = {note.id: render.target(note, "") for note in library.notes
+                        if note.id in whole_documents}
+
+    questions = {(note.id, "^" + part.block): (note, part, note.owner(part, "exercise"))
+                 for note in library.notes for part in note.parts if part.kind == "question"}
     answer_targets = {}
     matched_answers = {}
     correction_owners = {}
-    for note in library.notes if units else []:
-        answers = [part for part in note.parts if part.kind == "reponse"]
-        if note.metadata.get("type") != "correction" and not answers:
-            continue
-        require(note.metadata.get("type") in {None, "correction"},
-                f"Supplied answers need a correction note: {note.id}")
-        owners = set()
-        for ref in refs(note.metadata.get("exercises", []), "correction exercises"):
-            target, fragment = library.resolve(ref, note)
-            require(target.metadata.get("type") in {None, "exercise"} and not fragment,
-                    f"Correction association needs a whole exercise note: {note.id} -> {ref}")
-            owners.add(target.id)
-        require(len(owners) <= 1, f"Correction unit has multiple exercises: {note.id}")
-        for part in answers:
-            links = re.findall(r"\[question::\s*(\[\[.*?\]\])\]", part.fields)
-            require(len(links) <= 1, f"Answer has multiple question links: {note.id}#^{part.block}")
-            if not links:
-                render.warn(f"Unmatched supplied answer: {note.id}#^{part.block or '(no anchor)'}")
+    for note in library.notes:
+        for unit in note.units:
+            if unit.kind != "correction":
                 continue
-            require(bool(part.block), f"Supplied answer needs a block anchor: {note.id}")
-            target, fragment = library.resolve(links[0], note)
-            require(target.metadata.get("type") in {None, "exercise"}
-                    and fragment.startswith("^") and fragment[1:] in target.blocks
-                    and target.blocks[fragment[1:]].kind in {"question", "text"},
-                    f"Answer needs an anchored exercise question: {note.id}#^{part.block}")
-            require(not owners or target.id in owners,
-                    f"Answer targets a different exercise than its correction unit: "
-                    f"{note.id}#^{part.block} -> {target.id}")
-            owners.add(target.id)
-            key = (str(target.path), fragment)
-            answer_targets[str(note.path), "^" + part.block] = key
-            matched_answers.setdefault(key, []).append(f"{note.id}#^{part.block}")
-        correction_owners[str(note.path)] = next(iter(owners), None)
+            unit_parts = note.span_parts(unit.start, unit.end)
+            links = note_links("\n\n".join(part.display() for part in unit_parts
+                                         if part.kind != "reponse"), label="Exercise")
+            require(len(links) <= 1, f"Correction unit has multiple exercise links: {address(note, unit)}")
+            owners = set()
+            if links:
+                target, fragment = resolve(links[0], note)
+                require(target.role in {"exercise", "mixed"}, "Correction needs an exercise document.")
+                owners.add(address(target, target.unit(fragment, "exercise")))
+            for part in unit_parts:
+                if part.kind != "reponse":
+                    continue
+                links = note_links(part.text, label="Question")
+                require(len(links) <= 1, f"Answer has multiple question links: {note.id}#^{part.block}")
+                answer_key = key(note, "^" + part.block)
+                answer_targets[answer_key] = None
+                if not links:
+                    render.warn(f"Unmatched supplied answer: {note.id}#^{part.block}")
+                    continue
+                target, fragment = resolve(links[0], note)
+                target_key = key(target, fragment)
+                require(target_key in questions, f"Answer needs an anchored exercise question: {links[0]}")
+                owners.add(address(target, questions[target_key][2]))
+                answer_targets[answer_key] = target_key
+                matched_answers.setdefault(target_key, []).append(f"{note.id}#^{part.block}")
+            require(len(owners) <= 1,
+                    f"Answers disagree with correction exercise owner: {address(note, unit)}")
+            correction_owners[address(note, unit)] = next(iter(owners), None)
+
+    excerpts = {}
 
     def course(ref: str, origin: Note | None = None) -> str:
-        note, fragment = library.resolve(ref, origin)
-        key = str(note.path) + "#" + fragment
-        if key not in excerpts:
-            identifier = f"course-{len(excerpts) + 1}"
-            excerpts[key] = {"id": identifier, "title": fragment or note.title,
-                             "html": render(note.select(fragment), note, fragment)}
-        return excerpts[key]["id"]
+        note, fragment = resolve(ref, origin)
+        require(note.role in {"course", "mixed"}, f"Course selection needs a course document: {ref}")
+        excerpt_key = key(note, fragment)
+        if excerpt_key not in excerpts:
+            title = fragment.lstrip("^") or note.title
+            if fragment.startswith("^") and fragment[1:] in note.blocks:
+                title = note.blocks[fragment[1:]].label or title
+            excerpts[excerpt_key] = {"id": f"course-{len(excerpts) + 1}",
+                                     "title": title,
+                                     "html": render(note.select(fragment), note, fragment)}
+        return excerpts[excerpt_key]["id"]
 
     def content(ref: str, origin: Note) -> str:
-        note, fragment = library.resolve(ref, origin)
+        note, fragment = resolve(ref, origin)
         return render(note.select(fragment), note, fragment)
 
-    def correction_panels(references: list[str], origin: Note, question_key: tuple) -> list[str]:
-        selected = {}
+    def correction_panels(references: list[str], origin: Note, owner: Unit,
+                          question_key: tuple[str, str]) -> tuple[list[str], set[tuple[str, str]]]:
+        panels = {}
+        selected_answers = set()
         for ref in references:
-            note, fragment = library.resolve(ref, origin)
-            parts = note.select_parts(fragment)
-            require(any(part.text.strip() for part in parts), f"Empty correction selection: {ref}")
-            path = str(note.path)
-            if path in correction_owners:
-                owner = correction_owners[path]
-                require(owner is None or owner == origin.id,
-                        f"Correction selection belongs to another exercise: {ref}")
-                correction_owners[path] = origin.id
-                targets = {answer_targets[path, "^" + part.block] for part in parts
-                           if (path, "^" + part.block) in answer_targets}
-                require(not targets or question_key in targets,
-                        f"Correction/question mismatch: {ref}")
-            entry = selected.setdefault(path, {"note": note, "parts": [], "context": False})
-            entry["parts"].extend(parts)
-            if fragment.startswith("^") and any(part.kind == "reponse" for part in parts):
-                entry["context"] = True
-        panels = []
-        for entry in selected.values():
-            note, parts = entry["note"], entry["parts"]
-            if entry["context"]:
-                context = [part for part in note.parts if part.kind != "reponse"]
-                parts = [part for part in parts if not any(
-                    other.start <= part.start and part.end <= other.end for other in context)]
-                parts.extend(context)
-            unique = {(part.start, part.end, part.block): part for part in parts}
-            panels.append("\n".join(
-                render(part.display(), note, "^" + part.block if part.block else "")
-                for part in sorted(unique.values(), key=lambda part: part.start) if part.text.strip()))
-        return panels
+            note, fragment = resolve(ref, origin)
+            start, end = selected_span(note, fragment, "correction")
+            parts = note.span_parts(start, end)
+            answers = [part for part in parts if part.kind == "reponse"]
+            require(bool(answers), f"Empty correction selection or no supplied answers: {ref}")
+            units = {note.owner(part, "correction").id for part in answers}
+            require(len(units) == 1, f"Select one correction unit or answer, not a whole multi-unit document: {ref}")
+            unit = note.unit("^" + next(iter(units)), "correction")
+            unit_address = address(note, unit)
+            declared_owner = correction_owners[unit_address]
+            require(declared_owner is None or declared_owner == address(origin, owner),
+                    f"Correction selection belongs to another exercise: {ref}")
+            correction_owners[unit_address] = address(origin, owner)
+            block_selection = fragment.startswith("^") and fragment[1:] in note.blocks \
+                and note.blocks[fragment[1:]].kind == "reponse"
+            kept = []
+            for part in answers:
+                answer_key = key(note, "^" + part.block)
+                target = answer_targets[answer_key]
+                if target is not None and target != question_key:
+                    require(not block_selection, f"Correction/question mismatch: {ref}")
+                    continue
+                answer_targets[answer_key] = question_key
+                kept.append(part)
+                selected_answers.add(answer_key)
+            require(bool(kept), f"Correction/question mismatch: {ref}")
+            panel = panels.setdefault(unit_address, (note, unit, []))
+            panel[2].extend(kept)
+        result = []
+        for note, unit, selected in panels.values():
+            context = [part for part in note.span_parts(unit.start, unit.end)
+                       if part.kind != "reponse"]
+            parts = {(part.start, part.end): part for part in context + selected}
+            markup = render.target(note, "^" + unit.id)
+            markup += "\n".join(render(part.display(), note, "^" + part.block if part.block else "")
+                                for part in sorted(parts.values(), key=lambda part: part.start))
+            result.append(markup)
+        return result, selected_answers
 
-    for note, selections in units.values():
-        selections.sort(key=lambda selection: selection[0])
-        parts = None
-        selected_parts = [part for _, _, _, selection in selections for part in selection]
-        if any(part.kind == "question" for part in note.parts):
-            question_parts = [part for part in selected_parts if part.kind == "question"]
-            require(bool(question_parts), f"Exercise selection contains no questions: {note.id}")
-            require(all(part.block and part.text.strip() for part in question_parts),
-                    f"Question callouts need block anchors and content: {note.id}")
-            questions = [("^" + part.block, part.text, part.label) for part in question_parts]
-            parts = selected_parts
-        else:
-            # Explicit unnumbered selections remain questions, not duplicated context.
-            questions = [(fragment, note.select(fragment), "") for _, _, fragment, _ in selections]
+    question_data, exercise_data = [], []
+    consumed = set()
+    for note, unit, selected in groups.values():
+        selected_questions = {part.block for part in selected if part.kind == "question"}
+        parts = [part for part in note.span_parts(unit.start, unit.end)
+                 if part.kind != "question" or part.block in selected_questions]
         question_ids = []
-        unit_anchor = render.target(note, "")
-        for question_fragment, text, label in questions:
-            require(bool(text.strip()), f"Empty question selection: {note.id}#{question_fragment}")
-            key = (str(note.path), question_fragment)
-            options = canonical_overrides.get(key, {})
-            if key in canonical_overrides:
-                consumed.add(key)
-            address = note.id + ("#" + question_fragment if question_fragment else "")
-            auto_answers = matched_answers.get(key, [])
-            answer_refs = refs(options.get("corrections", auto_answers), "corrections")
-            method = options.get("method")
-            require(method is None or (isinstance(method, str) and bool(method)),
-                    f"Invalid method: {address}")
-            hint_refs = refs(options.get("hints", []), "hints")
-            explanation_refs = refs(options.get("explanations", []), "explanations")
-            course_refs = refs(options.get("courses", note.metadata.get("courses", [])), "question courses")
-            # Separate aid notes are additions, never supplied corrections.
-            aid_notes = []
+        segments = []
+        for part in parts:
+            if part.kind != "question":
+                markup = render(part.display(), note, "^" + part.block if part.block else "")
+                if markup:
+                    segments.append({"html": markup})
+                continue
+            question_key = key(note, "^" + part.block)
+            options = canonical.get(question_key, {})
+            if question_key in canonical:
+                consumed.add(question_key)
+            answer_refs = refs(options.get("corrections", matched_answers.get(question_key, [])),
+                               "corrections")
+            corrections, selected_answers = correction_panels(answer_refs, note, unit, question_key)
+            auto = {"method": [], "hints": [], "explanations": []}
             for aid in library.notes:
-                target = aid.metadata.get("question")
-                if aid.metadata.get("type") == "help" and isinstance(target, str):
-                    target_note, target_fragment = library.resolve(target, aid)
-                    if (str(target_note.path), target_fragment) == key:
-                        aid_notes.append(aid)
-            auto_methods = []
-            auto_hints = []
-            auto_explanations = []
-            selected_answers = set()
-            for ref in answer_refs:
-                target, fragment = library.resolve(ref, note)
-                selected_answers.add((str(target.path), fragment))
-                selected_answers.update((str(target.path), "^" + part.block)
-                                        for part in target.select_parts(fragment)
-                                        if part.kind == "reponse" and part.block)
-            supplied_answers = {(str(target.path), fragment) for target, fragment in
-                                (library.resolve(ref, note) for ref in auto_answers)}
-            for aid in aid_notes:
-                for part in aid.parts:
-                    if part.kind in {"method", "hint", "explanation"}:
-                        require(bool(part.block), f"Aid needs a block anchor: {aid.id}")
-                        ref = f"{aid.id}#^{part.block}"
-                        if part.kind == "explanation":
-                            correction = aid.metadata.get("correction")
-                            require(isinstance(correction, str),
-                                    f"Explanation needs a supplied correction: {ref}")
-                            target, fragment = library.resolve(correction, aid)
-                            answer_key = (str(target.path), fragment)
-                            require(answer_key in supplied_answers,
-                                    f"Explanation correction/question mismatch: {ref}")
-                            if answer_key in selected_answers:
-                                auto_explanations.append(ref)
-                        else:
-                            (auto_methods if part.kind == "method" else auto_hints).append(ref)
-            require("method" in options or len(auto_methods) <= 1,
-                    f"Multiple methods require an explicit selection: {address}")
-            method = method if "method" in options else (auto_methods[0] if auto_methods else None)
-            hint_refs = hint_refs if "hints" in options else auto_hints
-            explanation_refs = explanation_refs if "explanations" in options else auto_explanations
-            require(not explanation_refs or bool(answer_refs),
-                    f"Explanations require a selected supplied correction: {address}")
-            for ref in explanation_refs:
-                aid, fragment = library.resolve(ref, note)
-                if aid.metadata.get("type") == "help" and any(
-                        part.kind == "explanation" for part in aid.select_parts(fragment)):
-                    aid_question, aid_fragment = library.resolve(aid.metadata.get("question"), aid)
-                    require((str(aid_question.path), aid_fragment) == key,
-                            f"Explanation targets another question: {ref}")
-                    target, target_fragment = library.resolve(aid.metadata.get("correction"), aid)
-                    require((str(target.path), target_fragment) in selected_answers,
-                            f"Explanation targets an unselected correction: {ref}")
+                if aid.metadata["type"] != "help":
+                    continue
+                aid_note, aid_fragment = resolve(aid.metadata.get("question"), aid)
+                require(key(aid_note, aid_fragment) in questions,
+                        f"Aid requires an anchored question: {aid.id}")
+                if key(aid_note, aid_fragment) != question_key:
+                    continue
+                answer_key = None
+                if "correction" in aid.metadata:
+                    answer_note, answer_fragment = resolve(aid.metadata["correction"], aid)
+                    answer_key = key(answer_note, answer_fragment)
+                    require(answer_key in answer_targets and
+                            answer_targets[answer_key] == question_key,
+                            f"Aid correction/question mismatch: {aid.id}")
+                for aid_part in aid.parts:
+                    if aid_part.kind not in {"method", "hint", "explanation"}:
+                        continue
+                    require(bool(aid_part.block) and bool(aid_part.text),
+                            f"Aid needs content and a block anchor: {aid.id}")
+                    category = {"method": "method", "hint": "hints",
+                                "explanation": "explanations"}[aid_part.kind]
+                    if category == "explanations":
+                        require(answer_key is not None, f"Explanation needs a supplied correction: {aid.id}")
+                        if answer_key not in selected_answers:
+                            continue
+                    auto[category].append(f"{aid.id}#^{aid_part.block}")
+            require("method" in options or len(auto["method"]) <= 1,
+                    f"Multiple methods require an explicit selection: {note.id}#^{part.block}")
+            method = options.get("method", auto["method"][0] if auto["method"] else None)
+            require(method is None or isinstance(method, str) and bool(method), "Invalid method selector.")
+            hints = refs(options.get("hints", auto["hints"]), "hints")
+            explanations = refs(options.get("explanations", auto["explanations"]), "explanations")
+            require(not explanations or bool(corrections),
+                    f"Explanations require a selected supplied correction: {note.id}#^{part.block}")
+            for ref in ([method] if method else []) + hints + explanations:
+                aid, fragment = resolve(ref, note)
+                if aid.metadata["type"] == "help":
+                    target, target_fragment = resolve(aid.metadata.get("question"), aid)
+                    require(key(target, target_fragment) == question_key,
+                            f"Aid targets another question: {ref}")
+                    if ref in explanations:
+                        target, target_fragment = resolve(aid.metadata.get("correction"), aid)
+                        require(key(target, target_fragment) in selected_answers,
+                                f"Explanation targets an unselected correction: {ref}")
             identifier = f"question-{len(question_data) + 1}"
             question_ids.append(identifier)
-            question_data.append({
-                "id": identifier, "label": label or "Question",
-                "html": unit_anchor + render(text, note, question_fragment),
-                "method": content(method, note) if method else "",
-                "hints": [content(ref, note) for ref in hint_refs],
-                "explanations": [content(ref, note) for ref in explanation_refs],
-                "corrections": correction_panels(answer_refs, note, key),
-                "courses": [course(ref, note) for ref in course_refs],
-                "address": address,
-            })
-            unit_anchor = ""
-        segments = []
-        if parts is not None:
-            identifiers = iter(question_ids)
-            for part in parts:
-                if part.kind == "question":
-                    segments.append({"question": next(identifiers)})
-                elif part.text.strip():
-                    segments.append({"html": render(part.display(), note,
-                                                    "^" + part.block if part.block else "")})
-        else:
-            segments = [{"question": identifier} for identifier in question_ids]
-        exercise_data.append({"title": note.title, "address": note.id, "context": "",
+            question_data.append({"id": identifier, "label": part.label or "Question",
+                                  "html": render(part.text, note, "^" + part.block),
+                                  "method": content(method, note) if method else "",
+                                  "hints": [content(ref, note) for ref in hints],
+                                  "explanations": [content(ref, note) for ref in explanations],
+                                  "corrections": corrections,
+                                  "courses": [course(ref, note) for ref in
+                                              refs(options.get("courses", []), "question courses")],
+                                  "address": f"{note.id}#^{part.block}"})
+            segments.append({"question": identifier})
+        if not question_ids:
+            render.warn(f"Exercise has no selected anchored questions: {address(note, unit)}")
+        exercise_data.append({"title": unit.title, "address": address(note, unit), "context": "",
                               "questions": question_ids, "segments": segments})
-    require(consumed == set(canonical_overrides),
-            f"Overrides refer to unpublished questions: {sorted(set(canonical_overrides) - consumed)}")
-    reading = [course(ref) for ref in courses]
+    require(consumed == set(canonical), "Overrides refer to unpublished questions.")
+
+    worksheet = []
+    emitted_groups = set()
+    for note, unit, _ in groups.values():
+        if note.id not in whole_documents:
+            worksheet.append({"exercise": address(note, unit)})
+            emitted_groups.add(address(note, unit))
+            continue
+        if address(note, unit) in emitted_groups:
+            continue
+        worksheet.append({"html": document_anchors[note.id]})
+        exercise_units = {candidate.start: candidate for candidate in note.units
+                          if candidate.kind == "exercise"}
+        events = [(part.start, part) for part in note.parts
+                  if not any(candidate.kind != "section"
+                             and candidate.start < part.start < candidate.end
+                             for candidate in note.units)]
+        events.extend(exercise_units.items())
+        for _, item in sorted(events, key=lambda event: event[0]):
+            if isinstance(item, Unit):
+                worksheet.append({"exercise": address(note, item)})
+                emitted_groups.add(address(note, item))
+            else:
+                worksheet.append({"html": render(item.display(), note,
+                                                 "^" + item.block if item.block else "")})
+    reading = [course(ref) for ref in course_refs]
     course_links = {}
     while len(course_links) < len(render.course_links):
-        for anchor, (target, fragment) in list(render.course_links.items()):
+        for anchor, (note, fragment) in list(render.course_links.items()):
             if anchor not in course_links:
-                course_links[anchor] = course(target.id + ("#" + fragment if fragment else ""))
-    return {"title": layout["title"], "exercises": exercise_data,
+                require(bool(fragment), f"Aid course link needs a precise passage: {note.id}")
+                course_links[anchor] = course(note.id + "#" + fragment)
+    return {"title": layout["title"], "exercises": exercise_data, "worksheet": worksheet,
             "questions": question_data, "courses": list(excerpts.values()),
             "reading": reading, "course_links": course_links}
