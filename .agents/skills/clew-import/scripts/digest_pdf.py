@@ -1499,7 +1499,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 if args.checkpoint_sha256 and summary["checkpoint_sha256"] != args.checkpoint_sha256:
                     raise DigestionError("Checkpoint changed since approval; inspect a new resume plan.")
             run.update("Initializing Azure clients")
-            with DefaultAzureCredential() as credential:
+            # Azure CLI token acquisition can exceed the 10 s default on Windows cold starts.
+            with DefaultAzureCredential(process_timeout=60) as credential:
                 with (
                     DocumentIntelligenceClient(
                         settings.document_endpoint, credential, api_version=DI_API_VERSION
