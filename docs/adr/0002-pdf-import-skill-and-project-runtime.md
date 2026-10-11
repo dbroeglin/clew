@@ -25,7 +25,7 @@ Inspect recursively and deterministically, allowing non-redirecting OneDrive
 placeholders but refusing redirects/unknown reparse tags. Exclude recognized
 conversion/prepared/legacy owned roots and retained copies. Conflicts are visible.
 Complete source/hash/artifact/page-scope matches reuse existing bundles;
-partial/stale/unrelated outputs are not overwritten.
+partial/stale/unrelated outputs are not overwritten by default.
 
 Before paid conversion, approve exact PDFs, hosts, options, commands and charges.
 Recheck source/configuration and destination absence. Outputs default to sibling
@@ -39,7 +39,38 @@ valid without additive newer review metadata. Converter exits remain 0
 extracted, 2 complete-needs-review, 1 failed, 130 interrupted.
 Planner 2 denotes conflicts/preflight blockers, not a completed conversion.
 
-Failed/interrupted runs preserve diagnostics. Delete-and-restart needs fresh
+New conversions maintain a separate schema-1 `checkpoint.json` with source,
+normalized scope, effective options/configuration and converter/Python-interpreter/dependency
+fingerprints, committed artifact hashes, pending local writes, DI submission/ID,
+and a paid-call ledger. Immutable numbered `raw/checkpoints` responses preserve
+all returned API evidence, including rejected responses. Explicit `--resume`
+replays deterministic orchestration/local checks and reuses usable responses
+without resetting bounded corrective attempts. Conventional artifact paths and
+completion schema 3 remain stable. Old partial runs without checkpoints are
+not adopted; historical completed bundles stay supported.
+
+The read-only planner supports explicit resume and a custom output for a single
+PDF, reports cached/failed/uncertain requests and remaining-work bounds, and
+binds its command to the current checkpoint hash. Fresh approval covers
+remaining/repeated paid work, not deletion. Recheck source, configuration,
+checkpoint and artifacts before execution. Changed settings, scripts/dependency
+versions, missing/changed artifacts, redirects or unexpected files block reuse.
+A deployment fingerprint cannot detect provider-side backing-model changes.
+
+Poll DI by saved operation ID if no layout was saved; never silently resubmit an
+unknown, failed or expired operation. A submitted request without saved ID/result
+is blocked. Unobserved OpenAI responses may require repeated paid requests;
+resume does not promise exactly-once billing. Restore usage from saved responses
+once, including rejected responses, and suppress the price estimate when
+interrupted attempts have no observed usage.
+
+An OS advisory output lock prevents cooperating same-filesystem processes from
+writing concurrently and releases on process termination. It is not a
+distributed lock across synchronization replicas. A verified completed
+checkpoint is a no-op, including review-required completion.
+
+Failed/interrupted runs preserve diagnostics and first offer a separately
+approved compatible checkpoint resume. Delete-and-restart needs fresh
 exact-path approval, ownership checks, no unexpected files/redirects, source
 rechecks and synchronized-deletion warning. No automatic batch continuation,
 cleanup or repeated restart loop.
@@ -48,6 +79,9 @@ its subset does not replace the full raw-evidence bundle.
 
 ## Consequences
 
-Conversion behavior remains stable while preparation is simplified. Paid work,
+Conversion artifacts and exit meanings remain stable, while compatible future
+interruptions can reuse paid work rather than requiring a complete restart.
+Preserving the original runtime and unchanged configuration is deliberate;
+legacy partial-run recovery and configuration migrations are outside scope. Paid work,
 local organization and deletion have distinct permissions. Hashes and successful
 parsing do not establish transcription fidelity.

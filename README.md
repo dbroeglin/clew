@@ -58,6 +58,12 @@ reference price estimate; this is not the final Azure charge.
 Completed bundles normally sit beside their PDFs in same-basename folders.
 You can stop here and prepare them later.
 
+New conversions also save checkpoints. If one is interrupted, keep its output
+and ask `clew-import` to **plan a resume** using the original PDF and settings.
+After approval it reuses saved paid work and continues unfinished steps.
+Requests interrupted before their response was saved may still incur repeat
+charges. Older partial outputs without a checkpoint cannot be resumed.
+
 ## 2. Prepare whole documents for Obsidian
 
 ```text

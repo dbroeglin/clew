@@ -11,7 +11,7 @@ skills, not in ADRs.
 | --- | --- | --- | --- |
 | [ADR-0000](0000-record-architecture-decisions.md) | Record architecture decisions | Accepted | Stable IDs, progressive discovery and in-place revisions. |
 | [ADR-0001](0001-document-processing-pipeline.md) | Document processing pipeline | Accepted | Enrich consumes prepared units; Generate remains a legacy consumer. |
-| [ADR-0002](0002-pdf-import-skill-and-project-runtime.md) | PDF Import and project runtime | Accepted | Pinned conversion provenance, retained bundles, recursive discovery, cloud and restart gates. |
+| [ADR-0002](0002-pdf-import-skill-and-project-runtime.md) | PDF Import and project runtime | Accepted | Pinned conversion, retained bundles, version-bound future checkpoints and explicit cloud/resume/restart gates. |
 | [ADR-0003](0003-autonomous-portable-skills.md) | Autonomous portable skills | Accepted | Skill-owned runtime intent, host-owned resolution, external tests and documentation integrity. |
 | [ADR-0004](0004-faithful-multi-bundle-ingest.md) | Whole-document preparation | Accepted | One note per PDF, typed edits, compact provenance, Obsidian comments, final review appendices and pedantic validation. |
 | [ADR-0005](0005-conservative-import-and-latex-leakage-review.md) | Conservative transcription and leakage review | Accepted | Image-evidenced transcription and non-mutating review. |
@@ -19,5 +19,5 @@ skills, not in ADRs.
 | [ADR-0007](0007-course-linked-question-enrichment.md) | Course-linked question enrichment | Accepted | Additive course-linked hints/explanations for prepared document-internal units. |
 | [ADR-0008](0008-exercise-unit-pipeline-contract.md) | Document-internal learning units | Accepted | Heading navigation, stable entries, scoped ownership and compact relationship/PDF callout footers. |
 | [ADR-0009](0009-direct-markdown-page-transcription.md) | Direct Markdown page transcription | Accepted | Direct page text, strict figure JSON and retained raw responses. |
-| [ADR-0010](0010-source-grounded-page-review-and-retries.md) | Source-grounded review and retries | Accepted | High-effort page review, bounded corrections, retained evidence and usage-based cost estimates. |
+| [ADR-0010](0010-source-grounded-page-review-and-retries.md) | Source-grounded review and retries | Accepted | High-effort review, resume-preserved correction bounds, retained evidence and usage-based cost estimates. |
 | [ADR-0011](0011-npm-workspace-and-offline-import-mathjax.md) | npm workspace and offline MathJax | Accepted | Hoisted root setup, skill-local declarations and browser-free candidate checks. |

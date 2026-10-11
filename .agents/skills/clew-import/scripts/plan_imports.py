@@ -19,6 +19,7 @@ import pymupdf
 
 import digest_pdf
 from math_render import MathRenderError, check_math_runtime
+from digestion_checkpoint import CheckpointRecord
 
 SKILL_ROOT = Path(__file__).resolve().parents[1]
 
@@ -190,6 +191,18 @@ def bundle_marker(directory: Path) -> tuple[bool, str | None]:
                     raise InspectionError("Unrecognized completion manifest.")
                 return True, None
         except InspectionError as error:
+            return False, str(error)
+    checkpoint_path = directory / "checkpoint.json"
+    if os.path.lexists(checkpoint_path):
+        try:
+            data = read_object(checkpoint_path)
+            checkpoint = CheckpointRecord.model_validate(data)
+            source = checkpoint.binding.get("source")
+            if not isinstance(source, dict):
+                raise InspectionError("Checkpoint has no source identity.")
+            source_record({"source": {**source, "path": f"source/{source.get('name')}"}})
+            return True, None
+        except (InspectionError, ValueError) as error:
             return False, str(error)
     if report_path.exists():
         try:
@@ -407,18 +420,22 @@ def build_plan(
     dpi: int = 200, max_output_tokens: int = 16000,
     high_resolution_ocr: bool = False, debug: bool = False, check_env: bool = False,
     page_review: bool = True,
+    resume: bool = False, output_path: Path | None = None,
 ) -> dict[str, object]:
     if not 72 <= dpi <= 600 or max_output_tokens < 1:
         raise InspectionError("Use DPI between 72 and 600 and a positive output token budget.")
     sources, conflicts, excluded = discover(input_path)
+    if output_path is not None and (input_path.is_dir() or len(sources) != 1):
+        raise InspectionError("--output is supported only for one explicitly selected PDF.")
     entries: list[dict[str, object]] = []
     targets: dict[str, list[Path]] = {}
     for source in sources:
-        key = os.path.normcase(str(source.with_suffix("")))
+        key = os.path.normcase(str((output_path or source.with_suffix("")).absolute()))
         targets.setdefault(key, []).append(source)
     for source in sources:
-        output = source.with_suffix("")
+        output = (output_path or source.with_suffix("")).absolute()
         entry: dict[str, object] = {"source": str(source), "output": str(output)}
+        resume_summary: dict[str, object] | None = None
         try:
             if len(targets[os.path.normcase(str(output))]) > 1:
                 raise InspectionError("Multiple source PDFs map to the same target.")
@@ -427,10 +444,26 @@ def build_plan(
             if os.path.lexists(output):
                 if is_link(output) or not output.is_dir():
                     raise InspectionError("Target is a file, redirects its path, or has an unavailable reparse tag.")
-                issues = inspect_completed(source, output, digest, count, wanted)
-                entry.update(classification="already_converted", reason="Source, artifacts, and page scope match.",
-                             review_issues=issues)
-            else:
+                if (output / "manifest.json").is_file():
+                    issues = inspect_completed(source, output, digest, count, wanted)
+                    entry.update(classification="already_converted", reason="Source, artifacts, and page scope match.",
+                                 review_issues=issues)
+                elif resume:
+                    if not check_env:
+                        raise InspectionError("Resuming requires --check-env and the original Azure configuration.")
+                    settings = digest_pdf.settings_from_env(os.environ)
+                    resume_summary = digest_pdf.inspect_resume(
+                        source, output, settings.deployment, pages=pages, dpi=dpi,
+                        high_resolution_ocr=high_resolution_ocr, max_output_tokens=max_output_tokens,
+                        page_review=page_review, settings=settings,
+                    )
+                    entry["resume"] = resume_summary
+                    entry.update(classification="resume", reason="Compatible checkpoint and saved artifacts.")
+                else:
+                    raise InspectionError("Incomplete target: inspect with --resume; do not delete or overwrite it.")
+            elif resume:
+                raise InspectionError("No existing digest to resume.")
+            if entry.get("classification") != "already_converted":
                 argv = ["uv", "run"]
                 if is_workspace(project):
                     argv.extend(["--package", "clew-import"])
@@ -447,13 +480,33 @@ def build_plan(
                     argv.append("--debug")
                 if not page_review:
                     argv.append("--no-page-review")
-                entry.update(classification="convert", reason="Valid PDF and target does not exist.",
-                             argv=argv, command=powershell_command(argv),
+                cached_pages = 0
+                received_pages = 0
+                if resume_summary is not None:
+                    checkpoint_hash = resume_summary["checkpoint_sha256"]
+                    cached_count = resume_summary["completed_page_model_requests"]
+                    received_count = resume_summary["received_page_model_requests"]
+                    if (
+                        not isinstance(checkpoint_hash, str) or type(cached_count) is not int
+                        or type(received_count) is not int
+                    ):
+                        raise InspectionError("Invalid resume inspection summary.")
+                    argv.extend(["--resume", "--checkpoint-sha256", checkpoint_hash])
+                    cached_pages = cached_count
+                    received_pages = received_count
+                else:
+                    entry.update(classification="convert", reason="Valid PDF and target does not exist.")
+                entry.update(argv=argv, command=powershell_command(argv),
                              page_model_requests={
-                                 "minimum": len(wanted) * (2 if page_review else 1),
-                                 "maximum": len(wanted) * (2 * (digest_pdf.MAX_PAGE_RETRIES + 1) if page_review else 1),
+                                 "minimum": max(
+                                     0, len(wanted) * (2 if page_review else 1) - cached_pages - received_pages,
+                                 ),
+                                 "maximum": max(
+                                     0, len(wanted) * (2 * (digest_pdf.MAX_PAGE_RETRIES + 1) if page_review else 1)
+                                     - cached_pages,
+                                 ),
                              })
-        except (InspectionError, OSError) as error:
+        except (InspectionError, digest_pdf.DigestionError, OSError, ValueError) as error:
             entry.update(classification="blocked", reason=str(error))
         entries.append(entry)
     blockers = environment_blockers(project, check_env)
@@ -500,6 +553,8 @@ def build_plan(
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("input", type=Path, help="Local PDF or recursively scanned directory")
+    parser.add_argument("--output", type=Path, help="Explicit destination for a single PDF")
+    parser.add_argument("--resume", action="store_true", help="Inspect checkpoint-enabled interrupted digests")
     parser.add_argument("--pages", help="Original PDF page groups; default: all")
     parser.add_argument("--dpi", type=int, default=200)
     parser.add_argument("--max-output-tokens", type=int, default=16000)
@@ -516,6 +571,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.input, pages=args.pages, dpi=args.dpi, max_output_tokens=args.max_output_tokens,
             high_resolution_ocr=args.high_resolution_ocr, debug=args.debug, check_env=args.check_env,
             page_review=not args.no_page_review,
+            resume=args.resume, output_path=args.output,
         )
     except (InspectionError, OSError) as error:
         print(f"Inspection failed: {error}", file=sys.stderr)
