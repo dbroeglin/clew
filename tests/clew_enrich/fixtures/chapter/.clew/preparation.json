@@ -2,8 +2,8 @@
   "schema_version": 1,
   "status": "complete",
   "documents": [
-    {"id": "course", "path": "Course-course/course.md", "role": "course"},
-    {"id": "sheet", "path": "Exercise-sheet/sheet.md", "role": "exercise"},
-    {"id": "solutions", "path": "Correction-solutions/solutions.md", "role": "correction"}
+    {"id": "course-document", "path": "Course-course/course.md", "role": "course"},
+    {"id": "exercise-document", "path": "Exercise-sheet/sheet.md", "role": "exercise"},
+    {"id": "correction-document", "path": "Correction-solutions/solutions.md", "role": "correction"}
   ]
 }

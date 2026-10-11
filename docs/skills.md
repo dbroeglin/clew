@@ -307,18 +307,72 @@ answer associations, and precise course links. It needs the prepared Import
 artifact but no Import runtime installation or cloud credentials. See its
 [format](../.agents/skills/clew-enrich/references/formats.md).
 
+Document IDs are ownership keys, not Obsidian link targets. Navigate using
+unique real filenames or chapter-relative paths (optionally without `.md`);
+Markdown links use origin-relative paths. New aids require readable display
+labels in question/correction wikilinks and local body links. Existing aids are
+not rewritten for new label requirements. Unique exact course headings and
+existing block anchors are valid; a title-only anchor does not establish that
+its following paragraphs support the claim.
+
+Draft in scratch before writing the vault. For large selections, optional
+bounded workers own disjoint exercise ranges and scratch batches; the host
+consolidates and reviews all prose. Hints adapt to distinct decisions rather
+than fixed counts. Explanations unpack supplied computations, hypotheses,
+domains and bounds, with relevant course citations at use.
+Every individual hint/explanation includes its own precise course reference;
+shared mappings or another callout's citation do not count.
+Keep elementary transitions within a course-supported explanation, not in
+standalone callouts requiring artificial citations. Distinguish true
+contradictions from compressed eventual-rank or uniformity arguments. Unsupported
+topics need a user decision and truthful limitations, not artificial citations.
+
 Generate publishes current document-internal units and these aids. It does not
 require the Enrich baseline or validator and never edits source notes.
 
 ```powershell
 uv run --package clew-enrich --locked --no-sync python -B ".agents\skills\clew-enrich\scripts\validate_enrich.py" "C:\vault\prepared-chapter" --capture "C:\scratch\before.json"
+uv run --package clew-enrich --locked --no-sync python -B ".agents\skills\clew-enrich\scripts\review_enrich.py" "C:\vault\prepared-chapter" --before "C:\scratch\before.json" --drafts "C:\scratch\batch-1" "C:\scratch\batch-2" --proposal "C:\scratch\proposal.md"
+```
+
+Draft directories are explicit and flat; all their Markdown files are proposed
+as `aides/<filename>`. The checker overlays them in memory, refuses overwrites
+and duplicate destinations/question targets, and writes only a new scratch
+preview and companion JSON manifest. Destinations differing only by case are
+also rejected for cross-platform safety. These contain exact prose, question/answer/
+course mappings, hashes, counts and uncovered questions. Existing output paths
+are refused. Record both printed artifact hashes, review mathematical content
+and citation relevance, then obtain approval of the exact proposal. An outline
+or validator pass alone is insufficient.
+Repair failing scratch drafts and retry before approval; do not weaken checks
+or change source files. An unvalidated proposal cannot be persisted. Blank
+quoted lines around multiline display mathematics keep nearby citations from
+being parsed as math rather than links.
+
+Copy only approved bytes with host tools, refusing existing destinations. Check
+against the original baseline and the JSON manifest hash recorded at approval:
+
+```powershell
+uv run --package clew-enrich --locked --no-sync python -B ".agents\skills\clew-enrich\scripts\review_enrich.py" "C:\vault\prepared-chapter" --before "C:\scratch\before.json" --approved "C:\scratch\proposal.md" --manifest-sha256 "<recorded JSON manifest SHA-256>"
 uv run --package clew-enrich --locked --no-sync python -B ".agents\skills\clew-enrich\scripts\validate_enrich.py" "C:\vault\prepared-chapter" --before "C:\scratch\before.json"
 ```
+
+The approved-content check verifies the exact added-file set, rejects unrelated
+new directories even under `aides/`, and checks byte equality, including newline
+bytes, but cannot grant user permission or prove pedagogical
+quality. The last command performs structural-only validation. Reports separate
+explanation sections from explained-note counts. Optional read-only Obsidian
+integration checks may confirm actual destinations/fragments within the chapter;
+Obsidian is not required, and unperformed visual checks must not be claimed.
 
 Baselines belong outside the chapter/repository, not in published content.
 All preexisting files—including Import `.clew/` artifacts—stay unchanged. New
 files are limited to Markdown aids under `aides/`. No missing-answer generation,
 broader learning enrichment, legacy archive migration, or revision framework.
+Source documents use `clew_schema: 1`; new help notes use `schema_version: 1`.
+Plain/collapsed/expanded callouts and LF/CRLF/CR input are supported. Multiline
+display math has explicit quote prefixes and blank quoted lines around its
+`$$` delimiters, preserving real parsed course links outside math/code.
 
 ## Offline HTML Generate
 
@@ -378,7 +432,11 @@ npm run test:mathjax
 Tests use independently authored synthetic material and mocked/local transports,
 not real cloud calls or user archives. Import tests cover both steps, negative
 structure/link diagnostics, source preservation, warnings, lifecycle, relocation
-and standalone runtime. Enrich tests cover prepared-document consumption and additive preservation.
+and standalone runtime. Enrich tests cover prepared-document consumption,
+navigation with IDs distinct from filenames, ambiguous basenames, new-link
+labels, folded callouts, multiline math/newlines, additive preservation, scratch
+proposal integrity, approved-byte equality and copied-skill runtime. Workflow
+evaluations cover authoring quality, evidence relevance and exact approval.
 Generate's suite covers multi-unit current-document publication, current Enrich
 integration, source preservation, selection/ownership failures, supported
 newline variants, relocation, standalone runtime and offline interactions.
