@@ -1,4 +1,4 @@
-"""Discover selected Ingest chapters or inspect current notes, without writing."""
+"""Discover current whole-document chapters or inspect selected notes."""
 import argparse
 from pathlib import Path
 

@@ -182,5 +182,6 @@ Moving this complete chapter preserves the relative links.
 
 Separate Enrich aid notes can link to `sheet.md#^ex-01-q-01`,
 `solutions.md#^ex-01-r-01`, and `course.md#^thm-geometric` after preparation.
-Enrich leaves these imported notes unchanged. Generate remains a legacy consumer
-and cannot yet publish these prepared chapters.
+Enrich leaves these imported notes unchanged. Generate publishes their current
+document-internal units and optional aids without changing notes or requiring
+preparation baselines.

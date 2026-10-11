@@ -51,10 +51,10 @@ requires a prepared Import artifact, not Import runtime code or installation.
 No external learning sources, embedded model, cloud service, or repository
 specific runtime knowledge is required.
 
-Generate remains a legacy exercise-per-note consumer. It does not consume
-prepared-document Enrich aids, and this decision does not claim new-format HTML
-publication or end-to-end compatibility. Existing legacy archives are not
-migrated.
+Generate consumes current document-internal units and these aids under
+ADR-0006. It requires neither this validator nor its comparison baseline:
+supplied answers reveal inline, while hints/explanations and precise course
+links use the side panel. Existing legacy archives are not supported or migrated.
 
 Keep tests outside skills in `tests/clew_enrich/`, with independently authored
 synthetic prepared-document fixtures. Update all affected portable contracts,
@@ -68,7 +68,7 @@ examples, project documentation, compatibility claims, and the ADR index.
   course/exercise/correction content.
 - Import preparation evidence is retained unchanged and local baselines remain
   comparison evidence, not permission tokens or revision history.
-- Generate continues to publish only its legacy input contract until separately
-  refactored; legacy archives are not migrated.
+- Generate can publish current units with or without these optional aids;
+  legacy archives are not migrated.
 - Existing human aids are preserved. Aid revisions, broader enrichment,
   generated answers/exercises, and revision history remain outside this scope.

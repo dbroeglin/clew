@@ -311,5 +311,6 @@ retry. The whole prepared root can be relocated without external bundle access.
 Existing conversion bundles and legacy user note archives are not migrated.
 `clew-enrich` consumes completed chapters, addressing questions and supplied
 answers through document-internal units and stable anchors while writing
-separate help notes. `clew-generate` remains a legacy-layout consumer; new-format
-HTML publication is deferred.
+separate help notes. `clew-generate` publishes current document-internal units
+and optional aids without requiring the preparation record or retained baselines.
+Neither consumer migrates legacy exercise-per-note archives.

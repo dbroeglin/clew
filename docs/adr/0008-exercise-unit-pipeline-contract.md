@@ -44,9 +44,12 @@ anchors now for future Aides references to questions, supplied answers and
 precise course passages. Aid authorship is not an Import responsibility.
 
 Enrich consumes this document-internal unit contract and creates separate
-question-addressed help notes without editing imported files. Generate still
-uses its legacy one-note-per-exercise/correction contract and does not consume
-the new Enrich output. Do not modify user archives to simulate Generate support.
+question-addressed help notes without editing imported files. Generate groups
+published questions by document plus exercise entry, and supplied answers/
+context by their correction scope, not source file identity. Whole worksheet
+selection preserves surrounding content once in source order; native block
+navigation remains distinct from scoped publication. Neither consumer edits
+or migrates legacy archives.
 
 ## Consequences
 

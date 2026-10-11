@@ -8,7 +8,7 @@ import re
 from pathlib import Path
 from urllib.parse import quote, unquote, urlsplit
 
-from notes import Library, Note, local_path, parser, require
+from notes import Library, Note, hide_comments, local_path, parser, require
 
 ASSETS = Path(__file__).resolve().parent.parent / "assets"
 
@@ -84,7 +84,7 @@ class Renderer:
         return f'<a href="#{identifier}">{html.escape(label or fragment.lstrip("^") or note.title)}</a>'
 
     def remember_course_link(self, target: Note, fragment: str, origin: Note) -> None:
-        if origin.metadata.get("type") == "help" and target.metadata.get("type") in {"course", "section"}:
+        if origin.metadata.get("type") == "help" and target.role in {"course", "mixed"}:
             self.course_links[self.anchor(target, fragment)] = (target, fragment)
 
     def image(self, ref: str, label: str, note: Note) -> str:
@@ -145,15 +145,12 @@ class Renderer:
         return self.md.renderer.renderToken(tokens, index, options, env)
 
     def __call__(self, text: str, note: Note, fragment: str = "") -> str:
-        if not text.strip():
-            return ""
         prefix = self.target(note, fragment)
         if text == note.select(fragment):
             chunks = []
             for part in note.select_parts(fragment):
-                if part.text.strip():
-                    anchor = self.target(note, "^" + part.block) if part.block else ""
-                    chunks.append(anchor + self.render_text(part.display(), note))
+                anchor = self.target(note, "^" + part.block) if part.block else ""
+                chunks.append(anchor + self.render_text(part.display(), note))
             return prefix + "\n".join(chunks)
         return prefix + self.render_text(text, note)
 
@@ -165,7 +162,7 @@ class Renderer:
             self.warn(f"Raw HTML is displayed as literal text, never executed: {note.path}")
         require(not re.search(r"(?m)^\s*```(?:dataview|dataviewjs)\b", text),
                 f"Dataview requires Obsidian; select actual content instead: {note.path}")
-        tokens = self.md.parse(text, {"note": note})
+        tokens = self.md.parse(hide_comments(text), {"note": note})
         for index, token in enumerate(tokens):
             if token.type == "heading_open":
                 heading = tokens[index + 1].content

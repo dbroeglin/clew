@@ -1,21 +1,40 @@
 {
   "skill_name": "clew-generate",
   "evals": [
-    {"id": 1, "prompt": "Publish these current course, exercise and correction notes.", "expected_output": "Read selected notes, reuse existing links, write a small selector layout, check and publish one offline HTML without requiring Ingest records or hashes.", "files": []},
-    {"id": 2, "prompt": "Generate a page from Ingest-only notes. They have no hints.", "expected_output": "Publish existing content and omit methods/hint controls. Do not invent aids or run Enrich.", "files": []},
-    {"id": 3, "prompt": "The corrections have ambiguous question numbering.", "expected_output": "Ask a focused mapping question; do not guess using filename similarity or hide an ambiguous answer.", "files": []},
-    {"id": 4, "prompt": "I edited the Obsidian notes since Ingest. Publish those edits.", "expected_output": "Consume current notes directly without validating against ingest.json or restoring the imported text.", "files": []},
-    {"id": 5, "prompt": "Overwrite this existing HTML with the selected current notes.", "expected_output": "Scope replacement to that exact derived file, check the layout, use --overwrite, and never delete directories or change source notes.", "files": []},
-    {"id": 6, "prompt": "The selected note contains Dataview, SVG figures, and a missing course reference.", "expected_output": "Report unsupported constructs and missing selected targets precisely; do not execute plugins/scripts, silently discard content, scan unrelated notes, or invent a fallback.", "files": []},
-    {"id": 7, "prompt": "Make all three questions have exactly three hints.", "expected_output": "Use only existing aids with their actual counts; explain that authoring new learning content belongs to Enrich.", "files": []},
-    {"id": 8, "prompt": "Plan generation from these notes.", "expected_output": "Inspect and propose selectors/commands without writing the HTML; do not mistake planning for execution authorization.", "files": []},
-    {"id": 9, "prompt": "Generate my algebra course from this vault. It was organized by Ingest.", "expected_output": "Use the established vault path and bounded --list-chapters discovery to identify the unique matching chapter by title/context, then inspect its folder/index. Discover course, exercise, correction, and optional aid notes using topology and metadata without asking for each filename, reading retained source Markdown as notes, or validating hashes. Ask only if chapter/mapping ambiguity remains.", "files": []},
-    {"id": 10, "prompt": "Publish this chapter with question-specific hints and supplied-answer explanations.", "expected_output": "Reuse anchored questions, answer question:: fields, and aid question/correction links without inventing mappings. Show progressive hints and explanations in the side panel, supplied answers inline, and no correction/explanation controls for an unanswered question. An explanation linked to a different question's answer is an error.", "files": []},
-    {"id": 11, "prompt": "The hint links to a specific course heading that is also in the reading view.", "expected_output": "Embed the exact referenced course excerpt and make the aid link open it in the side panel, not merely expand the entire course on the left. No new teaching prose or manual layout mapping is required.", "files": []},
-    {"id": 12, "prompt": "Select q-2 and q-1 from the same exercise, followed by q-1 from another exercise.", "expected_output": "Publish two owning exercise views, with the first exercise's questions in source order. Retain distinct full addresses, correct answer/aids ownership, and necessary selected context; never make three exercise views or split source notes.", "files": []},
-    {"id": 13, "prompt": "Publish a heading that contains shared instructions and three anchored question callouts.", "expected_output": "Keep the selected instructions and three internal question views in one exercise group. Do not flatten the heading into one question or require Enrich to establish the structure.", "files": []},
-    {"id": 14, "prompt": "Publish the whole exercise and also its q-1 under a filename alias.", "expected_output": "Reject the overlapping source selection before writing. Explain the exact overlap and choose a disjoint layout rather than duplicate or silently discard the child.", "files": []},
-    {"id": 15, "prompt": "The correction declares exercise A but its answer points to exercise B's existing q-1.", "expected_output": "Report the resolvable ownership mismatch and stop. Do not pair by local anchor suffix, printed numbering, or position, and do not repair notes during Generate.", "files": []},
-    {"id": 16, "prompt": "The selected supplied answer uses introductory prose outside its response block.", "expected_output": "Keep that correction unit's non-answer context with its selected answers in source order once per panel. Preserve supplied variants separately and do not add unselected answers or invent explanatory material.", "files": []}
+    {
+      "id": 1,
+      "prompt": "Publish the current whole-document chapter in inputs\\chapter as outputs\\publication.html. Keep the two exercises separate, preserve surrounding worksheet text once, reuse supplied answer links, and do not invent aids or change sources. The chapter has no preparation record.",
+      "expected_output": "A checked, offline publication with two exercise units and three questions, separate supplied correction variants, one unanswered question, preserved worksheet context, and no aid controls.",
+      "files": [],
+      "assertions": [
+        "The HTML contains two correctly addressed exercise units and three questions.",
+        "Supplied corrections are grouped as two variants, one answer, and no answer.",
+        "Worksheet context is present once and no aids are invented.",
+        "The staged source files remain byte-identical."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Publish inputs\\chapter, including its current Enrich help notes, as outputs\\publication.html. Use the existing question/answer/course mappings, with progressive hints, supplied-answer explanations, and exact course passages. Do not require preparation or enrichment baselines and do not edit notes.",
+      "expected_output": "The same correctly grouped offline chapter, with two hints and one explanation attached only to the first question, inline supplied corrections and precise aid-linked course excerpts.",
+      "files": [],
+      "assertions": [
+        "The HTML contains two correctly addressed exercise units and three questions.",
+        "Two hints and one explanation attach only to the first question.",
+        "Precise course excerpts are registered for aid navigation.",
+        "The staged source files remain byte-identical."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Inspect inputs\\chapter and attempt publication as outputs\\publication.html. Its supplied correction declares exercise 2, but its answers link to questions owned by exercise 1. Report the precise relationship error and stop without writing HTML or repairing source notes.",
+      "expected_output": "The publication checker rejects the correction-unit ownership disagreement. The agent reports the error without inventing a match, changing the inputs, or writing HTML.",
+      "files": [],
+      "assertions": [
+        "No HTML is written for the invalid mapping.",
+        "The actual checker reports a correction exercise-owner disagreement.",
+        "The staged source files remain byte-identical."
+      ]
+    }
   ]
 }

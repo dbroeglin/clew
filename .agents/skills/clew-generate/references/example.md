@@ -1,69 +1,73 @@
-# A small publication
+# Publish a current whole-document chapter
 
-For an ordinary Ingest chapter, there is no need to list its individual notes:
+Suppose a current chapter contains `Course-course/course.md`,
+`Exercise-sheet/sheet.md`, `Correction-solutions/solutions.md`, optional
+`aides/`, and a `type: chapter` index. The sheet contains exercise scopes
+`ex-1`, `ex-2` and anchored questions. The correction document has several
+supplied correction units with `Exercise` / `Question` footer links.
+
+Publish the chapter without enumerating notes or reading producer records:
 
 ```json
 {
   "schema_version": 1,
-  "title": "Revision d'algebre",
-  "notes": ["C:/vault/courses/PT/maths/algebre"],
-  "output": "C:/publications/algebre.html"
+  "title": "Sequences",
+  "notes": ["C:/vault/Maths/Sequences"],
+  "output": "C:/publications/sequences.html"
 }
 ```
 
-`inspect_notes.py <chapter>` discovers the current course, exercises,
-corrections, optional aids, and their existing links/order. If only the vault
-and course name are known, `inspect_notes.py <vault> --list-chapters` helps the
-skill identify the matching chapter without asking for note filenames.
-Unresolved semantic mappings still belong to the skill, not the discovery script.
+Inspect the folder/index first. If only the vault and chapter title are known,
+bounded `inspect_notes.py <vault> --list-chapters` identifies matching chapters.
+Read the current content, not only metadata.
 
-Select current course, exercise, and correction notes. Suppose the exercise has
-two anchored question callouts and the correction already links its answers
-through `question::` fields. Only the question-specific course excerpts need a
-layout choice:
+The sheet creates two exercise views, not one sheet-sized exercise.
+Its introductions, section context and review appendix remain once in source
+order. Question and correction controls reuse the current anchored links.
+Without aids there are no hint/method/explanation buttons; answers are not
+invented for questions without supplied corrections.
+
+For only exercise 1, add:
 
 ```json
-{
-  "schema_version": 1,
-  "title": "Revision d'algebre",
-  "notes": ["C:/vault/cours.md", "C:/vault/exercice.md", "C:/vault/corrige.md"],
-  "output": "C:/publications/algebre.html",
-  "questions": {
-    "exercice#^q-1": {"courses": ["cours#Sous-espace vectoriel"]},
-    "exercice#^q-2": {"courses": ["cours#Somme directe"]}
+"exercises": ["sheet#^ex-1"]
+```
+
+For selected questions:
+
+```json
+"exercises": ["sheet#^q-2", "sheet#^q-1"]
+```
+
+Both questions remain in exercise `sheet#^ex-1` in source order with shared
+unit context. Another exercise in `sheet.md` remains a distinct unit.
+Do not combine whole-document/unit selectors with overlapping child selectors.
+Native Obsidian `#^ex-1` addresses the entry paragraph; Generate's exercise
+selector deliberately expands that entry to its scoped publication view.
+
+Normally answer and aid links require no question overrides. Explicit choices
+can narrow supplied variants or existing course passages:
+
+```json
+"questions": {
+  "sheet#^q-1": {
+    "corrections": ["solutions#^r-1"],
+    "courses": ["course#Geometric limits"]
   }
 }
 ```
 
-Role defaults use the current note frontmatter. Without it, supply `courses`
-and `exercises` arrays explicitly. The generator uses existing answer links;
-there is no need to copy correction prose into JSON.
+Select an answer or correction unit, never the whole multi-unit correction
+document as one answer. Existing associations must still agree.
 
-Run `generate_html.py layout.json --check`, review selection and warnings,
-then publish. Both questions have correction controls; neither has a method or
-hint button without selected existing help. Adding a help note to `notes`
-enables its matching aids on the next run.
+Question-addressed help notes contain anchored hints/explanations.
+Explanations also name a specific supplied answer through `correction`
+frontmatter. Their course links open precise passages in the side panel,
+while answers reveal inline. `courses: []` hides full-course reading but
+does not remove aid-linked excerpts.
 
-For a partial exercise, replace the whole-note default with:
-
-```json
-"exercises": ["exercice#^q-2", "exercice#^q-1"]
-```
-
-This is still one exercise view, with its two questions in source order. Select
-necessary shared instructions too, or prefer the whole exercise. An
-`exercice#Exact heading` or safe range containing both anchored questions also
-keeps two question views inside that one exercise. Never select the whole note
-and one of its children together: their overlap is an error.
-
-A help note can also provide an anchored `[!explanation]` callout, with
-`question: "[[exercice#^q-1]]"` and `correction: "[[corrige#^r-1]]"` in
-frontmatter. Generate attaches it to that selected supplied answer and offers
-it in the side panel from the revealed correction. Course links inside hints
-and explanations open their precise referenced passage in the panel. These
-links live in the aid note; the chapter-only layout does not need extra mappings.
-
-The output parent must already exist. A repeated publication defaults to a new
-filename; replacing this exact derived HTML uses separately requested
-`--overwrite`. Current note edits are read directly. No hash comparison,
-Ingest validation, PDF conversion, or model call happens during rendering.
+Run `generate_html.py layout.json --check`, review scope and warnings, then
+publish. The output parent already exists. Replacing that exact derived HTML
+requires a user request and `--overwrite`. Sources remain unchanged. No
+preparation/Enrich baseline validation, PDF conversion or model call occurs
+inside the renderer.
