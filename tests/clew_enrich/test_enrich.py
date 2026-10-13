@@ -15,7 +15,7 @@ SKILL = ROOT / ".agents" / "skills" / "clew-enrich"
 FIXTURES = Path(__file__).parent / "fixtures"
 sys.path.insert(0, str(SKILL / "scripts"))
 
-from validate_enrich import EnrichError, Note, capture, links_in, resolve, validate
+from validate_enrich import EnrichError, Note, capture, links_in, relationship_links, resolve, validate
 
 
 class EnrichTests(unittest.TestCase):
@@ -67,6 +67,58 @@ class EnrichTests(unittest.TestCase):
         aid.write_text(text.replace("solutions#^r-1", "solutions#^r-2"), encoding="utf-8")
         with self.assertRaisesRegex(EnrichError, "Aid correction/question mismatch"):
             validate(self.chapter, self.before)
+
+    def test_combined_relationship_footer_recognizes_only_the_native_link(self):
+        path = self.chapter / "Correction-solutions" / "solutions.md"
+        original = path.read_text(encoding="utf-8")
+        footer = "[Question](../Exercise-sheet/sheet.md#^q-1)"
+        combined = footer + " · [PDF p. 1](solutions.pdf#page=1)"
+        for newline in ["\n", "\r\n", "\r"]:
+            with self.subTest(newline=repr(newline)):
+                text = original.replace(footer + "\n> [PDF p. 1](solutions.pdf#page=1)", combined)
+                note = Note(path, text.replace("\n", newline), "Correction-solutions/solutions.md")
+                self.assertEqual(relationship_links(note, note.blocks[0], "Question"),
+                                 ["../Exercise-sheet/sheet.md#^q-1"])
+                self.assertNotIn("[Question]", note.blocks[0].substantive_text)
+        for suffix in [" · [Question](../Exercise-sheet/sheet.md#^q-2)",
+                       " · [Unrelated](solutions.pdf#page=1)",
+                       " · [PDF p. 1](solutions.pdf#page=1) extra prose"]:
+            with self.subTest(suffix=suffix):
+                note = Note(path, original.replace(footer, footer + suffix),
+                            "Correction-solutions/solutions.md")
+                self.assertEqual(relationship_links(note, note.blocks[0], "Question"), [])
+
+    def test_combined_footers_preserve_question_and_exercise_ownership_checks(self):
+        for mismatch in ["answer", "exercise"]:
+            with self.subTest(mismatch=mismatch):
+                chapter = self.root / ("combined-" + mismatch)
+                shutil.copytree(FIXTURES / "chapter", chapter)
+                path = chapter / "Correction-solutions" / "solutions.md"
+                text = path.read_text(encoding="utf-8").replace(
+                    ")\n> [PDF p. 1](solutions.pdf#page=1)",
+                    ") · [PDF p. 1](solutions.pdf#page=1)")
+                if mismatch == "answer":
+                    text = text.replace("#^q-1", "#^q-2")
+                else:
+                    exercise = chapter / "Exercise-sheet" / "sheet.md"
+                    source = exercise.read_text(encoding="utf-8")
+                    extra = (
+                        "%% clew:unit exercise ex-2 %%\n\n## Exercise 2\n\nExercise ^ex-2\n\n"
+                        "> [!question] Question\n> Another exercise.\n\n^other-q\n\n"
+                        "%% /clew:unit ex-2 %%\n\n"
+                    )
+                    exercise.write_text(source.replace("%% /clew:unit sec-sheet %%",
+                                                       extra + "%% /clew:unit sec-sheet %%"),
+                                        encoding="utf-8")
+                    text = text.replace("#^q-1", "#^other-q")
+                path.write_text(text, encoding="utf-8")
+                baseline = self.root / ("combined-" + mismatch + "-before.json")
+                capture(chapter, baseline)
+                shutil.copytree(FIXTURES / "enriched", chapter, dirs_exist_ok=True)
+                diagnostic = ("Aid correction/question mismatch" if mismatch == "answer"
+                              else "disagree on exercise owner")
+                with self.assertRaisesRegex(EnrichError, diagnostic):
+                    validate(chapter, baseline)
 
     def test_course_links_must_resolve_to_precise_course_passages(self):
         aid = self.chapter / "aides" / "q-1.md"

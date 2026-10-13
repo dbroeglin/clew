@@ -298,6 +298,10 @@ Import whole-document chapters: an Import `type: chapter` index,
 comments, entry anchors, and question/answer anchors. It does not consume or
 migrate legacy exercise-per-note chapters.
 
+Answer associations recognize both Import's compact `[Question](...) ·
+[PDF p. N](...)` footer and standalone `Question` relationship lines.
+PDF provenance does not alter the linked question or its exercise ownership.
+
 Enrich adds question-specific hints and supplied-answer explanations as
 separate `aides/` notes without changing imported source documents,
 preparation artifacts, index, retained sources, or existing aids. Missing

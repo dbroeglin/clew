@@ -81,6 +81,12 @@ another document is a different question. Follow explicit `Exercise` and
 matching anchor strings. Separate correction variants may target the same
 question. Unmatched answers and questions without answers are valid.
 
+Enrich accepts Import's compact `Question`/PDF footer shown above as well as
+a standalone `Question` line followed by separate PDF provenance. Only the
+relationship link establishes ownership; the PDF suffix is provenance, not
+another question target. Arbitrary trailing prose or a second relationship
+link is not a recognized relationship footer.
+
 IDs do not navigate in Obsidian. A document with `id: course-document` saved as
 `Course-analysis/analysis.md` is linked as `[[analysis#...|Readable label]]`,
 not `[[course-document#...]]`. Use a unique actual filename (with or without

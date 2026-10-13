@@ -48,7 +48,9 @@ UNIT_OPEN = re.compile(r"%% clew:unit (section|exercise|correction) ([A-Za-z0-9-
 UNIT_CLOSE = re.compile(r"%% /clew:unit ([A-Za-z0-9-]+) %%")
 CALLOUT = re.compile(r"> \[!(question|reponse|hint|explanation)\][+-]?(?: (.*))?")
 FRONTMATTER = re.compile(r"\A---(?:\r\n|\r|\n)(.*?)(?:\r\n|\r|\n)---(?:(?:\r\n|\r|\n)|$)", re.S)
-RELATIONSHIP = re.compile(r"^\s*(?:>\s*)?\[(Exercise|Question)\]\(([^)\r\n]+)\)\s*$")
+RELATIONSHIP = re.compile(
+    r"^\s*(?:>\s*)?\[(Exercise|Question)\]\(([^)\r\n]+)\)"
+    r"(?: · \[PDF p\. [1-9][0-9]*\]\([^)\r\n]+\))?\s*$")
 
 
 @dataclass

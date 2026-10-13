@@ -66,6 +66,28 @@ class ReviewTests(unittest.TestCase):
         report = verify_approved(self.chapter, self.before, self.proposal, result["manifest_sha256"])
         self.assertTrue(report["approved_bytes_identical"])
 
+    def test_combined_import_footers_support_review_and_exact_verification(self):
+        for index, newline in enumerate(["\n", "\r\n", "\r"]):
+            with self.subTest(newline=repr(newline)):
+                chapter = self.root / f"combined-{index}"
+                shutil.copytree(FIXTURES / "chapter", chapter)
+                correction = chapter / "Correction-solutions" / "solutions.md"
+                text = correction.read_text(encoding="utf-8").replace(
+                    ")\n> [PDF p. 1](solutions.pdf#page=1)",
+                    ") · [PDF p. 1](solutions.pdf#page=1)")
+                correction.write_bytes(text.replace("\n", newline).encode("utf-8"))
+                baseline = self.root / f"combined-{index}-before.json"
+                capture(chapter, baseline)
+                original = inventory(chapter)
+                proposal = self.root / f"combined-{index}-proposal.md"
+                result = review(chapter, baseline, [self.drafts], proposal)
+                self.assertEqual(result["new_explanations"], 1)
+                self.assertEqual(inventory(chapter), original)
+                shutil.copyfile(self.aid, chapter / "aides" / self.aid.name)
+                report = verify_approved(chapter, baseline, proposal, result["manifest_sha256"])
+                self.assertTrue(report["approved_bytes_identical"])
+                self.assertEqual(report["questions_without_correction"], ["exercise-document#^q-3"])
+
     def test_equivalent_newlines_are_not_identical_approved_bytes(self):
         result = self.create_proposal()
         self.persist()
