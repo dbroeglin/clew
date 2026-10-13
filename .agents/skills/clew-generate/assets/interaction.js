@@ -5,7 +5,41 @@
   const courses = new Map(data.courses.map(item => [item.id, item]));
   const panel = document.getElementById("panel-content");
   const panelTitle = document.getElementById("panel-title");
+  const panelBack = document.getElementById("panel-back");
+  const panelViews = new Map();
+  let currentView = 0;
+  let nextView = 0;
   let queue = Promise.resolve();
+
+  history.replaceState({...history.state, clewPanel: currentView}, "");
+  function savePanel() {
+    const view = {
+      title: panelTitle.textContent,
+      fragment: document.createDocumentFragment(),
+      scrollTop: panel.parentElement.scrollTop,
+      scrollX: window.scrollX,
+      scrollY: window.scrollY,
+      focus: panel.contains(document.activeElement) ? document.activeElement : panelTitle,
+    };
+    MathJax.typesetClear([panel]);
+    view.fragment.append(...panel.childNodes);
+    panelViews.set(currentView, view);
+  }
+  panelBack.addEventListener("click", () => history.back());
+  window.addEventListener("popstate", event => {
+    const id = event.state?.clewPanel;
+    if (id === currentView || !panelViews.has(id)) return;
+    savePanel();
+    currentView = id;
+    const view = panelViews.get(id);
+    panelTitle.textContent = view.title;
+    panel.replaceChildren(view.fragment);
+    panelBack.hidden = id === 0;
+    typeset(panel);
+    view.focus.focus({preventScroll: true});
+    panel.parentElement.scrollTop = view.scrollTop;
+    window.scrollTo(view.scrollX, view.scrollY);
+  });
 
   function error(message) {
     const box = document.getElementById("error");
@@ -47,9 +81,13 @@
     return fragment;
   }
   function setPanel(title, fragment) {
-    MathJax.typesetClear([panel]);
+    savePanel();
+    currentView = ++nextView;
+    history.pushState({...history.state, clewPanel: currentView}, "");
     panelTitle.textContent = title;
     panel.replaceChildren(fragment);
+    panelBack.hidden = false;
+    panel.parentElement.scrollTop = 0;
     panel.querySelectorAll("[id]").forEach(node => {
       if (document.getElementById(node.id) !== node) node.removeAttribute("id");
     });
@@ -182,6 +220,7 @@
   document.addEventListener("click", event => {
     const link = event.target.closest('a[href^="#"]');
     if (!link) return;
+    const previousView = currentView;
     const courseId = data.course_links[link.hash.slice(1)];
     if (courseId) {
       event.preventDefault();
@@ -231,6 +270,10 @@
         }
       }
       typeset(target.parentElement);
+      if (currentView !== previousView) {
+        event.preventDefault();
+        target.scrollIntoView({block: "start"});
+      }
     }
   });
   MathJax.startup.promise.catch(reason => error("Impossible d'initialiser les mathématiques : " + reason.message));

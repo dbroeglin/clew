@@ -359,6 +359,8 @@ Python renders current Markdown and embeds figures, fixed HTML-first templates,
 CSS, interaction code and pinned offline MathJax. No runtime CDN/server or
 source-note changes. Hints/explanations/course excerpts use contextual panels;
 supplied corrections stay inline. Missing controls are omitted, not fabricated.
+Browser Back/Forward and the panel's `Retour` button restore previous panel
+views and revealed hints within the current page session.
 PDF references remain external and can break if HTML moves.
 Output parent must exist; existing HTML requires explicit exact-file replacement.
 See the [layout contract](../.agents/skills/clew-generate/references/formats.md)

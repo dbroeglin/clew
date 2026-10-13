@@ -159,7 +159,9 @@ not rendering dependencies. Missing PDFs produce explicit warnings.
 
 Supplied content stays distinct from added aids. Corrections reveal inline;
 methods, progressive hints, explanations and course excerpts use the side
-panel. Explanation controls appear in revealed corrections. Unavailable
+panel. Browser Back/Forward and the panel's `Retour` button restore previous
+panel views, including already revealed hints, for the current page session.
+Explanation controls appear in revealed corrections. Unavailable
 controls are omitted, never fabricated. No grading, progress storage or
 free-form answers are implemented.
 
