@@ -138,3 +138,5 @@ workflow.
 - [Architecture decisions](docs/adr/README.md): the current design.
 - [Contributor and agent guidance](AGENTS.md): portability and documentation
   requirements.
+
+COUCOU
