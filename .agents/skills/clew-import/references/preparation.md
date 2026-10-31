@@ -291,6 +291,9 @@ documents by persistent ID, including a renamed document folder. It still
 checks schemas, native anchor attachment/uniqueness, unit boundaries, owner and
 match kinds, current local references, PDF pages, immutable baselines and
 retained artifacts. It never edits notes or updates baselines.
+Markdown notes under `aides/` whose frontmatter has `type: help` belong to
+`clew-enrich`; Import skips them, and Enrich validates them. Other notes under
+`aides/` are still checked as Import notes.
 `--fidelity` intentionally detects changes to the initial prepared snapshot.
 
 The validator reports one-based physical note lines, codes, error/review
@@ -314,3 +317,55 @@ answers through document-internal units and stable anchors while writing
 separate help notes. `clew-generate` publishes current document-internal units
 and optional aids without requiring the preparation record or retained baselines.
 Neither consumer migrates legacy exercise-per-note archives.
+
+## Published chapters
+
+`publish_chapter.py <chapter> --output <folder> --check` previews a public copy
+of one completed chapter for sharing through Git. `--publish-sha256 <hash>`
+then writes it to a new folder. The copy contains every visible chapter file,
+including Enrich aids, plus:
+
+- `.gitattributes` with `* -text -filter -ident -working-tree-encoding`, so Git
+  stores and checks out the bytes unchanged;
+- a reduced `.clew/preparation.json`, written last.
+
+The private plan, baselines and local paths, and hidden entries, are never
+published. The published record is:
+
+```json
+{"schema_version": 1, "status": "complete", "kind": "published",
+ "chapter": {"id": "sequences", "title": "Sequences"},
+ "documents": [{"id": "course", "path": "Course/course.md", "role": "course"}],
+ "files": {"index.md": "<sha256>", "Course/course.md": "<sha256>"}}
+```
+
+`files` lists every published file except `.gitattributes` and the record,
+with portable, non-hidden relative names. `documents` gives each document's
+ID, note path and role, matching the note frontmatter, so `clew-enrich` reads
+it like any completed chapter.
+
+The publish check requires a currently valid chapter and an absolute, visible
+output outside the chapter. The output must be new (`target: new`) or hold the
+same chapter ID (`target: republish`); any other existing content is an error.
+The write itself still requires an absent output: the caller removes a previous
+copy first. Files over 50 MiB are review findings and over 100 MiB errors,
+because Git hosts warn about or reject them. Hash mismatch or changed bytes
+stop the write, and partial output is reported, never cleaned up.
+
+`validate_documents.py` recognizes `kind: published`. Default validation
+requires each recorded document at its recorded path and role, an index with
+the recorded chapter ID, portable names, and unchanged recorded non-Markdown
+files (PDFs, figures). It accepts edited Markdown and added files, such as a
+student's own aids. `--fidelity` requires the exact published snapshot: every
+recorded file with its hash and no other files except the record.
+
+`install_chapter.py <published-chapter> --vault <vault> --parent <parent>
+[--name <name>] [--create-parent] --check` previews installation into a new
+vault folder. `--install-sha256 <hash>` writes it. The source must be a
+published record that passes `--fidelity`. The destination follows the same
+placement rules as a prepared chapter: a non-root, non-hidden parent outside
+other owned roots, explicitly approved missing parents, and an absent
+destination folder. Only recorded files are copied, each with its hash checked,
+and the record is written last. The installed chapter is then validated with
+`--fidelity`, so `.git`, `.gitattributes` and other repository files are never
+copied. A failure preserves partial output.

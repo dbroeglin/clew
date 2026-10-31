@@ -20,7 +20,7 @@ import publish_chapter
 from publish_chapter import draft as publish_draft, publish
 from validate_documents import validate
 
-HELP = ('---\nclew_schema: 1\ntype: help\nquestion: "[[sheet#^q-1|Question 1]]"\n---\n\n'
+HELP = ('---\nclew_schema: 1\nid: aid-q-1\ntype: help\nquestion: "[[sheet#^q-1|Question 1]]"\n---\n\n'
         "> [!hint]\n> Compare the ratio with one.\n\n^hint-1\n")
 
 

@@ -9,7 +9,7 @@ Portable skill instructions remain complete without this reference.
 Each `.agents/skills/` directory owns its instructions, scripts, dependencies,
 configuration templates, evals, licenses and provenance. Executable tests and
 fixtures live in repository-owned `tests/<skill_name>/`, never inside skills.
-Clew hosts three skills: Import, Enrich, and Generate.
+Clew hosts four skills: Import, Enrich, Generate, and Export.
 
 Python >=3.11 and UV are required. From the repository root:
 
@@ -36,8 +36,10 @@ during a run. Standalone Import initially uses `npm install --ignore-scripts
 dependencies can cause npm nesting; verify hoisting after dependency changes.
 
 Only conversion needs Azure configuration. Local preparation/validation,
-Enrich and Generate need no Azure credentials, Obsidian installation, plugin,
-or Node process. The host agent's handling of content follows its data policies.
+Enrich, Generate, Export and installing a published chapter need no Azure
+credentials, Obsidian installation, plugin, or Node process. Export and
+installation also need `git` on PATH with the user's own remote access.
+The host agent's handling of content follows its data policies.
 OneDrive non-redirecting placeholders are supported; reads may hydrate them.
 Access/hydration errors are reported. Symlinks, junctions, redirected paths and
 reparse points with unknown tags are refused.
@@ -47,6 +49,8 @@ reparse points with unknown tags are refused.
 [`clew-import`](../.agents/skills/clew-import/SKILL.md) contains **two resumable
 steps**, not two runtime skills. Conversion-only requests stop after step A;
 step B accepts explicitly selected completed bundles without reconversion.
+Step C installs a chapter published with Export; see
+[Git sharing](#git-sharing-export-and-install).
 
 Use the skill's [`.env.example`](../.agents/skills/clew-import/.env.example)
 for the execution root's untracked `.env`. Configuration requires non-placeholder
@@ -279,7 +283,8 @@ Initial preparation additionally requires exact source projection: independently
 reverse only recorded structural changes and recover the original bytes/text,
 without whitespace normalization. Math/code/table structure is checked too.
 `--fidelity` deliberately detects subsequent snapshot changes; it never
-recaptures baselines or restores user notes.
+recaptures baselines or restores user notes. Enrich help notes (`type: help`
+under `aides/`) are left to Enrich's validator.
 
 Validation aggregates codes, error/review severity, paths, one-based locations,
 anchors/targets and diagnostics. It is offline and read-only. External URLs are
@@ -424,6 +429,39 @@ Output parent must exist; existing HTML requires explicit exact-file replacement
 See the [layout contract](../.agents/skills/clew-generate/references/formats.md)
 for raw HTML, transclusion, remote-resource and dynamic-math limitations.
 
+## Git sharing: Export and install
+
+[`clew-export`](../.agents/skills/clew-export/SKILL.md) publishes one completed
+chapter, with its aids, to `Courses/<chapter-name>/` in an existing GitHub or
+Azure DevOps repository. It has no scripts: it runs Import's publish script and
+plain `git` with the teacher's own credential helper or SSH key. It never uses
+`gh`/`az`, creates repositories, embeds credentials in URLs, force-pushes, or
+rewrites history. Import's step C installs a published chapter from a
+student's scratch clone into the vault.
+
+```powershell
+uv run --package clew-import --locked --no-sync python -B ".agents\skills\clew-import\scripts\publish_chapter.py" "C:\vault\Maths\chapter" --output "C:\scratch\repo\Courses\chapter" --check
+uv run --package clew-import --locked --no-sync python -B ".agents\skills\clew-import\scripts\publish_chapter.py" "C:\vault\Maths\chapter" --output "C:\scratch\repo\Courses\chapter" --publish-sha256 "<approved hash>"
+uv run --package clew-import --locked --no-sync python -B ".agents\skills\clew-import\scripts\install_chapter.py" "C:\scratch\clone\Courses\chapter" --vault "C:\vault" --parent "Maths" --check
+uv run --package clew-import --locked --no-sync python -B ".agents\skills\clew-import\scripts\install_chapter.py" "C:\scratch\clone\Courses\chapter" --vault "C:\vault" --parent "Maths" --install-sha256 "<approved hash>"
+```
+
+A published chapter contains the visible chapter files, a `.gitattributes`
+that disables line-ending, LFS and encoding conversion, and a reduced
+`.clew/preparation.json` with `kind: published`. The record holds the chapter
+ID and title, each document's ID, path and role, and every published file's
+SHA-256. The private plan, local paths, baselines and hidden entries are not
+published. Default validation of a published or installed chapter accepts
+edited Markdown and added files but checks recorded non-Markdown files, such
+as PDFs and figures. `--fidelity` requires the exact published snapshot.
+Installation refuses any download that fails `--fidelity`.
+
+Limits: files over 100 MiB are refused and over 50 MiB need review (Git LFS is
+not used); a rejected push stops and is retried from a fresh clone; installing
+over an existing folder is refused, so updates install under a new name. See
+[the preparation contract](../.agents/skills/clew-import/references/preparation.md#published-chapters)
+for the exact record and checks.
+
 ## Development
 
 ```powershell
@@ -438,7 +476,9 @@ npm run test:mathjax
 Tests use independently authored synthetic material and mocked/local transports,
 not real cloud calls or user archives. Import tests cover both steps, negative
 structure/link diagnostics, source preservation, warnings, lifecycle, relocation
-and standalone runtime. Enrich tests cover prepared-document consumption,
+and standalone runtime, plus publishing, installation and a local bare-repository
+Git round trip (skipped without `git`). Export has no scripts or script tests;
+its workflow evaluations are in the skill. Enrich tests cover prepared-document consumption,
 navigation with IDs distinct from filenames, ambiguous basenames, new-link
 labels, folded callouts, multiline math/newlines, additive preservation, scratch
 proposal integrity, approved-byte equality and copied-skill runtime. Workflow
