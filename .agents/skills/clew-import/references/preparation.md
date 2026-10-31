@@ -347,6 +347,10 @@ it like any completed chapter.
 The publish check requires a currently valid chapter and an absolute, visible
 output outside the chapter. The output must be new (`target: new`) or hold the
 same chapter ID (`target: republish`); any other existing content is an error.
+A republish report lists `changes` (added, removed and changed files) and adds
+a `republish-replaces` review finding when recorded non-Markdown files are
+removed or changed or the document IDs differ, because a different course with
+the same title has the same chapter ID.
 The write itself still requires an absent output: the caller removes a previous
 copy first. Files over 50 MiB are review findings and over 100 MiB errors,
 because Git hosts warn about or reject them. Hash mismatch or changed bytes

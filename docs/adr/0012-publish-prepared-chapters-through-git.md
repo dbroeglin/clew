@@ -26,7 +26,9 @@ covering the files, sizes, destination and sharing consequences. It then
 stages only that folder, commits, pushes without force, and verifies a fresh
 clone. It uses plain `git` only: no `gh`/`az`, no repository or credential
 management, and no credentials in URLs. Republishing removes and rewrites
-only that chapter folder as a new commit. Several chapters may share one
+only that chapter folder as a new commit. Chapter IDs are title slugs, so a
+republish that replaces recorded source files or changes the documents needs
+the teacher to confirm it is the same course. Several chapters may share one
 repository.
 
 `clew-import` owns the published format and both sides of it. A published
@@ -41,7 +43,8 @@ Enrich's reading of a completed chapter.
 Import's step C clones a published repository into scratch storage and
 installs one chapter into the vault with `install_chapter.py`. It uses the
 same placement rules as preparation and one approval. It copies only recorded
-files and validates the result.
+files and validates the result. Import planning treats installed chapters as
+owned roots and skips them.
 
 For published records, default validation checks document identities, the
 chapter index, portable names and unchanged recorded non-Markdown files, and

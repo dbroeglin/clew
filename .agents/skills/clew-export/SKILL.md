@@ -99,8 +99,12 @@ uv run --package clew-import --locked --no-sync python -B ".agents\skills\clew-i
 
 The check validates the current chapter (any error blocks publication), lists
 every file with its size, and reports `target: new` or `republish`. Republish
-means the folder already holds this same chapter ID. A folder holding other
-content is an error: choose another chapter name. Files over 50 MiB need review
+means the folder already holds this same chapter ID; `changes` then lists the
+added, removed and changed files. Chapter IDs come from titles, so a different
+course with the same title also matches: a `republish-replaces` review finding
+flags a republish that replaces recorded PDFs or figures or changes the
+documents. A folder holding other content is an error: choose another chapter
+name. Files over 50 MiB need review
 and files over 100 MiB are errors, because Git hosts warn about or reject them;
 Git LFS is not used.
 
@@ -109,7 +113,8 @@ Git LFS is not used.
 Show:
 
 - the remote URL and branch;
-- `Courses/<chapter-name>` and whether it is new or a republish;
+- `Courses/<chapter-name>` and whether it is new or a republish, with the
+  republish `changes`;
 - the complete file list, sizes and total;
 - all findings;
 - the commit message (`Publish <title>` or `Republish <title>`);
@@ -117,7 +122,9 @@ Show:
 
 State plainly that every listed file, including the source PDFs, becomes
 readable by everyone with access to the repository. The teacher must have the
-right to share them and must check the repository's visibility. Obtain one
+right to share them and must check the repository's visibility. For a
+`republish-replaces` finding, ask whether it is the same course; if not, use
+another chapter name. Obtain one
 explicit approval for this exact publication; a general request to export is
 not approval. Hard errors block approval.
 

@@ -147,7 +147,8 @@ During manual inventory, use the same rules as the helper:
 - Scan case-insensitive `.pdf` extensions recursively, in deterministic path
   order. Do not traverse symlinks, junctions, or other path-redirection reparse
   points. Allow OneDrive folders and non-redirecting cloud placeholders.
-- Exclude recognized Import bundles, including their retained `source` PDFs.
+- Exclude recognized Import bundles, including their retained `source` PDFs,
+  and installed published chapters (`kind: published` records).
   Use metadata and structure, never directory names alone. Report ambiguous
   metadata as a conflict rather than silently hiding it or converting its copies.
 - A new valid PDF with no existing target is **convert**.

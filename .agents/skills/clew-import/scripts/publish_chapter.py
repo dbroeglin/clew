@@ -21,7 +21,7 @@ def errors_of(report: dict) -> str:
                      if item["severity"] == "error")
 
 
-def check_output(output: Path, chapter: Path, chapter_id: str) -> str:
+def check_output(output: Path, chapter: Path, chapter_id: str) -> PublishedRecord | None:
     require(output.is_absolute(), "Publication output must be an absolute path.")
     output = no_redirect(output)
     relative_path(output.name)
@@ -29,7 +29,7 @@ def check_output(output: Path, chapter: Path, chapter_id: str) -> str:
     require(not output.is_relative_to(chapter) and not chapter.is_relative_to(output),
             "Publication output must not contain or be inside the source chapter.")
     if not os.path.lexists(output):
-        return "new"
+        return None
     require(output.is_dir(), f"Publication output is not a directory: {output}")
     try:
         existing = load_record(output)
@@ -37,7 +37,7 @@ def check_output(output: Path, chapter: Path, chapter_id: str) -> str:
         existing = None
     require(isinstance(existing, PublishedRecord) and existing.chapter.id == chapter_id,
             f"Publication output holds other content: {output}. Choose another chapter folder name.")
-    return "republish"
+    return existing
 
 
 def draft(chapter: Path, output: Path) -> tuple[dict, PublishedRecord, dict[str, Path]]:
@@ -61,8 +61,21 @@ def draft(chapter: Path, output: Path) -> tuple[dict, PublishedRecord, dict[str,
         schema_version=1, status="complete", kind="published",
         chapter={"id": index.id, "title": index.title or fallback},
         documents=documents, files={name: sha256(path) for name, path in public.items()})
-    target = check_output(output, chapter, published.chapter.id)
+    existing = check_output(output, chapter, published.chapter.id)
     findings = [Finding.model_validate(item) for item in validation["findings"]]
+    changes = None
+    if existing:
+        old, new = existing.files, published.files
+        changes = {"added": sorted(new.keys() - old.keys()), "removed": sorted(old.keys() - new.keys()),
+                   "changed": sorted(name for name in old.keys() & new.keys() if old[name] != new[name])}
+        # Republishing the same course keeps its source files; replacing them may mean another course.
+        replaced = [name for name in changes["removed"] + changes["changed"]
+                    if not name.lower().endswith(".md")]
+        if replaced or {item.id for item in existing.documents} != {item["id"] for item in documents}:
+            findings.append(Finding(
+                code="republish-replaces", severity="review", path=replaced[0] if replaced else RECORD, line=1,
+                message=f"Republishing replaces {len(replaced)} source file(s) or the document set of "
+                        f"'{existing.chapter.title}'; confirm it is the same course."))
     sizes = {name: os.path.getsize(path) for name, path in public.items()}
     for name, size in sizes.items():
         if size > LIMIT_BYTES:
@@ -76,7 +89,7 @@ def draft(chapter: Path, output: Path) -> tuple[dict, PublishedRecord, dict[str,
     report = {
         "schema_version": 1, "status": "invalid" if errors else "needs_review" if reviews else "ready",
         "chapter": published.chapter.model_dump(), "source": str(chapter), "output": str(no_redirect(output)),
-        "target": target, "requires_approval": True,
+        "target": "republish" if existing else "new", "changes": changes, "requires_approval": True,
         "publish_sha256": fingerprint({"format_version": 1, "output": str(no_redirect(output)),
                                        "record": published.model_dump()}),
         "files": [{"path": name, "bytes": sizes[name]} for name in sorted(sizes)],

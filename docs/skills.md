@@ -457,8 +457,11 @@ as PDFs and figures. `--fidelity` requires the exact published snapshot.
 Installation refuses any download that fails `--fidelity`.
 
 Limits: files over 100 MiB are refused and over 50 MiB need review (Git LFS is
-not used); a rejected push stops and is retried from a fresh clone; installing
-over an existing folder is refused, so updates install under a new name. See
+not used); a republish that replaces recorded PDFs or figures, or changes the
+documents, needs review because another course with the same title has the
+same chapter ID; a rejected push stops and is retried from a fresh clone;
+installing over an existing folder is refused, so updates install under a new
+name. Import planning skips installed chapters like prepared ones. See
 [the preparation contract](../.agents/skills/clew-import/references/preparation.md#published-chapters)
 for the exact record and checks.
 

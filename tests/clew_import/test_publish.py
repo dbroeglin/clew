@@ -15,6 +15,7 @@ sys.path.insert(0, str(SCRIPTS))
 import test_documents
 from document_formats import Plan
 from install_chapter import draft as install_draft, install
+import plan_imports
 from prepare_documents import materialize, plan_hash
 import publish_chapter
 from publish_chapter import draft as publish_draft, publish
@@ -146,8 +147,11 @@ class PublishTests(PublishedChapter):
 
     def test_republish_replaces_only_the_same_chapter(self):
         self.publish()
+        self.add_help(self.chapter)
         report = publish_draft(self.chapter, self.output)[0]
         self.assertEqual(report["target"], "republish", report)
+        self.assertEqual(report["changes"]["added"], ["aides/hint.md"], report)
+        self.assertNotIn("republish-replaces", self.codes(report), report)
         with self.assertRaisesRegex(ValueError, "Remove the previous published copy"):
             publish(self.chapter, self.output, report["publish_sha256"])
         other = self.copy("other")
@@ -156,10 +160,27 @@ class PublishTests(PublishedChapter):
         (other / ".clew" / "preparation.json").write_text(json.dumps(record), encoding="utf-8")
         with self.assertRaisesRegex(ValueError, "other content"):
             publish_draft(self.chapter, other)
+        same_slug = self.copy("same-slug")
+        record = self.record(same_slug)
+        pdf = next(name for name in record["files"] if name.endswith(".pdf"))
+        record["files"][pdf] = "0" * 64
+        (same_slug / ".clew" / "preparation.json").write_text(json.dumps(record), encoding="utf-8")
+        report = publish_draft(self.chapter, same_slug)[0]
+        self.assertEqual((report["status"], report["changes"]["changed"]), ("needs_review", [pdf]), report)
+        self.assertIn("republish-replaces", self.codes(report), report)
         shutil.rmtree(self.output)
-        self.add_help(self.chapter)
         self.assertEqual(self.publish()["status"], "published")
         self.assertIn("aides/hint.md", self.record(self.output)["files"])
+
+    def test_import_planning_skips_published_chapters(self):
+        self.publish()
+        self.assertEqual(plan_imports.bundle_marker(self.output), (True, None))
+        sources, conflicts, excluded = plan_imports.discover(self.output.parent)
+        self.assertEqual((sources, conflicts, excluded), ([], [], [str(self.output)]))
+        record = self.record(self.output)
+        del record["files"]
+        (self.output / ".clew" / "preparation.json").write_text(json.dumps(record), encoding="utf-8")
+        self.assertEqual(plan_imports.bundle_marker(self.output), (False, "Unrecognized published chapter record."))
 
     def test_published_validation_detects_changes(self):
         self.publish()

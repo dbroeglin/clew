@@ -143,6 +143,15 @@ def bundle_marker(directory: Path) -> tuple[bool, str | None]:
                 raise InspectionError("Prepared-root metadata redirects or is not a directory.")
             record = read_object(private / "preparation.json")
             documents = record.get("documents")
+            if record.get("kind") == "published":
+                if (
+                    type(record.get("schema_version")) is not int or record["schema_version"] != 1
+                    or record.get("status") != "complete"
+                    or not isinstance(documents, list) or not documents
+                    or not isinstance(record.get("files"), dict) or not record["files"]
+                ):
+                    raise InspectionError("Unrecognized published chapter record.")
+                return True, None
             if (
                 type(record.get("schema_version")) is not int or record["schema_version"] != 1
                 or record.get("status") not in {"writing", "complete"}
