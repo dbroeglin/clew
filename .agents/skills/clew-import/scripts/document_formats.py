@@ -189,3 +189,24 @@ class PreparationRecord(Record):
     documents: list[PreparedSource] = Field(min_length=1)
     findings: list[Finding]
     index_sha256: Digest
+
+
+class PublishedChapter(Record):
+    id: Slug
+    title: str = Field(min_length=1)
+
+
+class PublishedDocument(Record):
+    id: Slug
+    path: str
+    role: Role
+
+
+class PublishedRecord(Record):
+    """Public replacement for the private record in a chapter shared through Git."""
+    schema_version: Literal[1]
+    status: Literal["complete"]
+    kind: Literal["published"]
+    chapter: PublishedChapter
+    documents: list[PublishedDocument] = Field(min_length=1)
+    files: dict[str, Digest] = Field(min_length=1)
