@@ -30,7 +30,8 @@ conversion evidence and preparation baselines.
 PDF is the only implemented conversion input. No preparation OCR repairs,
 generated exercises/answers, inferred prerequisites or migration of archives.
 Detailed conversion rules are in ADR-0002/0005/0009/0010/0011;
-preparation in ADR-0004 and unit identities in ADR-0008.
+preparation in ADR-0004 and unit identities in ADR-0008. Sharing a prepared
+chapter through Git with Export, and installing it with Import, is in ADR-0012.
 
 ## Consequences
 

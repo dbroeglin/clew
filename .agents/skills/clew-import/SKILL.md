@@ -5,9 +5,11 @@ description: >-
   with stable anchors, callouts, PDF-page links, and supplied-answer matches.
   Use for PDF conversion, resuming checkpoint-enabled interrupted conversions,
   directory import planning, organizing completed
-  conversion bundles in a vault, or validating prepared documents. One portable
-  skill, two resumable steps: paid conversion and deterministic local
-  preparation. Preserve source content; no splitting, OCR repair during
+  conversion bundles in a vault, validating prepared documents, or installing
+  a course chapter published with clew-export from its Git URL without
+  reconversion. One portable skill, two resumable steps (paid conversion and
+  deterministic local preparation) plus local installation of published
+  chapters. Preserve source content; no splitting, OCR repair during
   preparation, learning-content enrichment, or HTML generation.
 ---
 
@@ -16,8 +18,11 @@ description: >-
 Convert local PDFs, then prepare their **whole** converted Markdown for Obsidian.
 These are two resumable steps in this one skill. A conversion-only request stops
 after step A. A preparation request can start with explicitly selected completed
-conversion bundles without reconversion or cloud configuration. Never summarize,
-translate, solve exercises, correct author claims, generate aids, or publish HTML.
+conversion bundles without reconversion or cloud configuration. Step C installs
+a chapter that a teacher already prepared and published to Git with
+`clew-export`, with no conversion or cloud configuration at all.
+Never summarize, translate, solve exercises, correct author claims, generate
+aids, or publish HTML.
 
 Step A extends the pinned converter with explicit future-run checkpoint resume.
 Read [the resume contract](references/resume.md) before planning an interrupted
@@ -30,7 +35,9 @@ Do not import runtime code from a sibling skill or require repository ADRs/tests
 document-internal exercise/correction units and question/answer anchors to add
 separate help notes without changing imported documents. `clew-generate` publishes
 current document-internal units and optional aids as offline HTML without
-requiring this skill's runtime or preparation record.
+requiring this skill's runtime or preparation record. `clew-export` runs this
+skill's `scripts/publish_chapter.py` to push one completed chapter to a Git
+repository; this skill owns that published format and its validation.
 
 The executable is `scripts/digest_pdf.py` relative to this skill. Python
 dependencies and supported Python versions are declared in this skill's
@@ -140,7 +147,8 @@ During manual inventory, use the same rules as the helper:
 - Scan case-insensitive `.pdf` extensions recursively, in deterministic path
   order. Do not traverse symlinks, junctions, or other path-redirection reparse
   points. Allow OneDrive folders and non-redirecting cloud placeholders.
-- Exclude recognized Import bundles, including their retained `source` PDFs.
+- Exclude recognized Import bundles, including their retained `source` PDFs,
+  and installed published chapters (`kind: published` records).
   Use metadata and structure, never directory names alone. Report ambiguous
   metadata as a conflict rather than silently hiding it or converting its copies.
 - A new valid PDF with no existing target is **convert**.
@@ -644,6 +652,7 @@ bundle. After a deliberate per-document folder rename, keep the note/PDF/figures
 together and update relative links; default validation locates documents by ID.
 `--fidelity` intentionally reports changes since the original prepared snapshot,
 including document relocation; it never recaptures baselines or restores notes.
+Enrich help notes (`type: help` under `aides/`) are left to `clew-enrich`.
 
 The validator aggregates coded errors/review findings with paths, one-based
 locations, affected IDs/targets, and actionable diagnostics. It is read-only.
@@ -659,6 +668,75 @@ Report the chapter root/index, one-note-per-PDF count, roles, validation mode,
 and all unresolved warnings. Enrich can optionally consume the completed root;
 Generate can publish its current document units and optional aids. Existing legacy note
 archives are neither migrated nor modified.
+
+## Step C: Install a published chapter from Git
+
+Use this when the user supplies the Git URL of a repository that a teacher
+filled with `clew-export`. Installing needs git on PATH and this skill's Python
+environment only: no `.env`, Azure credentials, Node process, conversion, or
+paid call. Read "Published chapters" in
+[the preparation contract](references/preparation.md) first.
+
+### 1. Download into scratch storage
+
+Accept `https://` URLs without embedded user information (`user@` or
+`user:token@`) and SSH URLs. Never ask for, print, or store a token. A private
+repository relies on the user's configured credential helper or SSH key. Clone
+into new host scratch storage, never into the vault:
+
+```powershell
+git clone --depth 1 --no-recurse-submodules -c core.symlinks=false -c core.autocrlf=false -- "<url>" "C:\scratch\course-1"
+git -C "C:\scratch\course-1" rev-parse HEAD
+```
+
+Add `--branch "<branch>"` before `--` only when the user names a branch. Never
+run anything from the clone. If the clone fails (access, network, missing
+repository or branch), report it and stop.
+
+Each published chapter is a `Courses/<chapter-name>/` folder whose
+`.clew/preparation.json` has `kind: published`. List them with their recorded
+titles and ask which one to install when there are several. If there are none,
+stop: do not convert or prepare loose repository files.
+
+### 2. Choose placement and preview
+
+Inspect the vault with `inspect_vault.py` and read relevant notes, as in step
+B, to propose a non-root parent and folder name. The folder name defaults to
+the published folder name.
+
+```powershell
+uv run --package clew-import --locked --no-sync python -B ".agents\skills\clew-import\scripts\install_chapter.py" "C:\scratch\course-1\Courses\Sequences" --vault "C:\vault" --parent "Maths" --check
+```
+
+Add `--name "<folder>"` for another folder name and `--create-parent` only for
+missing parents that are part of the proposal. The check validates the
+download against its published snapshot (`--fidelity`). Any changed, missing,
+or extra file is an error, so a damaged or modified download is never
+installed. It reports the destination, folders to create, files, and
+`install_sha256`.
+
+### 3. Approve, install, and report
+
+Show the URL, commit SHA, chapter title, destination and placement rationale,
+folders to create, file list, findings, and hash. Obtain **one explicit
+approval** for this installation.
+
+```powershell
+uv run --package clew-import --locked --no-sync python -B ".agents\skills\clew-import\scripts\install_chapter.py" "C:\scratch\course-1\Courses\Sequences" --vault "C:\vault" --parent "Maths" --install-sha256 "<approved hash>"
+```
+
+Only recorded files are copied, never `.git` or other repository files. The
+installed chapter is then validated with `--fidelity`. An existing destination
+is refused: updating an installed chapter is not supported. Install a newer
+version under another folder name, or let the user remove the old folder
+themselves. A failure preserves partial output; report it and never delete or
+retry automatically.
+
+Report the destination, commit SHA, document count and roles, validation
+status, and the scratch clone location, which the user may delete. The result
+is an ordinary completed chapter: default validation, Enrich, and Generate work
+as usual. `--fidelity` on it reports changes since the published snapshot,
+including the user's own edits and aids.
 
 ## Provenance and maintenance
 
