@@ -22,7 +22,7 @@ Enrich optionally consumes completed whole-document chapters, using
 document-internal exercise/correction units and stable question/answer anchors;
 it writes new help notes without changing imported documents. Generate consumes
 current document-internal units and optional aids to publish offline HTML, or
-compiles them as data for the live canvas reader (ADR-0012).
+compiles them as data for the live canvas reader (ADR-0013).
 It requires no producer records, baselines or installed sibling skills.
 Legacy exercise-per-note archives are not supported or migrated. Current notes are
 authoritative for learning/editing; HTML remains derived. Retain immutable
@@ -31,7 +31,8 @@ conversion evidence and preparation baselines.
 PDF is the only implemented conversion input. No preparation OCR repairs,
 generated exercises/answers, inferred prerequisites or migration of archives.
 Detailed conversion rules are in ADR-0002/0005/0009/0010/0011;
-preparation in ADR-0004 and unit identities in ADR-0008.
+preparation in ADR-0004 and unit identities in ADR-0008. Sharing a prepared
+chapter through Git with Export, and installing it with Import, is in ADR-0012.
 
 ## Consequences
 

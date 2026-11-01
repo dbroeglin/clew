@@ -93,7 +93,7 @@ ordered worksheet stream; it does not construct repeated HTML strings or use
 `data-help` hooks. Missing templates/hooks fail explicitly.
 
 Data mode (`--data`) compiles the same layout to JSON for a live reader such as
-the canvas of ADR-0012, ignores `output`, makes source and PDF paths relative to
+the canvas of ADR-0013, ignores `output`, makes source and PDF paths relative to
 an optional `--base` directory and writes nothing else. It shares the parser,
 selection and rendering rules, so both outputs present the same content.
 
@@ -117,7 +117,7 @@ claims and documentation together.
   records or source-fidelity validation.
 - Legacy input compatibility and migration, learning-content authorship and
   grading remain outside scope. The offline HTML stores no progress; activity
-  capture belongs to the canvas reader (ADR-0012).
+  capture belongs to the canvas reader (ADR-0013).
 - Unsupported features or ambiguous relationships require explicit decisions.
 - Offline assets increase HTML size; source PDFs remain external and their
   links can break after relocation without affecting reading.

@@ -4,7 +4,8 @@ Clew turns course PDFs into editable, source-preserving Obsidian documents.
 **`clew-import` is one skill with two resumable steps:** convert PDFs, then
 prepare each complete Markdown document with stable anchors, callouts, and
 links to the original PDF pages. It does not split a course or exercise sheet
-into many notes or rewrite supplied text to add structure.
+into many notes or rewrite supplied text to add structure. It can also install
+a prepared chapter that a teacher shared with `clew-export`.
 
 ## Get started
 
@@ -142,6 +143,36 @@ Ouvre C:\vault\Maths\algebre dans le canvas Clew.
 
 Select the `clew-tutor` agent before sending this request.
 
+## Share a prepared course with students
+
+A teacher can share a prepared chapter, with its aids, so students do not pay
+to convert the PDFs again. First create an empty GitHub or Azure DevOps
+repository yourself and make sure `git` can push to it. Then:
+
+```text
+Use clew-export to publish C:\vault\Maths\algebre to
+https://github.com/teacher/maths-courses.git.
+```
+
+The agent previews the exact files and sizes and asks for one approval before
+committing and pushing `Courses/algebre/`. Everyone with access to the
+repository can read the shared notes and PDFs. Make sure you may share them,
+and choose the repository's visibility accordingly. Private preparation
+records, baselines and hidden files are not shared. Publishing again adds a
+new commit; other chapters in the repository are untouched.
+
+A student with access to the repository, and `git` installed, asks:
+
+```text
+Use clew-import to install the course from
+https://github.com/teacher/maths-courses.git into C:\vault.
+```
+
+The agent downloads the repository outside the vault, lets you choose a
+chapter if there are several, proposes where to put it, and asks for one
+approval. The installed chapter works with validation, `clew-enrich` and
+`clew-generate` like any prepared chapter. Updating an installed chapter in
+place is not supported: install a newer version under another folder name.
 PDF is the only implemented conversion input. TeX, Word, PowerPoint, generated
 exercises/answers, general OCR repair, and broader enrichment are outside this
 workflow.

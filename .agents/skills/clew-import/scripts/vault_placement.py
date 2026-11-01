@@ -11,13 +11,22 @@ RESERVED = {".obsidian", ".git", ".github", ".agents"}
 
 
 def placement_parent(plan: Plan) -> Path:
-    vault = Path(plan.placement.vault)
+    return parent_in_vault(plan.placement.vault, plan.placement.parent)
+
+
+def missing_parents(plan: Plan) -> list[Path]:
+    return missing_parents_in_vault(plan.placement.vault, plan.placement.parent,
+                                    plan.placement.create_parent)
+
+
+def parent_in_vault(vault_root: str, parent_reference: str) -> Path:
+    vault = Path(vault_root)
     require(vault.is_absolute(), "Vault root must be absolute.")
     vault = no_redirect(vault)
     require(vault.is_dir(), f"Vault root is missing: {vault}")
     require(not any(part.casefold() in RESERVED for part in vault.parts),
             "Vault root must not be inside a configuration directory.")
-    parent = relative_path(plan.placement.parent)
+    parent = relative_path(parent_reference)
     require(not any(part.startswith(".") for part in parent.parts),
             "Placement must not target a hidden/configuration directory.")
     selected = contained(vault, parent.as_posix(), exists=False)
@@ -38,9 +47,9 @@ def placement_parent(plan: Plan) -> Path:
     return selected
 
 
-def missing_parents(plan: Plan) -> list[Path]:
-    parent = placement_parent(plan)
-    vault = no_redirect(Path(plan.placement.vault))
+def missing_parents_in_vault(vault_root: str, parent_reference: str, create_parent: bool) -> list[Path]:
+    parent = parent_in_vault(vault_root, parent_reference)
+    vault = no_redirect(Path(vault_root))
     missing = []
     while parent != vault:
         no_redirect(parent)
@@ -49,6 +58,6 @@ def missing_parents(plan: Plan) -> list[Path]:
             break
         missing.append(parent)
         parent = parent.parent
-    require(not missing or plan.placement.create_parent,
+    require(not missing or create_parent,
             "Placement parent is missing; approve create_parent or choose an existing parent.")
     return list(reversed(missing))

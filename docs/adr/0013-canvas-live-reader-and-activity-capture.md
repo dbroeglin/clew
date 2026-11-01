@@ -1,4 +1,4 @@
-# ADR-0012: Canvas live reader, activity capture and tutor bridge
+# ADR-0013: Canvas live reader, activity capture and tutor bridge
 
 - Status: Accepted
 - Date: 2026-11-01
