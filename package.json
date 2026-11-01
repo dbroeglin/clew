@@ -10,6 +10,7 @@
     "npm": ">=10"
   },
   "scripts": {
-    "test:mathjax": "node --test"
+    "test:mathjax": "node --test \"tests/clew_import/*.test.cjs\"",
+    "test:canvas": "node --test \"tests/clew_canvas/*.test.mjs\""
   }
 }
