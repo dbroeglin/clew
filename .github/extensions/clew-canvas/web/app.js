@@ -581,6 +581,7 @@
     const stream = new EventSource(base + "api/stream" + query);
     stream.onopen = () => {
       clearTimeout(pausedTimer);
+      pausedTimer = 0;
       byId("server-error").hidden = true;
       flush();
     };
@@ -591,8 +592,10 @@
       else if (message.type === "show") show(message);
     };
     stream.onerror = () => {
-      clearTimeout(pausedTimer);
+      // Reconnection attempts fail every few seconds while the session is away; keep the first timer.
+      if (pausedTimer) return;
       pausedTimer = setTimeout(() => {
+        pausedTimer = 0;
         if (stream.readyState !== EventSource.OPEN) byId("server-error").hidden = false;
       }, 3500);
     };
