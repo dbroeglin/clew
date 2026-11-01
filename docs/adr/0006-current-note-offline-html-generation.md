@@ -92,6 +92,11 @@ ordered worksheet stream; it does not construct repeated HTML strings or use
 `createElement`. Preserve stable template IDs and `data-slot`, `data-action`,
 `data-help` hooks. Missing templates/hooks fail explicitly.
 
+Data mode (`--data`) compiles the same layout to JSON for a live reader such as
+the canvas of ADR-0012, ignores `output`, makes source and PDF paths relative to
+an optional `--base` directory and writes nothing else. It shares the parser,
+selection and rendering rules, so both outputs present the same content.
+
 Inspection and `--check` are read-only. Show selected scope, output, command
 and warnings before publishing, without a hash ceremony. Refuse existing
 output by default; explicitly requested `--overwrite` atomically replaces only
@@ -110,8 +115,9 @@ claims and documentation together.
 - Source file storage remains independent of learning-unit presentation.
 - Publication accepts human edits and copied current notes without producer
   records or source-fidelity validation.
-- Legacy input compatibility and migration, learning-content authorship,
-  grading, analytics and progress persistence remain outside scope.
+- Legacy input compatibility and migration, learning-content authorship and
+  grading remain outside scope. The offline HTML stores no progress; activity
+  capture belongs to the canvas reader (ADR-0012).
 - Unsupported features or ambiguous relationships require explicit decisions.
 - Offline assets increase HTML size; source PDFs remain external and their
   links can break after relocation without affecting reading.

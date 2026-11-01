@@ -21,7 +21,8 @@ Enrich and Generate remain separate skills with distinct responsibilities.
 Enrich optionally consumes completed whole-document chapters, using
 document-internal exercise/correction units and stable question/answer anchors;
 it writes new help notes without changing imported documents. Generate consumes
-current document-internal units and optional aids to publish offline HTML.
+current document-internal units and optional aids to publish offline HTML, or
+compiles them as data for the live canvas reader (ADR-0012).
 It requires no producer records, baselines or installed sibling skills.
 Legacy exercise-per-note archives are not supported or migrated. Current notes are
 authoritative for learning/editing; HTML remains derived. Retain immutable

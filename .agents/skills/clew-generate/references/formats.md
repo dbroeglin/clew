@@ -78,7 +78,8 @@ hidden; code/math lookalikes remain literal content. LF, CRLF and CR are support
 ```
 
 Required keys are `schema_version`, nonempty `title`, `output` and nonempty
-`notes`. Unknown keys are rejected. Paths are absolute or relative to the layout;
+`notes`; in data mode (`--data`) `output` is optional and ignored. Unknown keys
+are rejected. Paths are absolute or relative to the layout;
 the output must be `.html` under an existing parent. JSON relative paths use `/`.
 The layout selects existing content; never copy or author teaching prose in it.
 

@@ -150,6 +150,22 @@ Reports include output, exercise/question/course-view counts and warnings.
 `--check` validates/builds in memory without writing. Inspect persisted HTML
 and representative interactions before reporting completion.
 
+## Data mode for live readers
+
+A live reader, such as the Clew canvas, needs the compiled publication rather
+than HTML. Data mode writes it as one JSON file and nothing else:
+
+```powershell
+uv run --package clew-generate --locked --no-sync python -B ".agents\skills\clew-generate\scripts\generate_html.py" "C:\vault\Activity\Layouts\sequences.json" --data "$env:TEMP\sequences.json" --base "C:\vault"
+```
+
+The target must end in `.json`, have an existing parent and not be an input;
+an existing target is replaced. The layout's `output` is optional and ignored.
+Source note and PDF paths in the data are relative to `--base`, by default the
+layout's folder. `--base` requires `--data`; `--data` excludes `--check`.
+Selection, ownership and rendering rules, exit codes and warnings are the same
+as for HTML. Notes are never changed.
+
 ## Output and limitations
 
 One file embeds CSS, interaction code, raster figures and offline math rendering.

@@ -21,3 +21,4 @@ skills, not in ADRs.
 | [ADR-0009](0009-direct-markdown-page-transcription.md) | Direct Markdown page transcription | Accepted | Direct page text, strict figure JSON and retained raw responses. |
 | [ADR-0010](0010-source-grounded-page-review-and-retries.md) | Source-grounded review and retries | Accepted | High-effort review, resume-preserved correction bounds, retained evidence and usage-based cost estimates. |
 | [ADR-0011](0011-npm-workspace-and-offline-import-mathjax.md) | npm workspace and offline MathJax | Accepted | Hoisted root setup, skill-local declarations and browser-free candidate checks. |
+| [ADR-0012](0012-canvas-live-reader-and-activity-capture.md) | Canvas live reader and activity capture | Accepted | Copilot App canvas over Generate data mode, vault activity record, digest/ask tutor bridge and guarded tutor agent. |
