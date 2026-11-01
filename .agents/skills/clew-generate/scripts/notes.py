@@ -1,6 +1,7 @@
 """Inspect current whole-document notes without producer records or snapshots."""
 from __future__ import annotations
 
+import functools
 import json
 import os
 import re
@@ -45,12 +46,23 @@ def normalized_heading_reference(value: str) -> str:
     return re.sub(r"(?<!\\)(\*{1,3}|_{1,3})(.+?)\1", r"\2", value)
 
 
-def protected_lines(body: str) -> set[int]:
-    return {line for token in parser().parse(body)
-            if token.type in {"fence", "code_block", "math_block"} and token.map
-            for line in range(*token.map)}
+@functools.lru_cache(maxsize=256)
+def protected_lines(body: str) -> frozenset[int]:
+    return frozenset(line for token in parser().parse(body)
+                     if token.type in {"fence", "code_block", "math_block"} and token.map
+                     for line in range(*token.map))
 
 
+@functools.lru_cache(maxsize=64)
+def heading_tokens(body: str) -> tuple[tuple[int, str, int], ...]:
+    """Return (level, content, first line) for each heading, with comments hidden."""
+    tokens = parser().parse(hide_comments(body))
+    return tuple((int(token.tag[1:]), tokens[index + 1].content, token.map[0])
+                 for index, token in enumerate(tokens) if token.type == "heading_open")
+
+
+# Notes are immutable once read; repeated selections and links re-scan the same text.
+@functools.lru_cache(maxsize=1024)
 def hide_comments(body: str) -> str:
     protected = protected_lines(body)
     offsets = [0]
@@ -140,6 +152,7 @@ class Note:
     parts: list[Part] = field(default_factory=list)
     blocks: dict[str, Part] = field(default_factory=dict)
     units: list[Unit] = field(default_factory=list)
+    spans: dict[str, tuple[int, int]] = field(default_factory=dict, repr=False, compare=False)
 
     @property
     def id(self) -> str:
@@ -179,6 +192,11 @@ class Note:
                           if part.text.strip())
 
     def selection_span(self, fragment: str = "") -> tuple[int, int]:
+        if fragment not in self.spans:
+            self.spans[fragment] = self.uncached_selection_span(fragment)
+        return self.spans[fragment]
+
+    def uncached_selection_span(self, fragment: str = "") -> tuple[int, int]:
         if not fragment:
             return 0, len(self.body.splitlines())
         if fragment.startswith("^"):
@@ -194,22 +212,21 @@ class Note:
                     f"Invalid line range or frontmatter selection: {self.id}#{fragment}")
             self.span_parts(start, end)
             return start, end
-        tokens = parser().parse(hide_comments(self.body))
-        matches = [(index, token) for index, token in enumerate(tokens)
-                   if token.type == "heading_open" and tokens[index + 1].content == fragment]
+        headings = heading_tokens(self.body)
+        matches = [index for index, (_, content, _) in enumerate(headings) if content == fragment]
         if not matches:
-            matches = [(index, token) for index, token in enumerate(tokens)
-                       if token.type == "heading_open" and
-                       normalized_heading_reference(tokens[index + 1].content)
+            matches = [index for index, (_, content, _) in enumerate(headings)
+                       if normalized_heading_reference(content)
                        == normalized_heading_reference(fragment)]
         require(len(matches) == 1, f"Missing or ambiguous heading: {self.id}#{fragment}")
-        index, heading = matches[0]
+        index = matches[0]
+        level, _, start = headings[index]
         end = len(self.body.splitlines())
-        for token in tokens[index + 1:]:
-            if token.type == "heading_open" and int(token.tag[1:]) <= int(heading.tag[1:]):
-                end = token.map[0]
+        for other_level, _, line in headings[index + 1:]:
+            if other_level <= level:
+                end = line
                 break
-        return heading.map[0], end
+        return start, end
 
 
 def read_note(path: Path) -> Note:
