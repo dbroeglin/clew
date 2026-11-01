@@ -10,6 +10,9 @@ Each `.agents/skills/` directory owns its instructions, scripts, dependencies,
 configuration templates, evals, licenses and provenance. Executable tests and
 fixtures live in repository-owned `tests/<skill_name>/`, never inside skills.
 Clew hosts four skills: Import, Enrich, Generate, and Export.
+The repository also owns a GitHub Copilot App extension and the `clew-tutor`
+agent, which build on Generate; see
+[Canvas reader and tutor](#canvas-reader-and-tutor).
 
 Python >=3.11 and UV are required. From the repository root:
 
@@ -429,6 +432,73 @@ Output parent must exist; existing HTML requires explicit exact-file replacement
 See the [layout contract](../.agents/skills/clew-generate/references/formats.md)
 for raw HTML, transclusion, remote-resource and dynamic-math limitations.
 
+Data mode compiles the same layout to JSON for a live reader instead of HTML.
+`output` is then optional and ignored, the target must be a new or replaceable
+`.json` file under an existing parent, and source/PDF paths are relative to
+`--base` (default: the layout's folder):
+
+```powershell
+uv run --package clew-generate --locked --no-sync python -B ".agents\skills\clew-generate\scripts\generate_html.py" "C:\vault\Activity\Layouts\sequences.json" --data "$env:TEMP\sequences.json" --base "C:\vault"
+```
+
+## Canvas reader and tutor
+
+The project extension [`clew-canvas`](../.github/extensions/clew-canvas/extension.mjs)
+lets a student browse a Generate publication inside a GitHub Copilot App
+canvas, and the [`clew-tutor`](../.github/agents/clew-tutor.agent.md) agent
+tutors them there. Design rationale: [ADR-0013](adr/0013-canvas-live-reader-and-activity-capture.md).
+
+Requirements: the Copilot App with this repository as the project (it loads
+`.github/extensions/` and `.github/agents/`), Python >=3.11, UV and
+`uv sync --all-packages --locked`. The extension calls Generate's data mode
+through `uv run --package clew-generate --locked --no-sync` from the repository
+root; it needs no npm packages beyond the SDK the app provides.
+
+Select the `clew-tutor` agent and ask it to open a chapter, for example
+"Ouvre C:\vault\Maths\Suites dans le canvas". The agent writes or reuses the
+layout `<vault>/Activity/Layouts/<publication>.json` (`output` omitted), checks
+it in data mode, then calls `open_canvas` with `canvasId: "clew-canvas"` and
+`input: {"layout": "<absolute layout path>"}`. The layout must be inside an
+Obsidian vault (a folder containing `.obsidian`).
+
+The canvas shows the same exercises, progressive hints, methods, inline
+supplied corrections, explanations and course excerpts as the offline HTML,
+in French, following the app's light or dark theme. It recompiles when the
+selected notes or the layout change; on a compile error it keeps the previous
+content and shows "Contenu non actualisé". Links and PDFs open outside the
+canvas with the system's default handler; in-vault PDFs are served by the
+extension at the cited page, and a missing PDF shows "PDF introuvable". If the
+session stops while the canvas is open, a
+banner appears; actions are kept in the page and recorded when the session
+returns, as long as the canvas stays open.
+
+Activity is written by the extension only, under
+`<vault>/Activity/<YYYY-MM-DD>-<publication>-<session8>/`:
+
+| File | Content |
+| --- | --- |
+| `activity.jsonl` | Header (layout, source notes with hashes, session ID), then one versioned event per line: `exercise_started`, `method_shown`, `hint_revealed`, `correction_shown`, `correction_hidden`, `explanation_opened`, `course_opened`, `pdf_opened`, `link_opened`, `tutor_requested`, canvas lifecycle and `content_changed`. |
+| `summary.md` | Deterministic French summary, rewritten after each action: totals, time and progress per exercise and question, courses, links and PDFs opened, and the publication's notes. Time sums gaps between events, each capped at 10 minutes. |
+| `.clew-activity/` | `layout.json` snapshot and `state.json` used to restore the canvas. |
+
+The tutor receives, before each student message, a hidden digest of the
+actions since the previous message. Each question's "Demander au tuteur"
+button sends the visible message "I need help with this question" with hidden
+question context. The agent can call two canvas actions: `get_state`
+(`{"question": "<address>"}` or `{"courses": true}` for details) and `show`
+(`{"target": "<address>"}`), which scrolls to and highlights a question,
+exercise or course passage. Neither reveals hints or corrections.
+
+While `clew-tutor` is the active agent, the extension denies file-tool writes
+inside the vault except `Activity/Layouts/*.json`. **Shell commands are not
+checked**; the agent's instructions forbid using them to change the vault.
+The offline HTML workflow is unaffected.
+
+Limitations: the extension's local server and session state live in the
+Copilot session workspace; a new session starts a new activity folder.
+Link handling, theme injection and extension lifetime inside the app's webview
+are host behaviour that repository tests simulate in Edge.
+
 ## Git sharing: Export and install
 
 [`clew-export`](../.agents/skills/clew-export/SKILL.md) publishes one completed
@@ -474,6 +544,7 @@ uv run --package clew-import --locked --no-sync python -B -m unittest discover -
 uv run --package clew-enrich --locked --no-sync python -B -m unittest discover -s "tests\clew_enrich"
 uv run --package clew-generate --locked --no-sync python -B -m unittest discover -s "tests\clew_generate"
 npm run test:mathjax
+npm run test:canvas
 ```
 
 Tests use independently authored synthetic material and mocked/local transports,
@@ -497,8 +568,18 @@ Optional Generate browser checks use installed Edge and block HTTP(S):
 ```powershell
 $env:CLEW_TEST_BROWSER = "1"
 uv run --package clew-generate --locked --no-sync python -B -m unittest discover -s "tests\clew_generate"
+uv run --locked --no-sync python -B -m unittest discover -s "tests\clew_canvas"
 Remove-Item Env:\CLEW_TEST_BROWSER
 ```
+
+`npm run test:canvas` runs the extension's Node tests (`tests/clew_canvas/*.test.mjs`):
+pure modules, the reader with real data-mode compiles and file watching, and the
+HTTP server, restart and tutor bridge against a simulated session. The
+`tests/clew_canvas` browser check drives the canvas page in Edge through
+`browser_harness.mjs`: rendering, theme, math, hints, course panel, corrections,
+PDFs, ask/show, digest, live reload, compile errors, session pause and the
+activity files. `CLEW_TEST_HEADED=1` shows the browser and
+`CLEW_TEST_SCREENSHOTS=<folder>` saves a screenshot per step and on failure.
 
 Architecture records are indexed in [docs/adr](adr/README.md). Runtime rules
 must still be stated completely inside portable skills.

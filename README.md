@@ -130,6 +130,19 @@ Use clew-generate to publish C:\vault\Maths\algebre as
 C:\publications\algebre.html, including existing aids.
 ```
 
+In the GitHub Copilot App, the `clew-tutor` agent can instead open the same
+publication in an interactive canvas and tutor you in French while you work.
+It asks guiding questions and points to course passages, but never gives
+answers, hints or corrections: you reveal those yourself in the canvas.
+Your actions are recorded in your vault under `Activity/`, with a readable
+summary per session.
+
+```text
+Ouvre C:\vault\Maths\algebre dans le canvas Clew.
+```
+
+Select the `clew-tutor` agent before sending this request.
+
 ## Share a prepared course with students
 
 A teacher can share a prepared chapter, with its aids, so students do not pay
@@ -160,13 +173,12 @@ chapter if there are several, proposes where to put it, and asks for one
 approval. The installed chapter works with validation, `clew-enrich` and
 `clew-generate` like any prepared chapter. Updating an installed chapter in
 place is not supported: install a newer version under another folder name.
-
 PDF is the only implemented conversion input. TeX, Word, PowerPoint, generated
 exercises/answers, general OCR repair, and broader enrichment are outside this
 workflow.
 
 - [Skills reference](docs/skills.md): setup, artifact contracts, commands,
-  limitations, validation, and development checks.
+  limitations, validation, development checks, and the canvas reader.
 - [Architecture decisions](docs/adr/README.md): the current design.
 - [Contributor and agent guidance](AGENTS.md): portability and documentation
   requirements.

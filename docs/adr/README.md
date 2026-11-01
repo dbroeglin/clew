@@ -22,3 +22,4 @@ skills, not in ADRs.
 | [ADR-0010](0010-source-grounded-page-review-and-retries.md) | Source-grounded review and retries | Accepted | High-effort review, resume-preserved correction bounds, retained evidence and usage-based cost estimates. |
 | [ADR-0011](0011-npm-workspace-and-offline-import-mathjax.md) | npm workspace and offline MathJax | Accepted | Hoisted root setup, skill-local declarations and browser-free candidate checks. |
 | [ADR-0012](0012-publish-prepared-chapters-through-git.md) | Publish prepared chapters through Git | Accepted | Thin Export skill, Import-owned published record, byte-exact Git copies and approved student installation. |
+| [ADR-0013](0013-canvas-live-reader-and-activity-capture.md) | Canvas live reader and activity capture | Accepted | Copilot App canvas over Generate data mode, vault activity record, digest/ask tutor bridge and guarded tutor agent. |
