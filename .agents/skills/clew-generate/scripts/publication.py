@@ -7,7 +7,8 @@ from pathlib import Path
 from notes import Library, Note, Part, Unit, local_path, note_links, require
 
 
-def load_layout(path: Path) -> tuple[dict, Library]:
+def load_layout(path: Path, *, data: bool = False) -> tuple[dict, Library]:
+    """Load a layout; data mode ignores ``output`` because nothing is written there."""
     path = local_path(path)
     layout = json.loads(path.read_text(encoding="utf-8-sig"))
     require(isinstance(layout, dict), "Layout must be an object.")
@@ -15,12 +16,15 @@ def load_layout(path: Path) -> tuple[dict, Library]:
                               "courses", "exercises", "questions"}, "Unknown layout key.")
     require(type(layout.get("schema_version")) is int and layout["schema_version"] == 1,
             "Expected layout schema_version 1.")
-    for key in ("title", "output"):
+    for key in ("title",) if data else ("title", "output"):
         require(isinstance(layout.get(key), str) and bool(layout[key].strip()), f"Missing {key}.")
     paths = layout.get("notes")
     require(isinstance(paths, list) and all(isinstance(p, str) and p for p in paths),
             "notes must be an array of paths.")
     library = Library([path.parent / name for name in paths])
+    if data:
+        layout.pop("output", None)
+        return layout, library
     output = local_path(path.parent / layout["output"])
     require(output.suffix.lower() == ".html", "Output must be an .html file.")
     require(output not in {note.path for note in library.notes} and output != path,
@@ -157,6 +161,7 @@ def compile_layout(layout: dict, library: Library, render) -> dict:
                 title = note.blocks[fragment[1:]].label or title
             excerpts[excerpt_key] = {"id": f"course-{len(excerpts) + 1}",
                                      "title": title,
+                                     "address": note.id + ("#" + fragment if fragment else ""),
                                      "html": render(note.select(fragment), note, fragment)}
         return excerpts[excerpt_key]["id"]
 

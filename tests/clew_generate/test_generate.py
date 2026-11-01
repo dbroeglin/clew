@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -18,7 +19,7 @@ FIXTURE = Path(__file__).parent / "fixtures" / "chapter"
 sys.path.insert(0, str(SKILL / "scripts"))
 sys.path.insert(0, str(ROOT / "tests"))
 
-from generate_html import generate
+from generate_html import compile_data, generate
 from notes import GenerateError, Library, list_chapters, read_note
 from publication import compile_layout, load_layout
 from render_html import Renderer
@@ -396,6 +397,45 @@ class GenerateTests(unittest.TestCase):
         self.assertIn("data:image/png;base64,", str(model))
         self.assertIn("<table>", str(model))
         self.assertIn("Course-course/course.pdf#page=1", str(model))
+
+    def test_data_mode_for_live_readers(self):
+        layout = json.loads(self.layout.read_text(encoding="utf-8"))
+        del layout["output"]
+        self.layout.write_text(json.dumps(layout), encoding="utf-8")
+        before = {path: path.read_bytes() for path in self.chapter.rglob("*") if path.is_file()}
+        target = self.root / "cache" / "data.json"
+        target.parent.mkdir()
+        report = compile_data(self.layout, target, base=self.chapter)
+        self.assertEqual((report["status"], report["questions"]), ("data", 3))
+        data = json.loads(target.read_text(encoding="utf-8"))
+        self.assertEqual([q["address"] for q in data["questions"]],
+                         ["sheet#^q-1", "sheet#^q-2", "sheet#^q-3"])
+        self.assertTrue(all(c["address"].startswith("course") for c in data["courses"]))
+        self.assertIn('href="Course-course/course.pdf#page=1"', str(data["courses"]))
+        sources = {s["id"]: s for s in data["sources"]}
+        self.assertEqual(sources["sheet"]["path"], "Exercise-sheet/sheet.md")
+        self.assertEqual(sources["sheet"]["sha256"],
+                         hashlib.sha256(self.sheet.read_text(encoding="utf-8-sig").encode()).hexdigest())
+        first = target.read_bytes()
+        compile_data(self.layout, target, base=self.chapter)
+        self.assertEqual(first, target.read_bytes())
+        compile_data(self.layout, target)
+        self.assertIn('href="chapter/Course-course/course.pdf#page=1"',
+                      str(json.loads(target.read_text(encoding="utf-8"))["courses"]))
+        self.assertEqual(before, {path: path.read_bytes() for path in before})
+        self.assertFalse(list(self.root.rglob("*.tmp")))
+        self.assertFalse((self.root / "publication.html").exists())
+        with self.assertRaisesRegex(GenerateError, r"\.json"):
+            compile_data(self.layout, self.root / "data.txt")
+        with self.assertRaisesRegex(GenerateError, "replace an input"):
+            compile_data(self.layout, self.layout)
+        with self.assertRaisesRegex(GenerateError, "Missing output"):
+            generate(self.layout, check=True)
+        result = subprocess.run([sys.executable, "-B", str(SKILL / "scripts" / "generate_html.py"),
+                                 str(self.layout), "--base", str(self.root)],
+                                capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("--base requires --data", result.stderr)
 
     def test_unsupported_assets_html_plugins_and_math(self):
         original = self.course.read_text(encoding="utf-8")
