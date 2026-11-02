@@ -63,6 +63,10 @@ export function renderSummary({ header, events, index }) {
     if (!progress.courses.size) lines.push("_Aucun passage de cours ouvert._");
     for (const [address, count] of progress.courses) {
         lines.push(`- ${link(address, index.courses.get(address)?.title ?? address)} · ${count} fois`);
+        const sections = progress.courseSections.get(address);
+        for (const [number, section] of sections ?? []) {
+            lines.push(`  - Section ${number}/${section.total} · ${label(section.title)} · ${section.count} fois`);
+        }
     }
     lines.push("", "## Liens et PDF ouverts", "");
     const opened = new Map();

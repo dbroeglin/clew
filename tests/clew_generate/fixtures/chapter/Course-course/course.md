@@ -25,3 +25,7 @@ title: Sequences
 The absolute value of each term is at most its initial value.
 
 ^bound
+
+# Subsequences
+
+Every subsequence of a convergent sequence has the same limit.

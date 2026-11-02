@@ -61,11 +61,19 @@ describe("events", () => {
         assert.deepEqual(hint, { v: 1, ts: now.toISOString(), type: "hint_revealed", actor: "student", question: Q1,
             exercise: "sheet#^ex-1", index: 2, total: 2 });
         assert.equal(studentEvent({ type: "course_opened", course: "course" }, index, now).course, "course");
+        assert.deepEqual(studentEvent({ type: "course_section_opened", course: "course", section: 2, total: 3,
+            title: "Second section" }, index, now), {
+            v: 1, ts: now.toISOString(), type: "course_section_opened", actor: "student", course: "course",
+            section: 2, total: 3, title: "Second section",
+        });
         for (const [input, message] of [
             [{ type: "tutor_show", question: Q1 }, /Unsupported/],
             [{ type: "method_shown" }, /requires question/],
             [{ type: "exercise_started", question: Q1, exercise: "sheet#^nope" }, /Unknown exercise/],
             [{ type: "course_opened", course: "course#^missing" }, /Unknown course/],
+            [{ type: "course_section_opened", course: "course", section: 0, total: 2, title: "Section" }, /Invalid course section position/],
+            [{ type: "course_section_opened", course: "course", section: 2, total: 1, title: "Section" }, /Invalid course section position/],
+            [{ type: "course_section_opened", course: "course", section: 1, total: 1, title: "" }, /Invalid course section title/],
             [{ type: "hint_revealed", question: Q1, index: 3 }, /Invalid hint index/],
             [{ type: "hint_revealed", question: "sheet#^q-2", index: 1 }, /Invalid hint index/],
             [null, /object/],
@@ -92,8 +100,10 @@ describe("events", () => {
             at(42, { type: "canvas_closed", actor: "system" }),
             at(50, { type: "course_opened", actor: "student", course: "course" }),
             at(51, { type: "course_opened", actor: "student", course: "course" }),
-            at(52, { type: "pdf_opened", actor: "student", url: "a.pdf", page: 2 }),
-            at(53, { type: "tutor_requested", actor: "student", question: "sheet#^q-2", exercise: "sheet#^ex-1" }),
+            at(52, { type: "course_section_opened", actor: "student", course: "course", section: 1, total: 2, title: "Introduction" }),
+            at(53, { type: "course_section_opened", actor: "student", course: "course", section: 2, total: 2, title: "Limits" }),
+            at(54, { type: "pdf_opened", actor: "student", url: "a.pdf", page: 2 }),
+            at(55, { type: "tutor_requested", actor: "student", question: "sheet#^q-2", exercise: "sheet#^ex-1" }),
         ]);
         const q1 = progress.questions.get(Q1);
         assert.equal(q1.hints, 2);
@@ -103,6 +113,8 @@ describe("events", () => {
         assert.equal(progress.exercises.get("sheet#^ex-1").ms, 2 * 60_000);
         assert.equal(progress.exercises.get("sheet#^ex-1").started, true);
         assert.equal(progress.courses.get("course"), 2);
+        assert.equal(progress.courseSections.get("course").get(2).title, "Limits");
+        assert.equal(progress.courseSections.get("course").get(2).count, 1);
         assert.equal(progress.links.length, 1);
         assert.equal(progress.tutorShows, 1);
         assert.equal(progress.questions.get("sheet#^q-2").tutor, 1);
@@ -121,10 +133,12 @@ describe("summary", () => {
             at(1, { type: "hint_revealed", actor: "student", question: Q1, exercise: "sheet#^ex-1", index: 1, total: 2 }),
             at(3, { type: "correction_shown", actor: "student", question: Q1, exercise: "sheet#^ex-1" }),
             at(4, { type: "course_opened", actor: "student", course: "course#^theorem" }),
-            at(5, { type: "pdf_opened", actor: "student", url: "Maths/Suites révision/Exercise-sheet/sheet.pdf", page: 2 }),
+            at(5, { type: "course_section_opened", actor: "student", course: "course#^theorem",
+                section: 2, total: 3, title: "Limits" }),
             at(6, { type: "pdf_opened", actor: "student", url: "Maths/Suites révision/Exercise-sheet/sheet.pdf", page: 2 }),
-            at(7, { type: "pdf_opened", actor: "student", url: pathToFileURL(join(tmpdir(), "outside.pdf")).href }),
-            at(8, { type: "link_opened", actor: "student", url: "https://example.com/a" }),
+            at(7, { type: "pdf_opened", actor: "student", url: "Maths/Suites révision/Exercise-sheet/sheet.pdf", page: 2 }),
+            at(8, { type: "pdf_opened", actor: "student", url: pathToFileURL(join(tmpdir(), "outside.pdf")).href }),
+            at(9, { type: "link_opened", actor: "student", url: "https://example.com/a" }),
         ];
         const text = renderSummary({ header, events, index });
         assert.equal(text, renderSummary({ header, events, index }));
@@ -132,6 +146,7 @@ describe("summary", () => {
         assert.match(text, /# Activité · Suites révision\n/);
         assert.match(text, /\| \[\[Maths\/Suites révision\/Exercise-sheet\/sheet#\^q-1\\\|Question 1\]\] \| 1\/2 \| vue \| — \| ~3 min \|/);
         assert.match(text, /- \[\[Maths\/Suites révision\/Course-course\/course#\^theorem\|Geometric limit result\]\] · 1 fois/);
+        assert.match(text, /Section 2\/3 · Limits · 1 fois/);
         assert.match(text, /- PDF \[\[Maths\/Suites révision\/Exercise-sheet\/sheet\.pdf#page=2\|sheet\.pdf p\. 2\]\] · 2 fois/);
         assert.match(text, /- <file:\/\/\/.*outside\.pdf>\n/);
         assert.doesNotMatch(text, /\[\[file:/);

@@ -26,6 +26,8 @@ export function describe(event, index) {
         case "correction_hidden": return `Student hid the supplied correction for ${q}.`;
         case "explanation_opened": return `Student opened the explanations for ${q}.`;
         case "course_opened": return `Student opened ${c}${q ? ` from ${q}` : ""}.`;
+        case "course_section_opened":
+            return `Student opened section ${event.section}/${event.total} "${event.title}" in ${c}${q ? ` from ${q}` : ""}.`;
         case "link_opened": return `Student opened the link ${event.url}${q ? ` from ${q}` : ""}.`;
         case "pdf_opened": return `Student opened the PDF ${event.url}${event.page ? ` at page ${event.page}` : ""}${q ? ` from ${q}` : ""}.`;
         case "tutor_requested": return `Student asked the tutor for help with ${q}.`;

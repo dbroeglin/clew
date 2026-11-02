@@ -35,6 +35,14 @@
 <template id="template-course">
   <details>
     <summary data-slot="title"></summary>
+    <nav class="course-navigation" data-slot="navigation" aria-label="Navigation du cours" hidden>
+      <button type="button" data-action="previous-section">Section précédente</button>
+      <label>Section
+        <select data-slot="section-select" aria-label="Choisir une section du cours"></select>
+      </label>
+      <span data-slot="section-position" aria-live="polite"></span>
+      <button type="button" data-action="next-section">Section suivante</button>
+    </nav>
     <div class="course-body" data-slot="body"></div>
   </details>
 </template>

@@ -34,6 +34,12 @@ layout and recompiles after edits, preserving the open exercise, revealed hints
 and correction state; a failed recompile keeps the last good content visible
 as stale. Offline HTML publication is unchanged.
 
+Whole course documents remain whole in the publication and vault. In the Canvas,
+the reading view displays one top-level Markdown `h1` section at a time, with
+previous/next controls and a section selector; lower-level headings remain with
+their parent section. A document without `h1` headings remains one view. Recompile
+preserves the selected section when that section index still exists.
+
 The extension serves the page, data and vault PDFs on `127.0.0.1` with a
 per-session token, a strict content security policy and no network
 resources. It persists its port and open instances in the session workspace so
@@ -49,13 +55,15 @@ folders, in `Activity/<YYYY-MM-DD>-<publication>-<session8>/`:
   layout, vault-relative source notes and the Copilot session. Events are
   semantic student actions (exercise started, method shown, hint revealed,
   correction shown or hidden, explanation, course passage and PDF opened,
-  tutor requested), plus canvas lifecycle and content changes.
+  course section opened, tutor requested), plus canvas lifecycle and content changes.
 - `summary.md`: a deterministic French summary regenerated from the events,
   with no model call.
 - `.clew-activity/`: the layout snapshot and replayable state.
 
-Clicks only are captured, not scrolling or focus. Time per exercise is derived
-from gaps between events, each gap capped at ten minutes. The session's
+Clicks and section navigation are captured, not scrolling or focus. Course
+section visits include the course address, section title and its position in
+the document. Time per exercise is derived from gaps between events, each gap
+capped at ten minutes. The session's
 `events.jsonl` receives only what the tutor sees.
 
 ### Tutor bridge

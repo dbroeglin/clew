@@ -158,6 +158,17 @@ class CanvasBrowserTest(unittest.TestCase):
         self.assertEqual(served.headers["content-type"], "application/pdf")
         self.shot(page, "pdf-opened")
         page.locator("#reading details > summary").click()
+        navigation = page.locator("#reading .course-navigation")
+        page.wait_for_function("() => document.querySelector('#reading .course-navigation select')?.options.length === 2")
+        self.assertEqual(page.locator("#reading .course-body h1").all_text_contents(), ["Geometric limits"])
+        navigation.get_by_role("button", name="Section suivante").click()
+        self.assertEqual(page.locator("#reading .course-body h1").all_text_contents(), ["Subsequences"])
+        self.assertEqual(page.locator("#reading .course-body h1").count(), 1)
+        self.assertEqual(navigation.locator('[data-slot="section-position"]').inner_text(), "Section 2 sur 2")
+        self.wait_state(lambda s: any(section["title"] == "Subsequences" for section in s["course_sections_opened"]))
+        self.shot(page, "course-section-navigation")
+        navigation.get_by_role("button", name="Section précédente").click()
+        self.assertEqual(page.locator("#reading .course-body h1").all_text_contents(), ["Geometric limits"])
         page.locator('#reading a[href*="course.pdf"]').first.click()
         self.toast(page, "PDF introuvable : course.pdf")
         self.assertEqual(len(self.cmd("opened")), 1)
@@ -171,6 +182,7 @@ class CanvasBrowserTest(unittest.TestCase):
         digest = self.cmd("digest")["additionalContext"]
         self.assertIn("revealed hint 2/2", digest)
         self.assertIn("opened the PDF", digest)
+        self.assertIn('opened section 2/2 "Subsequences"', digest)
         self.assertIsNone(self.cmd("digest"))
 
         # Ask the tutor: fixed visible prompt, hidden context without hint contents.
@@ -201,6 +213,8 @@ class CanvasBrowserTest(unittest.TestCase):
         self.assertIsNone(self.cmd("digest"))
 
         # Live reload after a note edit keeps the open exercise and correction.
+        page.locator("#reading .course-navigation").get_by_role("button", name="Section suivante").click()
+        self.assertEqual(page.locator("#reading .course-body h1").all_text_contents(), ["Subsequences"])
         sheet = Path(self.info["chapter"]) / "Exercise-sheet" / "sheet.md"
         sheet.write_text(sheet.read_text(encoding="utf-8").replace("2. Find a bound.", "2. Find an upper bound."),
                          encoding="utf-8")
@@ -208,6 +222,7 @@ class CanvasBrowserTest(unittest.TestCase):
                                timeout=30000)
         self.assertTrue(page.locator(f"{question(Q1)} .correction").is_visible())
         self.assertEqual(page.evaluate("() => document.querySelector('.sheet .exercise').open"), True)
+        self.assertEqual(page.locator("#reading .course-body h1").all_text_contents(), ["Subsequences"])
         self.shot(page, "live-reload")
 
         # A broken layout keeps the last content with a visible status, then recovers.
@@ -237,11 +252,12 @@ class CanvasBrowserTest(unittest.TestCase):
         self.cmd("close", instance="c1")
         events = [json.loads(line) for line in (activity / "activity.jsonl").read_text(encoding="utf-8").splitlines()]
         types = {event.get("type") for event in events}
-        for expected in ("canvas_opened", "exercise_started", "hint_revealed", "course_opened", "correction_shown",
-                         "pdf_opened", "tutor_requested", "tutor_show", "content_changed", "canvas_closed"):
+        for expected in ("canvas_opened", "exercise_started", "hint_revealed", "course_opened", "course_section_opened",
+                         "correction_shown", "pdf_opened", "tutor_requested", "tutor_show", "content_changed", "canvas_closed"):
             self.assertIn(expected, types)
         summary = (activity / "summary.md").read_text(encoding="utf-8")
         self.assertIn("Question 1", summary)
+        self.assertIn("Section 2/2 · Subsequences", summary)
         self.assertIn("Suites · révision", summary)
 
 

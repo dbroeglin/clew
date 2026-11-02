@@ -26,6 +26,7 @@
   let questionsByAddress = new Map();
   let courses = new Map();
   let coursesByAddress = new Map();
+  let courseSectionRenderers = new Map();
   let exercises = new Map();
   let correctionControls = [];
   let stack = [];
@@ -113,6 +114,27 @@
   }
   const slot = (root, name) => required(root, '[data-slot="' + name + '"]');
   const action = (root, name) => required(root, '[data-action="' + name + '"]');
+  function courseSections(markup) {
+    const template = document.createElement("template");
+    template.innerHTML = markup;
+    const sections = [];
+    const introduction = [];
+    let current = null;
+    for (const node of [...template.content.childNodes]) {
+      if (node.nodeType === Node.ELEMENT_NODE && node.tagName === "H1") {
+        current = {title: node.textContent.trim() || `Section ${sections.length + 1}`, nodes: []};
+        if (!sections.length) current.nodes.push(...introduction.splice(0));
+        sections.push(current);
+      }
+      (current ? current.nodes : introduction).push(node);
+    }
+    if (!sections.length) return [{title: "Cours", html: markup}];
+    return sections.map((section, index) => {
+      const container = document.createElement("div");
+      section.nodes.forEach(node => container.append(node));
+      return {title: section.title, html: container.innerHTML, index: index + 1, total: sections.length};
+    });
+  }
   function content(markup) {
     const fragment = clone("content");
     slot(fragment, "content").innerHTML = markup;
@@ -323,6 +345,7 @@
     courses = new Map(data.courses.map(item => [item.id, item]));
     coursesByAddress = new Map();
     data.courses.forEach(item => { if (!coursesByAddress.has(item.address)) coursesByAddress.set(item.address, item); });
+    courseSectionRenderers = new Map();
     exercises = new Map(data.exercises.map(item => [item.address, item]));
     correctionControls = [];
     document.title = data.title;
@@ -340,11 +363,52 @@
       details.dataset.course = id;
       slot(details, "title").textContent = course.title;
       const body = slot(details, "body");
-      body.innerHTML = course.html;
+      const sections = courseSections(course.html);
+      const navigation = slot(fragment, "navigation");
+      const previousSection = action(navigation, "previous-section");
+      const nextSection = action(navigation, "next-section");
+      const sectionSelect = slot(navigation, "section-select");
+      const sectionPosition = slot(navigation, "section-position");
+      sections.forEach((section, index) => {
+        const option = document.createElement("option");
+        option.value = String(index);
+        option.textContent = section.title;
+        sectionSelect.append(option);
+      });
+      navigation.hidden = sections.length < 2;
+      let selectedSection = -1;
+      function selectSection(index, {student = true} = {}) {
+        if (!Number.isInteger(index) || index < 0 || index >= sections.length || index === selectedSection) return;
+        selectedSection = index;
+        details.dataset.sectionIndex = String(index);
+        sectionSelect.value = String(index);
+        previousSection.disabled = index === 0;
+        nextSection.disabled = index === sections.length - 1;
+        sectionPosition.textContent = `Section ${index + 1} sur ${sections.length}`;
+        body.innerHTML = sections[index].html;
+        if (details.open) typeset(body);
+        if (student) {
+          const section = sections[index];
+          record("course_section_opened", {
+            course: course.address, section: section.index, total: section.total, title: section.title,
+          });
+        }
+      }
+      selectSection(0, {student: false});
+      courseSectionRenderers.set(course.address, index => selectSection(index, {student: false}));
+      previousSection.addEventListener("click", () => selectSection(selectedSection - 1));
+      nextSection.addEventListener("click", () => selectSection(selectedSection + 1));
+      sectionSelect.addEventListener("change", () => selectSection(Number(sectionSelect.value)));
       reading.append(fragment);
       details.addEventListener("toggle", () => {
         if (!details.open) return;
-        if (!details.dataset.quiet) record("course_opened", {course: course.address});
+        if (!details.dataset.quiet) {
+          record("course_opened", {course: course.address});
+          const section = sections[selectedSection];
+          record("course_section_opened", {
+            course: course.address, section: section.index, total: section.total, title: section.title,
+          });
+        }
         delete details.dataset.quiet;
         typeset(body);
       });
@@ -391,6 +455,9 @@
   function capture() {
     return {
       open: [...document.querySelectorAll(".sheet details[open]")].map(node => node.dataset.address),
+      sections: [...document.querySelectorAll("#reading details[data-address]")].map(node => ({
+        address: node.dataset.address, index: Number(node.dataset.sectionIndex) || 0,
+      })),
       corrections: correctionControls.filter(entry => !entry.correction.hidden).map(entry => entry.item.address),
       stack: stack.map(view => ({
         kind: view.kind, scroll: view.scroll,
@@ -403,6 +470,7 @@
   function restore(state) {
     const opened = new Set(state.open);
     document.querySelectorAll(".sheet details").forEach(node => { if (opened.has(node.dataset.address)) openQuietly(node); });
+    state.sections?.forEach(({address, index}) => courseSectionRenderers.get(address)?.(index));
     state.corrections.forEach(address => {
       const item = questionsByAddress.get(address);
       if (item) setCorrection(item, true, false);

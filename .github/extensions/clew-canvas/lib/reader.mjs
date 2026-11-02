@@ -313,7 +313,11 @@ export class Reader {
             return { ...entry, started: Boolean(state?.started), time: minutes(ms), progress: touched };
         });
         const result = { ...base, focus: progress.focus ?? undefined, exercises,
-            courses_opened: [...progress.courses].map(([address, count]) => ({ address, title: index.courses.get(address)?.title, count })) };
+            courses_opened: [...progress.courses].map(([address, count]) => ({ address, title: index.courses.get(address)?.title, count })),
+            course_sections_opened: [...progress.courseSections].flatMap(([address, sections]) =>
+                [...sections].map(([section, state]) => ({
+                    address, section, total: state.total, title: state.title, count: state.count,
+                }))) };
         if (courses) {
             result.courses = [...index.courses.values()].map((course) => ({ address: course.address, title: course.title }));
         }

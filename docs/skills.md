@@ -463,7 +463,12 @@ Obsidian vault (a folder containing `.obsidian`).
 
 The canvas shows the same exercises, progressive hints, methods, inline
 supplied corrections, explanations and course excerpts as the offline HTML,
-in French, following the app's light or dark theme. It recompiles when the
+in French, following the app's light or dark theme. Whole course documents
+remain intact in the vault, while the canvas reading view displays one top-level
+`h1` section at a time with previous/next controls and a section selector.
+Lower-level headings remain with their parent section; documents without `h1`
+headings have one view. Section navigation is recorded in the activity log.
+It recompiles when the
 selected notes or the layout change; on a compile error it keeps the previous
 content and shows "Contenu non actualisé". Links and PDFs open outside the
 canvas with the system's default handler; in-vault PDFs are served by the
@@ -477,8 +482,8 @@ Activity is written by the extension only, under
 
 | File | Content |
 | --- | --- |
-| `activity.jsonl` | Header (layout, source notes with hashes, session ID), then one versioned event per line: `exercise_started`, `method_shown`, `hint_revealed`, `correction_shown`, `correction_hidden`, `explanation_opened`, `course_opened`, `pdf_opened`, `link_opened`, `tutor_requested`, canvas lifecycle and `content_changed`. |
-| `summary.md` | Deterministic French summary, rewritten after each action: totals, time and progress per exercise and question, courses, links and PDFs opened, and the publication's notes. Time sums gaps between events, each capped at 10 minutes. |
+| `activity.jsonl` | Header (layout, source notes with hashes, session ID), then one versioned event per line: `exercise_started`, `method_shown`, `hint_revealed`, `correction_shown`, `correction_hidden`, `explanation_opened`, `course_opened`, `course_section_opened`, `pdf_opened`, `link_opened`, `tutor_requested`, canvas lifecycle and `content_changed`. |
+| `summary.md` | Deterministic French summary, rewritten after each action: totals, time and progress per exercise and question, courses and sections opened, links and PDFs opened, and the publication's notes. Time sums gaps between events, each capped at 10 minutes. |
 | `.clew-activity/` | `layout.json` snapshot and `state.json` used to restore the canvas. |
 
 The tutor receives, before each student message, a hidden digest of the
@@ -576,7 +581,7 @@ Remove-Item Env:\CLEW_TEST_BROWSER
 pure modules, the reader with real data-mode compiles and file watching, and the
 HTTP server, restart and tutor bridge against a simulated session. The
 `tests/clew_canvas` browser check drives the canvas page in Edge through
-`browser_harness.mjs`: rendering, theme, math, hints, course panel, corrections,
+`browser_harness.mjs`: rendering, theme, math, hints, course section navigation, corrections,
 PDFs, ask/show, digest, live reload, compile errors, session pause and the
 activity files. `CLEW_TEST_HEADED=1` shows the browser and
 `CLEW_TEST_SCREENSHOTS=<folder>` saves a screenshot per step and on failure.

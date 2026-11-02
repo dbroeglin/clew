@@ -1,7 +1,7 @@
 /** Activity event vocabulary, validation and replay into progress. */
 export const STUDENT_EVENTS = new Set([
     "exercise_started", "method_shown", "hint_revealed", "correction_shown", "correction_hidden",
-    "explanation_opened", "course_opened",
+    "explanation_opened", "course_opened", "course_section_opened",
 ]);
 export const GAP_CAP_MS = 10 * 60_000;
 const CLOCK_SKEW_MS = 60_000;
@@ -46,8 +46,16 @@ export function studentEvent(input, index, now) {
     const { type } = input;
     if (!STUDENT_EVENTS.has(type)) throw new Error(`Unsupported event type: ${type}`);
     const event = withContext({ v: 1, ts: eventTime(input.ts, now), type, actor: "student" }, input, index);
-    const needs = { exercise_started: "exercise", course_opened: "course" }[type] ?? "question";
+    const needs = { exercise_started: "exercise", course_opened: "course", course_section_opened: "course" }[type] ?? "question";
     if (!event[needs]) throw new Error(`${type} requires ${needs}.`);
+    if (type === "course_section_opened") {
+        if (!Number.isInteger(input.section) || input.section < 1 || !Number.isInteger(input.total) ||
+            input.total < input.section) throw new Error("Invalid course section position.");
+        if (typeof input.title !== "string" || !input.title.trim() || input.title.length > 300) {
+            throw new Error("Invalid course section title.");
+        }
+        Object.assign(event, { section: input.section, total: input.total, title: input.title.trim() });
+    }
     if (type === "hint_revealed") {
         const total = index.questions.get(event.question).hints.length;
         if (!Number.isInteger(input.index) || input.index < 1 || input.index > total) {
@@ -72,6 +80,7 @@ export function replay(events) {
     const questions = new Map();
     const exercises = new Map();
     const courses = new Map();
+    const courseSections = new Map();
     const links = [];
     let focus = null;
     let previous = null;
@@ -119,6 +128,14 @@ export function replay(events) {
             case "correction_hidden": question(event.question).correction = false; break;
             case "explanation_opened": question(event.question).explanations += 1; break;
             case "course_opened": courses.set(event.course, (courses.get(event.course) ?? 0) + 1); break;
+            case "course_section_opened": {
+                if (!courseSections.has(event.course)) courseSections.set(event.course, new Map());
+                const sections = courseSections.get(event.course);
+                const state = sections.get(event.section) ?? { title: event.title, total: event.total, count: 0 };
+                state.count += 1;
+                sections.set(event.section, state);
+                break;
+            }
             case "link_opened":
             case "pdf_opened": links.push(event); break;
             case "tutor_requested": question(event.question).tutor += 1; break;
@@ -133,7 +150,7 @@ export function replay(events) {
             }
         }
     }
-    return { questions, exercises, courses, links, focus, first, last, tutorShows };
+    return { questions, exercises, courses, courseSections, links, focus, first, last, tutorShows };
 }
 
 export function minutes(ms) {
