@@ -25,6 +25,15 @@ line-range mappings or regenerated boundaries.
 unit comments, native exercise/correction entry anchors, and question/answer
 anchors. It does not consume or migrate the legacy exercise-per-note layout.
 
+Mixed documents can provide questions, supplied answers, and course passages
+without splitting their source. Question targets accept `exercise` or `mixed`,
+answer sources accept `correction` or `mixed`, and course references accept
+`course` or `mixed`. Typed scopes, anchored fragments, and verified relationships
+still establish ownership; role eligibility does not establish pedagogical
+relevance. A complete preparation record with only section units has no aid
+targets. The host stops for a separate preparation task rather than changing
+source structure or claiming an empty enrichment succeeded.
+
 The host agent reads selected current notes, decides semantic question/answer
 and course matches, drafts in scratch, reviews exact prose, obtains approval,
 and writes separate `aides/` notes with `type: help`. Hints and explanations are anchored
