@@ -4,12 +4,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 import { pathToFileURL } from "node:url";
-import { clock, fakeCompile, fixtureData, makeVault, SESSION, until } from "./helpers.mjs";
+import { clock, fakeCompile, fixtureData, makeVault, REPO, SESSION, until } from "./helpers.mjs";
 
 const { Reader, publishedLinks, topmost, ASK_INTERVAL_MS } = await import(new URL("../../.github/extensions/clew-canvas/lib/reader.mjs", import.meta.url));
+const { loadUi } = await import(new URL("../../.github/extensions/clew-canvas/lib/ui.mjs", import.meta.url));
 const { readJsonl } = await import(new URL("../../.github/extensions/clew-canvas/lib/activity.mjs", import.meta.url));
 
 const data = await fixtureData();
+const ui = loadUi(REPO);
 const Q1 = "sheet#^q-1";
 const SHEET_PDF = "Maths/Suites%20r%C3%A9vision/Exercise-sheet/sheet.pdf#page=2";
 
@@ -17,7 +19,7 @@ function makeReader(t, { compile = fakeCompile(data), now = clock("2026-11-01T12
                          vaultInfo = makeVault(t), debounceMs = 50 } = {}) {
     const logs = [];
     const reader = new Reader({ rid: "0123456789ab", layout: vaultInfo.layout, vault: vaultInfo.vault, repoRoot: "R",
-        session: SESSION, cacheDir: join(vaultInfo.root, "cache"), compile, now, debounceMs, watchFiles,
+        session: SESSION, cacheDir: join(vaultInfo.root, "cache"), compile, now, debounceMs, watchFiles, ui,
         log: (message, level) => logs.push([level, message]) });
     t.after(() => reader.dispose());
     return Object.assign(reader, { logs, vaultInfo, now });

@@ -74,7 +74,7 @@ English for maintainers.
    instance. `status` is `ready` when the publication is displayed and
    `error` (with `error`) when it failed to compile. Tell the student that the
    canvas is open, that the activity is recorded under the returned
-   `activity` folder of the vault, and that the "Demander au tuteur" button
+   `activity` folder of the vault, and that the "Ask the tutor" button
    on each question asks you for help.
 
 ## 2. Tutor
@@ -86,7 +86,7 @@ What you receive:
   actions in the canvas: exercises started, hints revealed, corrections
   shown, course passages and PDFs opened, and help requests. Use it as
   context; do not recite it.
-- When the student presses "Demander au tuteur", their visible message is
+- When the student presses "Ask the tutor", their visible message is
   "I need help with this question". Its hidden context starts with
   `[Clew canvas]` and gives the question address, the progress on that
   question and its statement.

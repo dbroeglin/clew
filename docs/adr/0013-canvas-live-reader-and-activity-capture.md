@@ -28,11 +28,17 @@ Implement the project extension `clew-canvas` with one canvas, opened with the
 path of a version-1 Generate layout stored in the vault at
 `Activity/Layouts/<publication>.json`. The extension compiles the layout with
 Generate's data mode, which writes the compiled publication as JSON (no HTML,
-`output` ignored, paths relative to the vault), and serves a French reader
-with the same views as the offline HTML. It watches the selected notes and the
-layout and recompiles after edits, preserving the open exercise, revealed hints
-and correction state; a failed recompile keeps the last good content visible
-as stale. Offline HTML publication is unchanged.
+`output` ignored, paths relative to the vault), and serves a reader with the
+same views as the offline HTML and an English application interface. It watches
+the selected notes and layout, recompiling after edits while preserving the
+open exercise, revealed hints and correction state; a failed recompile keeps
+the last good content visible as stale. Offline HTML remains self-contained
+and does not store progress.
+
+The Canvas and offline HTML use the same English message catalog at
+`.agents/skills/clew-generate/assets/locales/en.json`. Source course and
+exercise content keeps its original language. Additional locale catalogs and
+locale selection are not implemented.
 
 Whole course documents remain whole in the publication and vault. In the Canvas,
 the reading view displays one top-level Markdown `h1` section at a time, with
@@ -67,7 +73,7 @@ folders, in `Activity/<YYYY-MM-DD>-<publication>-<session8>/`:
 Clicks and section navigation are captured, not scrolling or focus. Course
 section visits include the course address, section title and its position in
 the document. Top-level `h1` headings define sections; a course without them is
-one `Cours` section. When a document changes, replay keeps the latest title and
+one `Course` section. When a document changes, replay keeps the latest title and
 section count for each visited position. Time per exercise is derived from gaps
 between events, each gap capped at ten minutes. The session's
 `events.jsonl` receives only what the tutor sees.
@@ -76,7 +82,7 @@ between events, each gap capped at ten minutes. The session's
 
 Bring activity to the agent through two triggers only: a digest of the actions
 since the previous message, added as hidden context on the next user prompt,
-and a per-question "Demander au tuteur" button that sends the fixed visible
+and a per-question "Ask the tutor" button that sends the fixed visible
 prompt "I need help with this question" with hidden question context. There is
 no free-text box and no rule-based intervention.
 

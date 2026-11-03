@@ -9,6 +9,7 @@ import { askPrompt, digestText } from "./digest.mjs";
 import { minutes, replay, studentEvent, withContext } from "./events.mjs";
 import { isInside, toPosix, vaultPath } from "./paths.mjs";
 import { renderSummary } from "./summary.mjs";
+import { uiText } from "./ui.mjs";
 
 const SOURCE_FILE = /\.(md|png|jpe?g|gif|webp)$/i;
 export const ASK_INTERVAL_MS = 5000;
@@ -46,8 +47,8 @@ export function topmost(dirs) {
 
 export class Reader {
     constructor({ rid, layout, vault, repoRoot, session, cacheDir, compile = compileData, now = () => new Date(),
-                  debounceMs = 1500, watchFiles = true, log = () => {} }) {
-        Object.assign(this, { rid, layout, vault, repoRoot, session, cacheDir, compile, now, debounceMs, watchFiles, log });
+                  debounceMs = 1500, watchFiles = true, log = () => {}, ui }) {
+        Object.assign(this, { rid, layout, vault, repoRoot, session, cacheDir, compile, now, debounceMs, watchFiles, log, ui });
         this.layoutRel = vaultPath(vault, layout);
         this.status = "idle";
         this.error = null;
@@ -219,14 +220,18 @@ export class Reader {
     /** Classify a published external link; PDFs inside the vault get a vault-relative path. */
     resolveLink(href) {
         this.requireData();
-        if (typeof href !== "string" || !this.links.has(href)) throw new RequestError(400, "Lien absent de la publication.");
+        if (typeof href !== "string" || !this.links.has(href)) {
+            throw new RequestError(400, uiText(this.ui, "error.link_not_published"));
+        }
         if (/^(https?|mailto):/i.test(href)) return { type: "link_opened", url: href };
         const at = href.indexOf("#");
         const path = at < 0 ? href : href.slice(0, at);
         const page = Number(/(?:^|&)page=(\d+)/.exec(at < 0 ? "" : href.slice(at + 1))?.[1]) || undefined;
         const file = path.startsWith("file:") ? fileURLToPath(path) : resolve(this.vault, decodeURIComponent(path));
-        if (!/\.pdf$/i.test(file)) throw new RequestError(400, "Seuls les PDF locaux peuvent être ouverts.");
-        if (!existsSync(file)) throw new RequestError(404, `PDF introuvable : ${basename(file)}`);
+        if (!/\.pdf$/i.test(file)) throw new RequestError(400, uiText(this.ui, "error.pdf_local_only"));
+        if (!existsSync(file)) {
+            throw new RequestError(404, uiText(this.ui, "error.pdf_not_found", { name: basename(file) }));
+        }
         const inside = isInside(this.vault, file);
         return { type: "pdf_opened", url: inside ? vaultPath(this.vault, file) : pathToFileURL(file).href, page, file, inside };
     }
@@ -255,7 +260,7 @@ export class Reader {
     ask(address, instance) {
         const index = this.requireData();
         const question = index.questions.get(address);
-        if (!question) throw new RequestError(400, "Question inconnue.");
+        if (!question) throw new RequestError(400, uiText(this.ui, "error.unknown_question"));
         const time = this.now().getTime();
         if (time - (this.lastAsk.get(address) ?? -Infinity) < ASK_INTERVAL_MS) return null;
         this.lastAsk.set(address, time);

@@ -464,7 +464,12 @@ Obsidian vault (a folder containing `.obsidian`).
 
 The canvas shows the same exercises, progressive hints, methods, inline
 supplied corrections, explanations and course excerpts as the offline HTML,
-in French, following the app's light or dark theme. Whole course documents
+with an English application interface, following the app's light or dark theme.
+Course and exercise content keeps its source language. The tutor continues to
+speak French, and the activity summary remains in French. The Canvas and
+offline HTML share the message catalog at
+`.agents/skills/clew-generate/assets/locales/en.json`; locale selection is not
+implemented. Whole course documents
 remain intact in the vault, while the canvas reading view displays one top-level
 `h1` section at a time with previous/next controls and a section selector.
 Lower-level headings remain with their parent section; documents without `h1`
@@ -473,9 +478,9 @@ Course sections are parsed on first open, and exercise question controls are
 created when their exercise is opened; the complete publication remains intact.
 It recompiles when the
 selected notes or the layout change; on a compile error it keeps the previous
-content and shows "Contenu non actualisé". Links and PDFs open outside the
+content and shows "Content is out of date". Links and PDFs open outside the
 canvas with the system's default handler; in-vault PDFs are served by the
-extension at the cited page, and a missing PDF shows "PDF introuvable". If the
+extension at the cited page, and a missing PDF shows "PDF not found". If the
 session stops while the canvas is open, a
 banner appears; actions are kept in the page and recorded when the session
 returns, as long as the canvas stays open.
@@ -490,7 +495,7 @@ Activity is written by the extension only, under
 | `.clew-activity/` | `layout.json` snapshot and `state.json` used to restore the canvas. |
 
 The tutor receives, before each student message, a hidden digest of the
-actions since the previous message. Each question's "Demander au tuteur"
+actions since the previous message. Each question's "Ask the tutor"
 button sends the visible message "I need help with this question" with hidden
 question context. The agent can call two canvas actions: `get_state`
 (`{"question": "<address>"}` or `{"courses": true}` for details) and `show`

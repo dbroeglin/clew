@@ -118,33 +118,33 @@ class CanvasBrowserTest(unittest.TestCase):
         page.evaluate("() => document.documentElement.setAttribute('data-color-mode', 'light')")
         page.wait_for_function("() => document.documentElement.dataset.theme === 'light'")
 
-        page.get_by_role("button", name="Commencer l'exercice").first.click()
+        page.get_by_role("button", name="Start exercise").first.click()
         page.wait_for_selector(".sheet .exercise[open] mjx-container svg")
         self.assertGreater(page.locator(".sheet .question").count(), 0)
         self.wait_state(lambda s: s["exercises"][0].get("started"))
         self.shot(page, "exercise-started-math")
 
-        # Hints, course link inside a hint, Retour and Fermer.
+        # Hints, course link inside a hint, Back and Close.
         q1 = page.locator(question(Q1))
-        q1.get_by_role("button", name="Indices", exact=True).click()
+        q1.get_by_role("button", name="Hints", exact=True).click()
         self.assertEqual(page.locator("#panel-content .hint:not([hidden])").count(), 1)
-        page.get_by_role("button", name="Révéler l'indice suivant").click()
+        page.get_by_role("button", name="Reveal next hint").click()
         self.assertEqual(page.locator("#panel-content .hint:not([hidden])").count(), 2)
-        self.assertTrue(page.get_by_role("button", name="Révéler l'indice suivant").is_hidden())
+        self.assertTrue(page.get_by_role("button", name="Reveal next hint").is_hidden())
         self.wait_state(lambda s: self.progress(s, Q1).get("hints") == "2/2")
         self.shot(page, "hints-revealed")
         page.locator("#panel-content").get_by_role("link", name="the geometric limit result").click()
         page.wait_for_function("() => document.getElementById('panel-title').textContent === 'Geometric limit result'")
         self.wait_state(lambda s: any(c["address"] == "course#^theorem" for c in s["courses_opened"]))
         self.shot(page, "course-from-hint")
-        page.get_by_role("button", name="Retour", exact=True).click()
-        page.wait_for_function("() => document.getElementById('panel-title').textContent.startsWith('Indices')")
+        page.get_by_role("button", name="Back", exact=True).click()
+        page.wait_for_function("() => document.getElementById('panel-title').textContent.startsWith('Hints')")
         self.assertEqual(page.locator("#panel-content .hint:not([hidden])").count(), 2)
-        page.get_by_role("button", name="Fermer", exact=True).click()
-        self.assertEqual(page.locator("#panel-title").inner_text(), "Aide contextuelle")
+        page.get_by_role("button", name="Close", exact=True).click()
+        self.assertEqual(page.locator("#panel-title").inner_text(), "Contextual help")
 
         # Supplied correction.
-        q1.get_by_role("button", name="Afficher la correction").click()
+        q1.get_by_role("button", name="Show correction").click()
         page.wait_for_selector(f"{question(Q1)} .correction:not([hidden]) mjx-container, "
                                f"{question(Q1)} .correction:not([hidden])")
         self.wait_state(lambda s: self.progress(s, Q1).get("correction_viewed"))
@@ -152,7 +152,7 @@ class CanvasBrowserTest(unittest.TestCase):
 
         # Published PDF links open through the extension; missing files and opener failures are reported.
         q1.locator('a[href*="sheet.pdf#page=1"]').first.click()
-        self.toast(page, "Ouvert dans le navigateur.")
+        self.toast(page, "Opened in your browser.")
         target = self.cmd("opened")[-1]
         self.assertIn("/vault/Maths/Suites%20r%C3%A9vision/Exercise-sheet/sheet.pdf?t=", target)
         self.assertTrue(target.endswith("#page=1"))
@@ -169,21 +169,21 @@ class CanvasBrowserTest(unittest.TestCase):
         self.assertEqual(table.locator("tr").count(), 2)
         self.assertEqual(table.locator("td").all_text_contents(),
                          ["independent", "must be independent"])
-        navigation.get_by_role("button", name="Section suivante").click()
+        navigation.get_by_role("button", name="Next section").click()
         self.assertEqual(page.locator("#reading .course-body h1").all_text_contents(), ["Subsequences"])
         self.assertEqual(page.locator("#reading .course-body h1").count(), 1)
-        self.assertEqual(navigation.locator('[data-slot="section-position"]').inner_text(), "Section 2 sur 2")
+        self.assertEqual(navigation.locator('[data-slot="section-position"]').inner_text(), "Section 2 of 2")
         self.wait_state(lambda s: any(section["title"] == "Subsequences" for section in s["course_sections_opened"]))
         self.shot(page, "course-section-navigation")
-        navigation.get_by_role("button", name="Section précédente").click()
+        navigation.get_by_role("button", name="Previous section").click()
         self.assertEqual(page.locator("#reading .course-body h1").all_text_contents(), ["Geometric limits"])
         page.locator('#reading a[href*="course.pdf"]').first.click()
-        self.toast(page, "PDF introuvable : course.pdf")
+        self.toast(page, "PDF not found: course.pdf")
         self.assertEqual(len(self.cmd("opened")), 1)
         self.shot(page, "failure-missing-pdf")
         self.cmd("opener", fails=True)
         q1.locator('a[href*="sheet.pdf#page=1"]').first.click()
-        self.toast(page, "Impossible d'ouvrir le lien")
+        self.toast(page, "Could not open link")
         self.shot(page, "failure-opener")
         self.cmd("opener", fails=False)
 
@@ -194,8 +194,8 @@ class CanvasBrowserTest(unittest.TestCase):
         self.assertIsNone(self.cmd("digest"))
 
         # Ask the tutor: fixed visible prompt, hidden context without hint contents.
-        q1.get_by_role("button", name="Demander au tuteur").click()
-        self.toast(page, "Demande envoyée au tuteur")
+        q1.get_by_role("button", name="Ask the tutor").click()
+        self.toast(page, "Request sent to the tutor")
         sent = self.cmd("sent")
         self.assertEqual(len(sent), 1)
         self.assertEqual(sent[0]["displayPrompt"], "I need help with this question")
@@ -203,7 +203,7 @@ class CanvasBrowserTest(unittest.TestCase):
         self.assertIn("hints revealed 2/2", sent[0]["prompt"])
         for text in HINT_TEXT:
             self.assertNotIn(text, sent[0]["prompt"])
-        self.assertTrue(q1.get_by_role("button", name="Demander au tuteur").is_disabled())
+        self.assertTrue(q1.get_by_role("button", name="Ask the tutor").is_disabled())
         self.shot(page, "tutor-asked")
 
         # Tutor show: scrolls and highlights without recording student actions.
@@ -211,7 +211,7 @@ class CanvasBrowserTest(unittest.TestCase):
         self.assertEqual(shown, {"shown": "question", "address": Q3, "delivered": True})
         page.wait_for_selector(f"{question(Q3)}.clew-shown")
         self.assertEqual(page.locator(question(Q3)).count(), 1)
-        self.toast(page, "Le tuteur vous montre : Question 3")
+        self.toast(page, "Your tutor is showing you: Question 3")
         self.shot(page, "tutor-show-question")
         self.cmd("show", instance="c1", target="course#Geometric limits")
         page.wait_for_function("() => document.getElementById('panel-title').textContent === 'Geometric limits'")
@@ -222,7 +222,7 @@ class CanvasBrowserTest(unittest.TestCase):
         self.assertIsNone(self.cmd("digest"))
 
         # Live reload after a note edit keeps the open exercise and correction.
-        page.locator("#reading .course-navigation").get_by_role("button", name="Section suivante").click()
+        page.locator("#reading .course-navigation").get_by_role("button", name="Next section").click()
         self.assertEqual(page.locator("#reading .course-body h1").all_text_contents(), ["Subsequences"])
         sheet = Path(self.info["chapter"]) / "Exercise-sheet" / "sheet.md"
         sheet.write_text(sheet.read_text(encoding="utf-8").replace("2. Find a bound.", "2. Find an upper bound."),
@@ -248,7 +248,7 @@ class CanvasBrowserTest(unittest.TestCase):
             page.wait_for_function("() => !document.querySelector('#reading details').open")
         details.locator("summary").click()
         page.wait_for_function("() => document.querySelector('#reading details').open")
-        self.wait_state(lambda s: any(section["title"] == "Cours" and section["total"] == 1
+        self.wait_state(lambda s: any(section["title"] == "Course" and section["total"] == 1
                                       for section in s["course_sections_opened"]))
         self.shot(page, "course-single-view")
 
@@ -259,8 +259,8 @@ class CanvasBrowserTest(unittest.TestCase):
                           encoding="utf-8")
         page.wait_for_function("() => { const status = document.getElementById('status'); "
                                "return status.dataset.status === 'stale' && !status.hidden "
-                               "&& status.textContent.includes('Contenu non actualisé'); }", timeout=30000)
-        self.assertIn("Contenu non actualisé", page.locator("#status").inner_text())
+                               "&& status.textContent.includes('Content is out of date'); }", timeout=30000)
+        self.assertIn("Content is out of date", page.locator("#status").inner_text())
         self.assertEqual(page.locator(".sheet .question").count(), 3)
         self.shot(page, "failure-compile-error")
         layout.write_text(original, encoding="utf-8")
@@ -269,7 +269,7 @@ class CanvasBrowserTest(unittest.TestCase):
         # A paused session shows the banner, buffers events and delivers them after the restart.
         self.cmd("pause")
         page.wait_for_selector("#server-error:not([hidden])", timeout=15000)
-        page.locator(question(Q2)).get_by_role("button", name="Afficher la correction").click()
+        page.locator(question(Q2)).get_by_role("button", name="Show correction").click()
         self.shot(page, "failure-session-paused")
         self.cmd("resume")
         page.wait_for_selector("#server-error", state="hidden", timeout=30000)

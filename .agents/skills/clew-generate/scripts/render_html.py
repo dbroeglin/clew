@@ -13,6 +13,21 @@ from notes import Library, Note, hide_comments, local_path, parser, require
 
 ASSETS = Path(__file__).resolve().parent.parent / "assets"
 
+
+def load_ui() -> dict:
+    path = ASSETS / "locales" / "en.json"
+    ui = json.loads(path.read_text(encoding="utf-8"))
+    require(ui.get("locale") == "en" and isinstance(ui.get("messages"), dict),
+            f"Invalid Clew UI catalog: {path}")
+    return ui
+
+
+def ui_text(ui: dict, key: str) -> str:
+    value = ui["locale"] if key == "locale" else ui["messages"].get(key)
+    require(isinstance(value, str), f"Missing Clew UI message: {key}")
+    return value
+
+
 class _StaticTableParser(HTMLParser):
     """Render a deliberately small, inert subset of source HTML tables."""
 
@@ -379,7 +394,10 @@ def assemble(data: dict) -> str:
     template = (ASSETS / "template.html").read_text(encoding="utf-8")
     runtime = (ASSETS / "mathjax" / "tex-svg.js").read_text(encoding="utf-8")
     require("</script" not in runtime.lower(), "Math runtime contains an unsafe script terminator.")
-    encoded = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+    ui = data["ui"] if "ui" in data else load_ui()
+    require(isinstance(ui, dict) and ui.get("locale") == "en" and isinstance(ui.get("messages"), dict),
+            "Invalid Clew UI catalog.")
+    encoded = json.dumps({**data, "ui": ui}, ensure_ascii=False, separators=(",", ":"))
     encoded = encoded.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
     encoded = encoded.replace("\u2028", "\\u2028").replace("\u2029", "\\u2029")
     licenses = ((ASSETS.parent / "LICENSE").read_text(encoding="utf-8") + "\n\n"
@@ -393,5 +411,8 @@ def assemble(data: dict) -> str:
         "MATHJAX": runtime,
         "SCRIPT": (ASSETS / "interaction.js").read_text(encoding="utf-8"),
     }
+    template = re.sub(r"\{\{UI:([a-z0-9_.]+)\}\}",
+                      lambda match: html.escape(ui_text(ui, match[1]), quote=True), template)
+    require(not re.search(r"\{\{UI:[^}]+\}\}", template), "Unresolved Clew UI template placeholder.")
     return re.sub(r"\{\{(TITLE|STYLE|DATA|LICENSE|MATHJAX|SCRIPT)\}\}",
                   lambda match: values[match[1]], template)

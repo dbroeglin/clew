@@ -8,16 +8,31 @@
   const base = window.location.pathname.replace(/[^/]*$/, "");
   const query = "?t=" + encodeURIComponent(token) + (instance ? "&i=" + encodeURIComponent(instance) : "");
   const byId = id => document.getElementById(id);
+  const UI = JSON.parse(byId("ui-data").textContent);
+  const uiMessages = UI.messages;
+  function uiText(key, values = {}) {
+    const template = uiMessages[key];
+    if (typeof template !== "string") throw new Error("Missing Clew UI message: " + key);
+    return template.replace(/\{([A-Za-z][A-Za-z0-9_]*)\}/g, (_, name) => {
+      if (!Object.prototype.hasOwnProperty.call(values, name)) {
+        throw new Error("Missing value \"" + name + "\" for Clew UI message: " + key);
+      }
+      return String(values[name]);
+    });
+  }
   const panel = byId("panel-content");
   const panelTitle = byId("panel-title");
   const panelBack = byId("panel-back");
   const panelClose = byId("panel-close");
   const aside = panel.closest(".panel");
   const placeholder = {title: panelTitle.textContent, text: panel.textContent};
-  const LABELS = {method: "Méthode", hints: "Indices", explanations: "Explications"};
+  const LABELS = {
+    method: uiText("app.method"), hints: uiText("app.hints"), explanations: uiText("app.explanations"),
+  };
   const STATUS = {
-    idle: "Démarrage…", compiling: "Compilation de la publication…", updating: "Mise à jour…",
-    ready: "", error: "Erreur de compilation", stale: "Contenu non actualisé",
+    idle: uiText("status.idle"), compiling: uiText("status.compiling"), updating: uiText("status.updating"),
+    ready: uiText("status.ready"), error: uiText("status.error_without_detail"),
+    stale: uiText("status.stale_without_detail"),
   };
 
   let data = null;
@@ -88,7 +103,7 @@
       }
       retryDelay = 1000;
       outbox.splice(0, batch.length);
-      if (!result.ok || result.body?.rejected?.length) console.warn("Clew : événements refusés", result.body);
+      if (!result.ok || result.body?.rejected?.length) console.warn("Clew: rejected events", result.body);
     }
   }
 
@@ -99,9 +114,9 @@
       return MathJax.typesetPromise([target]);
     }).then(() => {
       if (target.querySelector("mjx-merror, [data-mjx-error]")) {
-        error("Une formule n'a pas pu être rendue. Vérifiez le contenu mathématique des notes.");
+        error(uiText("error.math_not_rendered"));
       }
-    }).catch(reason => error("Erreur de rendu mathématique : " + reason.message));
+    }).catch(reason => error(uiText("error.math_render", {message: reason.message})));
     return typesetQueue;
   }
   function required(root, selector) {
@@ -130,7 +145,7 @@
       }
       (current ? current.nodes : introduction).push(node);
     }
-    if (!sections.length) return [{title: "Cours", html: markup, index: 1, total: 1}];
+    if (!sections.length) return [{title: uiText("course.default_title"), html: markup, index: 1, total: 1}];
     return sections.map((section, index) => {
       const container = document.createElement("div");
       section.nodes.forEach(node => container.append(node));
@@ -280,10 +295,10 @@
     try {
       await flush();
       const result = await call("ask", {method: "POST", body: JSON.stringify({question: item.address, instance})});
-      toast(result.ok ? "Demande envoyée au tuteur : sa réponse s'affiche dans la conversation Copilot."
-        : (result.body?.error || "Le tuteur n'est pas joignable pour le moment."));
+      toast(result.ok ? uiText("toast.ask_sent")
+        : (result.body?.error || uiText("toast.tutor_unavailable")));
     } catch {
-      toast("Le tuteur n'est pas joignable pour le moment.");
+      toast(uiText("toast.tutor_unavailable"));
     }
     setTimeout(() => { button.disabled = false; }, 5000);
   }
@@ -398,7 +413,7 @@
         sectionSelect.value = String(index);
         previousSection.disabled = index === 0;
         nextSection.disabled = index === sections.length - 1;
-        sectionPosition.textContent = `Section ${index + 1} sur ${sections.length}`;
+        sectionPosition.textContent = uiText("section.position", {current: index + 1, total: sections.length});
         body.innerHTML = sections[index].html;
         if (details.open) typeset(body);
         if (student) {
@@ -529,9 +544,9 @@
   async function openExternal(href, question) {
     try {
       const result = await call("open", {method: "POST", body: JSON.stringify({href, question})});
-      toast(result.ok ? "Ouvert dans le navigateur." : (result.body?.error || "Impossible d'ouvrir ce lien."));
+      toast(result.ok ? uiText("toast.link_opened") : (result.body?.error || uiText("toast.open_link_failed")));
     } catch {
-      toast("Impossible d'ouvrir ce lien : le lecteur Clew n'est pas joignable.");
+      toast(uiText("toast.open_link_unavailable"));
     }
   }
   function followAnchor(event, link) {
@@ -611,7 +626,7 @@
         openPanel({kind: "course", id: course.id}, {student: false});
         highlight(panel);
       }
-      if (course) toast("Le tuteur vous montre : " + course.title);
+      if (course) toast(uiText("toast.tutor_shows", {title: course.title}));
       return;
     }
     let node = document.querySelector('.sheet [data-address="' + CSS.escape(message.address) + '"]');
@@ -628,7 +643,7 @@
     highlight(node);
     const title = message.kind === "question" ? questionsByAddress.get(message.address)?.label
       : exercises.get(message.address)?.title;
-    if (title) toast("Le tuteur vous montre : " + title);
+    if (title) toast(uiText("toast.tutor_shows", {title}));
   }
 
   // Data, status and the live stream.
@@ -658,7 +673,7 @@
       }
       render(next, nextVersion);
     } catch (reason) {
-      if (!data) error("Impossible de charger la publication : " + reason.message);
+      if (!data) error(uiText("error.load_publication", {message: reason.message}));
     } finally {
       loading = false;
       if (reloadAgain) {
@@ -670,7 +685,9 @@
   function showStatus(state, reload = true) {
     const line = byId("status");
     let text = STATUS[state.status] ?? "";
-    if ((state.status === "error" || state.status === "stale") && state.error) text += " : " + state.error;
+    if (state.status === "error" || state.status === "stale") {
+      text = state.error ? uiText("status." + state.status, {error: state.error}) : STATUS[state.status];
+    }
     line.textContent = text;
     line.hidden = !text;
     line.dataset.status = state.status;
@@ -701,7 +718,7 @@
     };
   }
 
-  MathJax.startup.promise.catch(reason => error("Impossible d'initialiser les mathématiques : " + reason.message));
+  MathJax.startup.promise.catch(reason => error(uiText("error.math_init", {message: reason.message})));
   resetPanel();
   connect();
   load();

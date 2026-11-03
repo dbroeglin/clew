@@ -9,6 +9,7 @@ import { compileData } from "./compile.mjs";
 import { isTutorAgent, vaultWriteDenial } from "./guard.mjs";
 import { findVault, writeAtomic } from "./paths.mjs";
 import { Reader, RequestError } from "./reader.mjs";
+import { loadUi, renderUiTemplate, uiText } from "./ui.mjs";
 
 export const DISPLAY_PROMPT = "I need help with this question";
 const WEB = fileURLToPath(new URL("../web/", import.meta.url));
@@ -39,14 +40,14 @@ function send(res, status, body, type = "application/json; charset=utf-8") {
     res.end(typeof body === "string" || Buffer.isBuffer(body) ? body : JSON.stringify(body));
 }
 
-function readBody(req) {
+function readBody(req, ui) {
     return new Promise((done, fail) => {
         let size = 0;
         const chunks = [];
         req.on("data", (chunk) => {
             size += chunk.length;
             if (size > MAX_BODY) {
-                fail(new RequestError(413, "Requête trop volumineuse."));
+                fail(new RequestError(413, uiText(ui, "error.body_too_large")));
                 req.destroy();
             } else chunks.push(chunk);
         });
@@ -54,7 +55,7 @@ function readBody(req) {
             try {
                 done(JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}"));
             } catch {
-                fail(new RequestError(400, "JSON invalide."));
+                fail(new RequestError(400, uiText(ui, "error.invalid_json")));
             }
         });
         req.on("error", fail);
@@ -65,6 +66,7 @@ export class CanvasApp {
     constructor({ repoRoot, sessionId, stateDir, compile = compileData, opener = openExternal, log = () => {},
                   watchFiles = true, now = () => new Date(), debounceMs = 1500 }) {
         Object.assign(this, { repoRoot, sessionId, stateDir, compile, opener, log, watchFiles, now, debounceMs });
+        this.ui = loadUi(repoRoot);
         this.readers = new Map();
         this.session = null;
         this.tutorActive = false;
@@ -157,7 +159,7 @@ export class CanvasApp {
         if (!vault) return null;
         const reader = new Reader({ rid, layout, vault, repoRoot: this.repoRoot, session: this.sessionId,
             cacheDir: join(this.stateDir, "cache"), compile: this.compile, now: this.now, debounceMs: this.debounceMs,
-            watchFiles: this.watchFiles, log: this.log });
+            watchFiles: this.watchFiles, log: this.log, ui: this.ui });
         try {
             reader.layoutTitle = JSON.parse(readFileSync(layout, "utf8")).title;
         } catch {
@@ -196,7 +198,7 @@ export class CanvasApp {
         if (!reader.instances.has(ctx.instanceId)) reader.open(ctx.instanceId);
         else reader.retry();
         return { title: `Clew · ${reader.data?.title ?? reader.layoutTitle ?? "publication"}`, url: this.url(reader, ctx.instanceId),
-            status: reader.data ? "Prêt" : "Compilation…" };
+            status: reader.data ? uiText(this.ui, "canvas.ready") : uiText(this.ui, "status.compiling") };
     }
 
     close(ctx) {
@@ -242,9 +244,9 @@ export class CanvasApp {
 
     async handle(req, res) {
         const allowed = [`127.0.0.1:${this.port}`, `localhost:${this.port}`];
-        if (!allowed.includes(req.headers.host)) return send(res, 403, { error: "Hôte refusé." });
+        if (!allowed.includes(req.headers.host)) return send(res, 403, { error: uiText(this.ui, "error.host") });
         if (req.method === "POST" && req.headers.origin && !allowed.map((h) => `http://${h}`).includes(req.headers.origin)) {
-            return send(res, 403, { error: "Origine refusée." });
+            return send(res, 403, { error: uiText(this.ui, "error.origin") });
         }
         const url = new URL(req.url, `http://127.0.0.1:${this.port}`);
         const asset = this.static.get(url.pathname);
@@ -253,12 +255,12 @@ export class CanvasApp {
             return void createReadStream(asset[0]).on("error", () => res.end()).pipe(res);
         }
         const match = /^\/r\/([0-9a-f]{12})\/(.*)$/.exec(url.pathname);
-        if (!match) return send(res, 404, { error: "Introuvable." });
+        if (!match) return send(res, 404, { error: uiText(this.ui, "error.not_found") });
         if (!sameToken(url.searchParams.get("t") ?? req.headers["x-clew-token"], this.token)) {
-            return send(res, 403, { error: "Jeton invalide." });
+            return send(res, 403, { error: uiText(this.ui, "error.invalid_token") });
         }
         const reader = this.reader(match[1]);
-        if (!reader) return send(res, 404, { error: "Publication inconnue. Rouvrez le canevas." });
+        if (!reader) return send(res, 404, { error: uiText(this.ui, "error.unknown_publication") });
         const route = `${req.method} ${match[2].startsWith("vault/") ? "vault/" : match[2]}`;
         switch (route) {
             case "GET ": return this.page(res);
@@ -274,11 +276,11 @@ export class CanvasApp {
             case "POST api/ask": return this.ask(req, res, reader);
             case "GET vault/": {
                 const file = reader.pdfFile(decodeURIComponent(match[2].slice("vault/".length)));
-                if (!file) return send(res, 404, { error: "PDF introuvable." });
+                if (!file) return send(res, 404, { error: uiText(this.ui, "error.pdf_not_found_short") });
                 res.writeHead(200, { "Content-Type": "application/pdf", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" });
                 return void createReadStream(file).on("error", () => res.end()).pipe(res);
             }
-            default: return send(res, 404, { error: "Introuvable." });
+            default: return send(res, 404, { error: uiText(this.ui, "error.not_found") });
         }
     }
 
@@ -288,7 +290,7 @@ export class CanvasApp {
             "Content-Security-Policy": "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
                 "img-src 'self' data:; font-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'",
         });
-        res.end(readFileSync(join(WEB, "index.html")));
+        res.end(renderUiTemplate(readFileSync(join(WEB, "index.html"), "utf8"), this.ui));
     }
 
     stream(req, res, reader, instance) {
@@ -313,8 +315,10 @@ export class CanvasApp {
     }
 
     async events(req, res, reader) {
-        const body = await readBody(req);
-        if (!Array.isArray(body.events) || body.events.length > 200) throw new RequestError(400, "events doit être une liste.");
+        const body = await readBody(req, this.ui);
+        if (!Array.isArray(body.events) || body.events.length > 200) {
+            throw new RequestError(400, uiText(this.ui, "error.events_list"));
+        }
         const rejected = [];
         let recorded = 0;
         body.events.forEach((input, position) => {
@@ -329,7 +333,7 @@ export class CanvasApp {
     }
 
     async openLink(req, res, reader) {
-        const body = await readBody(req);
+        const body = await readBody(req, this.ui);
         const link = reader.resolveLink(body.href);
         const target = link.type === "pdf_opened" && link.inside
             ? `http://127.0.0.1:${this.port}/r/${reader.rid}/vault/${link.url.split("/").map(encodeURIComponent).join("/")}` +
@@ -338,17 +342,17 @@ export class CanvasApp {
         try {
             await this.opener(target);
         } catch (error) {
-            throw new RequestError(502, `Impossible d'ouvrir le lien : ${error.message}`);
+            throw new RequestError(502, uiText(this.ui, "error.open_link", { message: error.message }));
         }
         reader.recordLink(link, body.question);
         send(res, 200, { ok: true });
     }
 
     async ask(req, res, reader) {
-        const body = await readBody(req);
-        if (!this.session) throw new RequestError(503, "La session Copilot n'est pas connectée.");
+        const body = await readBody(req, this.ui);
+        if (!this.session) throw new RequestError(503, uiText(this.ui, "error.session_unavailable"));
         const prompt = reader.ask(body.question, typeof body.instance === "string" ? body.instance : "");
-        if (!prompt) throw new RequestError(429, "Demande déjà envoyée. Patientez quelques secondes.");
+        if (!prompt) throw new RequestError(429, uiText(this.ui, "error.already_asked"));
         await this.session.send({ prompt, displayPrompt: DISPLAY_PROMPT, mode: "enqueue" });
         send(res, 200, { ok: true });
     }

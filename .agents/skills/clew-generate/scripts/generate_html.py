@@ -10,7 +10,7 @@ import tempfile
 
 from notes import command, local_path, require
 from publication import compile_layout, load_layout
-from render_html import Renderer, assemble
+from render_html import Renderer, assemble, load_ui
 
 
 def write_atomically(output: Path, text: str, *, replace: bool) -> None:
@@ -40,6 +40,7 @@ def generate(path: Path, *, check: bool = False, overwrite: bool = False) -> dic
             f"Output exists; use a new path or explicitly approve --overwrite: {output}")
     renderer = Renderer(library, output)
     data = compile_layout(layout, library, renderer)
+    data["ui"] = load_ui()
     renderer.validate_links()
     page = assemble(data)
     report = {"status": "checked" if check else "generated", "output": str(output),
@@ -75,6 +76,7 @@ def compile_data(path: Path, target: Path, *, base: Path | None = None) -> dict:
     # The renderer resolves PDF links relative to its output's parent directory.
     renderer = Renderer(library, base / "publication.html")
     data = compile_layout(layout, library, renderer)
+    data["ui"] = load_ui()
     renderer.validate_links()
     data["sources"] = [{"id": note.id, "title": note.title, "type": note.metadata.get("type", ""),
                         "role": note.role, "path": relative(note.path, base),

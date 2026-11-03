@@ -173,9 +173,14 @@ It opens directly without network access. PDF links remain optional external
 provenance; moving HTML can break those paths. Web links are optional navigation,
 not rendering dependencies. Missing PDFs produce explicit warnings.
 
+The offline interface labels are in English; course and exercise content keeps
+its source language. The Canvas shares the message catalog in
+`assets/locales/en.json`. Other locale catalogs and locale selection are not
+currently implemented.
+
 Supplied content stays distinct from added aids. Corrections reveal inline;
 methods, progressive hints, explanations and course excerpts use the side
-panel. Browser Back/Forward and the panel's `Retour` button restore previous
+panel. Browser Back/Forward and the panel's `Back` button restore previous
 panel views, including already revealed hints, for the current page session.
 Explanation controls appear in revealed corrections. Unavailable
 controls are omitted, never fabricated. No grading, progress storage or
@@ -196,7 +201,8 @@ prove mathematical correctness.
 
 Keep view markup in native HTML templates in `assets/template.html`, styling
 in `assets/style.css`, and interaction behavior in `assets/interaction.js`.
-JavaScript clones templates and consumes the ordered worksheet stream.
+Keep interface copy in `assets/locales/`; JavaScript clones templates and
+consumes the ordered worksheet stream.
 Preserve template IDs, `data-slot`, `data-action`, `data-help` hooks and native
 details/button semantics. Missing hooks/templates fail explicitly.
 No frontend framework or build is required.

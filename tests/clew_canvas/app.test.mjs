@@ -109,10 +109,10 @@ describe("canvas app", () => {
         assert.throws(() => app.open({ instanceId: "x", input: { layout: outside } }), /inside an Obsidian vault/);
         const { result } = openCanvas(app, vaultInfo);
         assert.equal(result.title, "Clew · Suites · révision");
-        assert.equal(result.status, "Compilation…");
+        assert.equal(result.status, "Compiling publication…");
         assert.match(result.url, new RegExp(`^http://127\\.0\\.0\\.1:${app.port}/r/[0-9a-f]{12}/\\?t=[0-9a-f]{48}&i=c1$`));
         await app.ready(app.instanceReader("c1"));
-        assert.equal(openCanvas(app, vaultInfo).result.status, "Prêt");
+        assert.equal(openCanvas(app, vaultInfo).result.status, "Ready");
         assert.throws(() => app.instanceReader("other"), /not open/);
     });
 
@@ -121,6 +121,10 @@ describe("canvas app", () => {
         const canvas = openCanvas(app, vaultInfo);
         const page = await call(app, "GET", canvas.path(""));
         assert.equal(page.status, 200);
+        assert.match(page.text, /<html lang="en">/);
+        assert.match(page.text, /Start exercise/);
+        assert.doesNotMatch(page.text, /\{\{UI:/);
+        assert.doesNotMatch(page.text, /Chargement|Retour|Demander au tuteur/);
         assert.match(page.headers["content-security-policy"], /script-src 'self'/);
         assert.match(page.text, /<script src="\/web\/app\.js"/);
         assert.equal((await call(app, "GET", `${canvas.base}`)).status, 403);
@@ -148,6 +152,8 @@ describe("canvas app", () => {
         assert.equal(loaded.status, 200);
         assert.equal(loaded.headers["x-clew-version"], "1");
         assert.equal(loaded.json.title, "Suites · révision");
+        assert.equal(loaded.json.ui.locale, "en");
+        assert.equal(loaded.json.ui.messages["app.ask_tutor"], "Ask the tutor");
         const posted = await call(app, "POST", canvas.path("api/event"), { body: { events: [
             { type: "exercise_started", exercise: "sheet#^ex-1" },
             { type: "hint_revealed", question: Q1, index: 3 },
@@ -174,7 +180,7 @@ describe("canvas app", () => {
         const canvas = openCanvas(app, vaultInfo);
         await app.ready(app.instanceReader("c1"));
         const result = await call(app, "POST", canvas.path("api/open"), { body: { href: SHEET_PDF } });
-        assert.deepEqual([result.status, result.json.error], [502, "Impossible d'ouvrir le lien : no handler"]);
+        assert.deepEqual([result.status, result.json.error], [502, "Could not open link: no handler"]);
         assert.ok(!app.instanceReader("c1").events.some((e) => e.type === "pdf_opened"));
     });
 
