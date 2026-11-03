@@ -514,7 +514,7 @@ def validate(root: Path, baseline_path: Path, *, drafts: dict[str, bytes] | None
         question_note, question_fragment = resolve(notes, question_ref, aid)
         question = question_note.block(question_fragment, "question")
         question_unit = question_note.unit_for(question.start, "exercise")
-        require(question_note.role == "exercise" and question_unit is not None,
+        require(question_note.role in {"exercise", "mixed"} and question_unit is not None,
                 f"Aid targets a question outside an exercise: {aid.id}")
         question_key = (question_note.id, question_fragment)
         aid_targets[question_key] = aid_targets.get(question_key, 0) + 1
@@ -532,7 +532,7 @@ def validate(root: Path, baseline_path: Path, *, drafts: dict[str, bytes] | None
             for reference, label in link_references(aid.body):
                 require(bool(label.strip()), f"New aid link needs a display label: {aid.id}: {reference}")
                 target, fragment = resolve(notes, reference, aid)
-                if fragment or target.role == "course":
+                if fragment or target.role in {"course", "mixed"}:
                     target.check_fragment(fragment)
         additions = [block for block in aid.blocks if block.kind in {"hint", "explanation"}]
         require(bool(additions), f"Aid needs hints or explanations: {aid.id}")
@@ -551,7 +551,7 @@ def validate(root: Path, baseline_path: Path, *, drafts: dict[str, bytes] | None
             course_refs = 0
             for ref in links_in(block.text):
                 target, fragment = resolve(notes, ref, aid)
-                if target.role == "course":
+                if target.role in {"course", "mixed"}:
                     target.check_fragment(fragment)
                     course_refs += 1
                     course_links.append(ref)

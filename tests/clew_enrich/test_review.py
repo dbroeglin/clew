@@ -66,6 +66,26 @@ class ReviewTests(unittest.TestCase):
         report = verify_approved(self.chapter, self.before, self.proposal, result["manifest_sha256"])
         self.assertTrue(report["approved_bytes_identical"])
 
+    def test_mixed_document_review_and_approved_bytes_remain_additive(self):
+        chapter = self.root / "mixed"
+        shutil.copytree(FIXTURES / "mixed" / "chapter", chapter)
+        baseline = self.root / "mixed-before.json"
+        capture(chapter, baseline)
+        before = inventory(chapter)
+        drafts = FIXTURES / "mixed" / "drafts"
+        proposal = self.root / "mixed-proposal.md"
+        result = review(chapter, baseline, [drafts], proposal)
+        self.assertEqual(inventory(chapter), before)
+        self.assertEqual(result["questions_without_aid"], [])
+        self.assertEqual((result["new_hints"], result["new_explanations"]), (2, 1))
+        shutil.copytree(drafts, chapter / "aides")
+        report = verify_approved(chapter, baseline, proposal, result["manifest_sha256"])
+        self.assertTrue(report["approved_bytes_identical"])
+        book = chapter / "book" / "book.md"
+        book.write_bytes(book.read_bytes() + b"\nChanged source.\n")
+        with self.assertRaisesRegex(EnrichError, "Original file changed"):
+            verify_approved(chapter, baseline, proposal, result["manifest_sha256"])
+
     def test_combined_import_footers_support_review_and_exact_verification(self):
         for index, newline in enumerate(["\n", "\r\n", "\r"]):
             with self.subTest(newline=repr(newline)):

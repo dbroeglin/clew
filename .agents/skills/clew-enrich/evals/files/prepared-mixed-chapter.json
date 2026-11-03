@@ -1,0 +1,8 @@
+{
+  "description": "Independently authored synthetic mixed textbook for workflow evaluation; not user course material.",
+  "files": {
+    "index.md": "---\nclew_schema: 1\nid: mixed-chapter\ntype: chapter\n---\n\n# Mixed chapter\n",
+    ".clew/preparation.json": "{\"schema_version\":1,\"status\":\"complete\",\"documents\":[{\"id\":\"mixed-book\",\"path\":\"book/book.md\",\"role\":\"mixed\"}]}\n",
+    "book/book.md": "---\nclew_schema: 1\nid: mixed-book\ntype: document\nrole: mixed\nsource_pdf: book.pdf\nsource_pages: [1]\n---\n\n%% clew:unit section sec-book %%\n\n# Vectors\n\n## Scalar multiplication\n\n> [!definition] Scaling a vector\n> Multiply every coordinate by the scalar: $c(x,y)=(cx,cy)$.\n\n^scalar-rule\n\n%% clew:unit exercise ex-1 %%\n\n## Exercise 1\n\nExercise ^ex-1\n\n> [!question] Question 1\n> Compute $3(1,2)$.\n>\n> [PDF p. 1](book.pdf#page=1)\n\n^q-1\n\n> [!question] Question 2\n> Compute $2(2,-1)$.\n>\n> [PDF p. 1](book.pdf#page=1)\n\n^q-2\n\n%% /clew:unit ex-1 %%\n\n%% clew:unit correction corr-1 %%\n\n## Supplied correction\n\nCorrection ^corr-1\n\n> [!reponse] Answer 1\n> The scaled vector is $(3,6)$.\n>\n> [Question](book.md#^q-1) · [PDF p. 1](book.pdf#page=1)\n\n^r-1\n\n[Exercise](book.md#^ex-1)\n[PDF p. 1](book.pdf#page=1)\n\n%% /clew:unit corr-1 %%\n\n%% /clew:unit sec-book %%\n"
+  }
+}

@@ -76,6 +76,17 @@ the exact `Exercise` and `Question` labels, such as:
 [Question](../Exercise-sheet/sheet.md#^ex-01-q-01)
 ```
 
+Questions may belong to `exercise` or `mixed` documents, supplied answers to
+`correction` or `mixed`, and course passages to `course` or `mixed`. A mixed
+textbook can supply all three without splitting or relabeling it; its existing
+typed units and anchors still determine ownership. Inspect the actual cited
+passage: a mixed role does not make an exercise or answer into course evidence.
+
+A complete preparation record can describe sections only. If the selected
+material has no prepared exercise/question targets, stop and report the missing
+preparation. Do not claim an empty enrichment succeeded, create source anchors,
+or run Import; agree a separate preparation task.
+
 Answer footers may combine the `Question` link and PDF provenance on one
 quoted line, separated by ` · `, as produced by Import. Enrich recognizes
 both that compact footer and a standalone relationship line; the PDF link

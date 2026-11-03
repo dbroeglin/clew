@@ -23,6 +23,17 @@ basename folders; filenames and folders are not proof of role or association.
 Use frontmatter roles, persistent document IDs, structural unit scopes, and
 native anchors.
 
+Question targets accept `exercise` or `mixed` documents; supplied answers accept
+`correction` or `mixed`; course citations accept `course` or `mixed`. The same
+whole textbook can therefore provide questions, answers, and course passages.
+Its typed exercise/correction scopes still define ownership, and each cited
+fragment must contain the actual supporting course content. Other roles do not
+become course sources merely because a link resolves.
+
+`status: complete` does not guarantee question targets exist. A section-only
+chapter needs separate preparation before Enrich can add any aids. Enrich never
+creates missing source units or anchors.
+
 ## Source ownership and links
 
 Exercise and correction units remain in their source documents. Unit comments
@@ -125,8 +136,8 @@ correction: "[[solutions#^ex-01-r-01|Supplied geometric-limit correction]]"
 ```
 
 Course references must resolve to one exact heading or existing block anchor
-in a selected document with `role: course`. Heading links need a unique exact
-heading; use a block link to disambiguate duplicates. Text inside code or math
+in a selected document with `role: course` or `role: mixed`. Heading links need a
+unique exact heading; use a block link to disambiguate duplicates. Text inside code or math
 does not count as a reference. Markdown note links and wikilinks are supported.
 Links to other local note anchors must also resolve; external learning sources
 are not used.
