@@ -81,6 +81,29 @@
         "A title-only block is not treated as evidence for the following definition.",
         "A unique existing heading is accepted as a precise target without adding a source anchor."
       ]
+    },
+    {
+      "id": 17,
+      "prompt": "Read the complete synthetic chapter represented in prepared-mixed-chapter.json. Its single mixed textbook contains course material, two questions and one supplied correction. Propose aids for both questions in outputs/proposal.md with exact Markdown and readable links. Keep the textbook whole and unchanged; use its own precise course passages. Do not write chapter aids or request approval yet.",
+      "expected_output": "Two scratch aid notes target book q-1 and q-2. q-1 explains its supplied r-1 answer, while q-2 is hint-only. Both cite actual Scalar multiplication/scalar-rule passages in the same mixed note. No source splitting, role changes, missing-answer invention or false persistence claims.",
+      "files": ["evals/files/prepared-mixed-chapter.json"],
+      "assertions": [
+        "Both question targets use the actual book filename, not its mixed-book identity.",
+        "Course citations use the mixed textbook's precise heading or scalar-rule anchor and support each callout.",
+        "Only q-1 has a supplied-answer explanation; q-2 has no invented answer or correction link.",
+        "The complete textbook is neither split nor relabeled, and the output remains a scratch proposal.",
+        "The exact proposed notes pass the bundled scratch reviewer against the unchanged synthetic chapter."
+      ]
+    },
+    {
+      "id": 18,
+      "prompt": "My chapter's preparation record is complete, but its textbook and answer book have only section units. Exercises and answers are ordinary paragraphs with no question/answer anchors. Enrich every exercise without changing the imported notes.",
+      "expected_output": "Explain that completed section-only preparation supplies no aid targets. Stop and agree a separate preparation task; do not run Import, add anchors, split documents, or claim a successful zero-aid pass.",
+      "files": [],
+      "assertions": [
+        "Missing prepared question targets are reported as a prerequisite, not successful empty enrichment.",
+        "The response preserves source notes and seeks a separate preparation scope rather than running Import."
+      ]
     }
   ]
 }

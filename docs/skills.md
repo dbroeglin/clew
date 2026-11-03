@@ -306,6 +306,13 @@ Import whole-document chapters: an Import `type: chapter` index,
 comments, entry anchors, and question/answer anchors. It does not consume or
 migrate legacy exercise-per-note chapters.
 
+Mixed documents can supply owned questions, supplied answers, and precise course
+passages without being split. Questions accept `exercise`/`mixed`, answers
+`correction`/`mixed`, and course citations `course`/`mixed`; unit ownership and
+semantic citation review remain required. A completed chapter containing only
+sections has no aid targets and needs a separate preparation task, not an empty
+enrichment pass or source edits by Enrich.
+
 Answer associations recognize both Import's compact `[Question](...) ·
 [PDF p. N](...)` footer and standalone `Question` relationship lines.
 PDF provenance does not alter the linked question or its exercise ownership.

@@ -112,7 +112,8 @@ prove semantic matches, theorem boundaries, or mathematical correctness.
 ## Enrichment and publication
 
 `clew-enrich` adds question-specific hints and supplied-answer explanations to
-completed whole-document Import chapters, in separate help notes that leave
+completed whole-document Import chapters with prepared question anchors,
+including mixed textbooks, in separate help notes that leave
 imported documents unchanged. Review and approve the exact hints, explanations
 and readable course links before any help notes are added to your vault.
 `clew-generate` publishes selected current notes

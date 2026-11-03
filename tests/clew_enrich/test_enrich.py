@@ -37,6 +37,96 @@ class EnrichTests(unittest.TestCase):
         self.assertEqual(report["questions_without_correction"], ["exercise-document#^q-3"])
         self.assertEqual(report["questions_without_aid"], ["exercise-document#^q-3"])
 
+    def test_mixed_document_supplies_questions_answers_and_course_passages(self):
+        for index, newline in enumerate(["\n", "\r\n", "\r"]):
+            with self.subTest(newline=repr(newline)):
+                chapter = self.root / f"mixed-{index}"
+                shutil.copytree(FIXTURES / "mixed" / "chapter", chapter)
+                for path in chapter.rglob("*.md"):
+                    path.write_bytes(path.read_text(encoding="utf-8").replace("\n", newline).encode("utf-8"))
+                baseline = self.root / f"mixed-{index}-before.json"
+                capture(chapter, baseline)
+                shutil.copytree(FIXTURES / "mixed" / "drafts", chapter / "aides")
+                report = validate(chapter, baseline)
+                self.assertEqual((report["documents"], report["questions"], report["supplied_answers"]),
+                                 (1, 2, 1))
+                self.assertEqual((report["new_hints"], report["new_explanations"],
+                                  report["new_aids_with_explanations"], report["new_hint_only_aids"]),
+                                 (2, 1, 1, 1))
+                self.assertEqual(report["questions_without_aid"], [])
+                self.assertEqual(report["questions_without_correction"], ["mixed-book#^q-2"])
+
+    def test_mixed_course_references_still_require_real_precise_fragments(self):
+        chapter = self.root / "mixed-links"
+        shutil.copytree(FIXTURES / "mixed" / "chapter", chapter)
+        baseline = self.root / "mixed-links-before.json"
+        capture(chapter, baseline)
+        shutil.copytree(FIXTURES / "mixed" / "drafts", chapter / "aides")
+        aid = chapter / "aides" / "q-1.md"
+        original = aid.read_text(encoding="utf-8")
+        reference = "[[book#Scalar multiplication|scalar multiplication]]"
+        for replacement, diagnostic in [
+            ("[[book#Absent|scalar multiplication]]", "Missing or ambiguous course heading"),
+            ("[[book#^absent|scalar multiplication]]", "Missing or ambiguous course block"),
+            ("[[book|scalar multiplication]]", "Course reference needs a heading or block"),
+            ("`" + reference + "`", "Aid needs a precise course link"),
+        ]:
+            with self.subTest(reference=replacement):
+                aid.write_text(original.replace(reference, replacement), encoding="utf-8")
+                with self.assertRaisesRegex(EnrichError, diagnostic):
+                    validate(chapter, baseline)
+
+    def test_mixed_roles_do_not_bypass_question_ownership_or_answer_matching(self):
+        for variant, diagnostic in [
+            ("orphan", "Question must be anchored inside an exercise unit"),
+            ("mismatch", "Aid correction/question mismatch"),
+            ("wrong-exercise", "disagree on exercise owner"),
+            ("ambiguous-heading", "Missing or ambiguous course heading"),
+        ]:
+            with self.subTest(variant=variant):
+                chapter = self.root / variant
+                shutil.copytree(FIXTURES / "mixed" / "chapter", chapter)
+                book = chapter / "book" / "book.md"
+                text = book.read_text(encoding="utf-8")
+                if variant == "orphan":
+                    text = text.replace("%% clew:unit exercise ex-1 %%", "").replace(
+                        "%% /clew:unit ex-1 %%", "")
+                elif variant == "mismatch":
+                    text = text.replace("[Question](book.md#^q-1)", "[Question](book.md#^q-2)")
+                elif variant == "wrong-exercise":
+                    text = text.replace("%% /clew:unit ex-1 %%", "%% /clew:unit ex-2 %%")
+                    text = text.replace("> [!question] Question 2",
+                                        "%% /clew:unit ex-1 %%\n\n"
+                                        "%% clew:unit exercise ex-2 %%\n\nExercise ^ex-2\n\n"
+                                        "> [!question] Question 2")
+                    text = text.replace("[Question](book.md#^q-1)", "[Question](book.md#^q-2)")
+                else:
+                    text += "\n## Scalar multiplication\n\nAnother section.\n"
+                book.write_text(text, encoding="utf-8")
+                baseline = self.root / (variant + "-before.json")
+                capture(chapter, baseline)
+                shutil.copytree(FIXTURES / "mixed" / "drafts", chapter / "aides")
+                with self.assertRaisesRegex(EnrichError, diagnostic):
+                    validate(chapter, baseline)
+
+    def test_non_course_roles_cannot_supply_course_citations(self):
+        for role in ["exercise", "correction", "unknown"]:
+            with self.subTest(role=role):
+                chapter = self.root / ("non-course-" + role)
+                shutil.copytree(FIXTURES / "chapter", chapter)
+                course = chapter / "Course-course" / "course.md"
+                course.write_text(course.read_text(encoding="utf-8").replace("role: course", "role: " + role),
+                                  encoding="utf-8")
+                record = chapter / ".clew" / "preparation.json"
+                record.write_text(record.read_text(encoding="utf-8").replace('"role": "course"',
+                                                                          '"role": "' + role + '"'),
+                                  encoding="utf-8")
+                baseline = self.root / ("non-course-" + role + "-before.json")
+                capture(chapter, baseline)
+                shutil.copytree(FIXTURES / "enriched", chapter, dirs_exist_ok=True)
+                with self.assertRaisesRegex(EnrichError, "Aid needs a precise course link"):
+                    validate(chapter, baseline)
+
     def test_imported_documents_preparation_record_and_retained_files_are_immutable(self):
         path = self.chapter / "Exercise-sheet" / "sheet.md"
         original = path.read_bytes()
@@ -250,17 +340,19 @@ class EnrichTests(unittest.TestCase):
         for evaluation in evaluations["evals"]:
             for relative in evaluation.get("files", []):
                 self.assertTrue((SKILL / relative).is_file(), relative)
-        synthetic = json.loads((SKILL / "evals" / "files" / "prepared-chapter.json")
-                               .read_text(encoding="utf-8"))
-        chapter = self.root / "workflow-input"
-        for relative, content in synthetic["files"].items():
-            path = chapter / relative
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_bytes(content.encode("utf-8"))
-        baseline = self.root / "workflow-before.json"
-        capture(chapter, baseline)
-        report = validate(chapter, baseline)
-        self.assertEqual((report["questions"], report["supplied_answers"]), (5, 5))
+        for name, counts in [("prepared-chapter", (5, 5)), ("prepared-mixed-chapter", (2, 1))]:
+            with self.subTest(name=name):
+                synthetic = json.loads((SKILL / "evals" / "files" / (name + ".json"))
+                                       .read_text(encoding="utf-8"))
+                chapter = self.root / name
+                for relative, content in synthetic["files"].items():
+                    path = chapter / relative
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_bytes(content.encode("utf-8"))
+                baseline = self.root / (name + "-before.json")
+                capture(chapter, baseline)
+                report = validate(chapter, baseline)
+                self.assertEqual((report["questions"], report["supplied_answers"]), counts)
 
     def test_lf_crlf_and_cr_documents_and_aids(self):
         for newline in ["\n", "\r\n", "\r"]:
