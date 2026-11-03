@@ -62,8 +62,10 @@ folders, in `Activity/<YYYY-MM-DD>-<publication>-<session8>/`:
 
 Clicks and section navigation are captured, not scrolling or focus. Course
 section visits include the course address, section title and its position in
-the document. Time per exercise is derived from gaps between events, each gap
-capped at ten minutes. The session's
+the document. Top-level `h1` headings define sections; a course without them is
+one `Cours` section. When a document changes, replay keeps the latest title and
+section count for each visited position. Time per exercise is derived from gaps
+between events, each gap capped at ten minutes. The session's
 `events.jsonl` receives only what the tutor sees.
 
 ### Tutor bridge

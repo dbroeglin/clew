@@ -128,7 +128,7 @@
       }
       (current ? current.nodes : introduction).push(node);
     }
-    if (!sections.length) return [{title: "Cours", html: markup}];
+    if (!sections.length) return [{title: "Cours", html: markup, index: 1, total: 1}];
     return sections.map((section, index) => {
       const container = document.createElement("div");
       section.nodes.forEach(node => container.append(node));

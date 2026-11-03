@@ -102,8 +102,9 @@ describe("events", () => {
             at(51, { type: "course_opened", actor: "student", course: "course" }),
             at(52, { type: "course_section_opened", actor: "student", course: "course", section: 1, total: 2, title: "Introduction" }),
             at(53, { type: "course_section_opened", actor: "student", course: "course", section: 2, total: 2, title: "Limits" }),
-            at(54, { type: "pdf_opened", actor: "student", url: "a.pdf", page: 2 }),
-            at(55, { type: "tutor_requested", actor: "student", question: "sheet#^q-2", exercise: "sheet#^ex-1" }),
+            at(54, { type: "course_section_opened", actor: "student", course: "course", section: 1, total: 1, title: "Cours" }),
+            at(55, { type: "pdf_opened", actor: "student", url: "a.pdf", page: 2 }),
+            at(56, { type: "tutor_requested", actor: "student", question: "sheet#^q-2", exercise: "sheet#^ex-1" }),
         ]);
         const q1 = progress.questions.get(Q1);
         assert.equal(q1.hints, 2);
@@ -113,6 +114,7 @@ describe("events", () => {
         assert.equal(progress.exercises.get("sheet#^ex-1").ms, 2 * 60_000);
         assert.equal(progress.exercises.get("sheet#^ex-1").started, true);
         assert.equal(progress.courses.get("course"), 2);
+        assert.deepEqual(progress.courseSections.get("course").get(1), { title: "Cours", total: 1, count: 2 });
         assert.equal(progress.courseSections.get("course").get(2).title, "Limits");
         assert.equal(progress.courseSections.get("course").get(2).count, 1);
         assert.equal(progress.links.length, 1);

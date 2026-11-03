@@ -131,7 +131,9 @@ export function replay(events) {
             case "course_section_opened": {
                 if (!courseSections.has(event.course)) courseSections.set(event.course, new Map());
                 const sections = courseSections.get(event.course);
-                const state = sections.get(event.section) ?? { title: event.title, total: event.total, count: 0 };
+                const state = sections.get(event.section) ?? { count: 0 };
+                state.title = event.title;
+                state.total = event.total;
                 state.count += 1;
                 sections.set(event.section, state);
                 break;

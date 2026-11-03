@@ -225,12 +225,32 @@ class CanvasBrowserTest(unittest.TestCase):
         self.assertEqual(page.locator("#reading .course-body h1").all_text_contents(), ["Subsequences"])
         self.shot(page, "live-reload")
 
+        # A course without top-level headings remains one valid, recordable view.
+        course = Path(self.info["chapter"]) / "Course-course" / "course.md"
+        course.write_text(course.read_text(encoding="utf-8").replace(
+            "# Geometric limits", "## Geometric limits").replace("# Subsequences", "## Subsequences"),
+            encoding="utf-8")
+        page.wait_for_function("() => Array.from(document.querySelectorAll('#reading .course-body h2'))"
+                               ".some(heading => heading.textContent.includes('Subsequences')) "
+                               "&& document.querySelector('#reading .course-navigation').hidden", timeout=30000)
+        details = page.locator("#reading details")
+        if details.evaluate("(element) => element.open"):
+            details.locator("summary").click()
+            page.wait_for_function("() => !document.querySelector('#reading details').open")
+        details.locator("summary").click()
+        page.wait_for_function("() => document.querySelector('#reading details').open")
+        self.wait_state(lambda s: any(section["title"] == "Cours" and section["total"] == 1
+                                      for section in s["course_sections_opened"]))
+        self.shot(page, "course-single-view")
+
         # A broken layout keeps the last content with a visible status, then recovers.
         layout = Path(self.info["layout"])
         original = layout.read_text(encoding="utf-8")
         layout.write_text(original.replace("Suites r\\u00e9vision", "Missing").replace("Suites révision", "Missing"),
                           encoding="utf-8")
-        page.wait_for_selector('#status[data-status="stale"]:not([hidden])', timeout=30000)
+        page.wait_for_function("() => { const status = document.getElementById('status'); "
+                               "return status.dataset.status === 'stale' && !status.hidden "
+                               "&& status.textContent.includes('Contenu non actualisé'); }", timeout=30000)
         self.assertIn("Contenu non actualisé", page.locator("#status").inner_text())
         self.assertEqual(page.locator(".sheet .question").count(), 3)
         self.shot(page, "failure-compile-error")
