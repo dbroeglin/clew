@@ -430,7 +430,8 @@ views and revealed hints within the current page session.
 PDF references remain external and can break if HTML moves.
 Output parent must exist; existing HTML requires explicit exact-file replacement.
 See the [layout contract](../.agents/skills/clew-generate/references/formats.md)
-for raw HTML, transclusion, remote-resource and dynamic-math limitations.
+for the supported static HTML-table subset and the remaining raw HTML,
+transclusion, remote-resource and dynamic-math limitations.
 
 Data mode compiles the same layout to JSON for a live reader instead of HTML.
 `output` is then optional and ignored, the target must be a new or replaceable
@@ -468,6 +469,8 @@ remain intact in the vault, while the canvas reading view displays one top-level
 `h1` section at a time with previous/next controls and a section selector.
 Lower-level headings remain with their parent section; documents without `h1`
 headings have one view. Section navigation is recorded in the activity log.
+Course sections are parsed on first open, and exercise question controls are
+created when their exercise is opened; the complete publication remains intact.
 It recompiles when the
 selected notes or the layout change; on a compile error it keeps the previous
 content and shows "Contenu non actualisé". Links and PDFs open outside the

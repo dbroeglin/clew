@@ -5,6 +5,7 @@ import functools
 import json
 import os
 import re
+from bisect import bisect_left
 from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
@@ -64,6 +65,8 @@ def heading_tokens(body: str) -> tuple[tuple[int, str, int], ...]:
 # Notes are immutable once read; repeated selections and links re-scan the same text.
 @functools.lru_cache(maxsize=1024)
 def hide_comments(body: str) -> str:
+    if "%%" not in body:
+        return body
     protected = protected_lines(body)
     offsets = [0]
     for line in body.splitlines(keepends=True):
@@ -153,6 +156,9 @@ class Note:
     blocks: dict[str, Part] = field(default_factory=dict)
     units: list[Unit] = field(default_factory=list)
     spans: dict[str, tuple[int, int]] = field(default_factory=dict, repr=False, compare=False)
+    part_starts: list[int] = field(default_factory=list, repr=False, compare=False)
+    full_selection: str | None = field(default=None, repr=False, compare=False)
+    owners: dict[tuple[str, str], Unit] = field(default_factory=dict, repr=False, compare=False)
 
     @property
     def id(self) -> str:
@@ -167,10 +173,14 @@ class Note:
         return self.metadata.get("role", "")
 
     def owner(self, part: Part, kind: str) -> Unit:
+        key = (kind, part.block)
+        if key in self.owners:
+            return self.owners[key]
         matches = [unit for unit in self.units if unit.kind == kind
                    and unit.start < part.start and part.end <= unit.end - 1]
         require(len(matches) == 1, f"Expected one {kind} owner: {self.id}#^{part.block}")
-        return matches[0]
+        self.owners[key] = matches[0]
+        return self.owners[key]
 
     def unit(self, fragment: str, kind: str) -> Unit:
         matches = [unit for unit in self.units
@@ -179,7 +189,14 @@ class Note:
         return matches[0]
 
     def span_parts(self, start: int, end: int) -> list[Part]:
-        selected = [part for part in self.parts if part.start < end and start < part.end]
+        if self.parts and not self.part_starts:
+            self.part_starts = [part.start for part in self.parts]
+        first = bisect_left(self.part_starts, start)
+        while first and self.parts[first - 1].end > start:
+            first -= 1
+        last = bisect_left(self.part_starts, end)
+        selected = [part for part in self.parts[first:last]
+                    if part.start < end and start < part.end]
         require(all(start <= part.start and part.end <= end for part in selected),
                 f"Selection bisects content: {self.id}, body lines {start + 1}-{end}")
         return selected
@@ -188,6 +205,11 @@ class Note:
         return self.span_parts(*self.selection_span(fragment))
 
     def select(self, fragment: str = "") -> str:
+        if not fragment:
+            if self.full_selection is None:
+                self.full_selection = "\n\n".join(
+                    part.display() for part in self.select_parts() if part.text.strip())
+            return self.full_selection
         return "\n\n".join(part.display() for part in self.select_parts(fragment)
                           if part.text.strip())
 
@@ -251,6 +273,7 @@ def read_note(path: Path) -> Note:
                     f"Frontmatter {key} must be a nonempty string: {path}")
     body = text[match.end():]
     note = Note(path, text, metadata, body, split_parts(body))
+    note.part_starts = [part.start for part in note.parts]
     for part in note.parts:
         if part.block:
             require(part.block not in note.blocks, f"Duplicate block: {path}#^{part.block}")
@@ -419,6 +442,13 @@ class Library:
                     self.notes.append(note)
         require(len({note.id for note in self.notes}) == len(self.notes),
                 "Duplicate learning-note IDs.")
+        self.by_path: dict[Path, Note] = {}
+        self.by_alias: dict[str, list[Note]] = {}
+        for note in self.notes:
+            self.by_path[note.path] = note
+            for alias in {note.id, note.path.stem, note.path.name,
+                          str(note.path), note.path.as_posix()}:
+                self.by_alias.setdefault(alias, []).append(note)
 
     def resolve(self, ref: str, origin: Note | None = None) -> tuple[Note, str]:
         require(isinstance(ref, str) and bool(ref), "Expected nonempty note reference.")
@@ -434,13 +464,11 @@ class Library:
         else:
             name, fragment = unquote(parsed.path), unquote(parsed.fragment)
         relative = Path(os.path.abspath(origin.path.parent / name)) if origin and name else None
-        local_matches = [note for note in self.notes if note.path == relative]
-        if local_matches:
-            return local_matches[0], fragment
-        matches = [note for note in self.notes if
-                   (not name and origin is note)
-                   or name in {note.id, note.path.stem, note.path.name, str(note.path),
-                               note.path.as_posix()}]
+        if relative is not None and relative in self.by_path:
+            return self.by_path[relative], fragment
+        if not name and origin and self.by_path.get(origin.path) is origin:
+            return origin, fragment
+        matches = self.by_alias.get(name, [])
         require(len(matches) == 1, f"Missing or ambiguous selected note: {ref}")
         return matches[0], fragment
 

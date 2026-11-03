@@ -113,6 +113,22 @@ def compile_layout(layout: dict, library: Library, render) -> dict:
 
     questions = {(note.id, "^" + part.block): (note, part, note.owner(part, "exercise"))
                  for note in library.notes for part in note.parts if part.kind == "question"}
+    aids_by_question = None
+
+    def indexed_aids() -> dict[tuple[str, str], list[Note]]:
+        nonlocal aids_by_question
+        if aids_by_question is None:
+            aids_by_question = {}
+            for aid in library.notes:
+                if aid.metadata["type"] != "help":
+                    continue
+                aid_note, aid_fragment = resolve(aid.metadata.get("question"), aid)
+                question_key = key(aid_note, aid_fragment)
+                require(question_key in questions,
+                        f"Aid requires an anchored question: {aid.id}")
+                aids_by_question.setdefault(question_key, []).append(aid)
+        return aids_by_question
+
     answer_targets = {}
     matched_answers = {}
     correction_owners = {}
@@ -235,14 +251,7 @@ def compile_layout(layout: dict, library: Library, render) -> dict:
                                "corrections")
             corrections, selected_answers = correction_panels(answer_refs, note, unit, question_key)
             auto = {"method": [], "hints": [], "explanations": []}
-            for aid in library.notes:
-                if aid.metadata["type"] != "help":
-                    continue
-                aid_note, aid_fragment = resolve(aid.metadata.get("question"), aid)
-                require(key(aid_note, aid_fragment) in questions,
-                        f"Aid requires an anchored question: {aid.id}")
-                if key(aid_note, aid_fragment) != question_key:
-                    continue
+            for aid in indexed_aids().get(question_key, []):
                 answer_key = None
                 if "correction" in aid.metadata:
                     answer_note, answer_fragment = resolve(aid.metadata["correction"], aid)

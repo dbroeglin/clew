@@ -20,7 +20,7 @@ sys.path.insert(0, str(SKILL / "scripts"))
 sys.path.insert(0, str(ROOT / "tests"))
 
 from generate_html import compile_data, generate
-from notes import GenerateError, Library, list_chapters, read_note
+from notes import GenerateError, Library, Note, hide_comments, list_chapters, read_note
 from publication import compile_layout, load_layout
 from render_html import Renderer
 from runtime_fixtures import build_wheelhouse
@@ -139,6 +139,20 @@ class GenerateTests(unittest.TestCase):
         self.assertIn("Exercise 1", sheet["headings"])
         with self.assertRaisesRegex(GenerateError, "Missing block"):
             read_note(self.sheet).select("^sec-sheet")
+
+    def test_part_index_matches_full_selection_and_direct_note_construction(self):
+        note = read_note(self.sheet)
+        line_count = len(note.body.splitlines())
+        self.assertEqual(note.span_parts(0, line_count), note.parts)
+        self.assertIs(note.select(), note.select())
+        direct = Note(note.path, note.text, note.metadata, note.body, parts=note.parts)
+        self.assertEqual(direct.span_parts(0, line_count), note.parts)
+        self.assertEqual(direct.part_starts, [part.start for part in note.parts])
+
+    def test_comment_hiding_skips_markdown_scan_without_comment_markers(self):
+        text = "plain text without comment delimiters"
+        with patch("notes.protected_lines", side_effect=AssertionError):
+            self.assertEqual(hide_comments(text), text)
 
     def test_document_navigation_anchor_precedes_exercise_views(self):
         model = self.model()
@@ -397,6 +411,37 @@ class GenerateTests(unittest.TestCase):
         self.assertIn("data:image/png;base64,", str(model))
         self.assertIn("<table>", str(model))
         self.assertIn("Course-course/course.pdf#page=1", str(model))
+
+    def test_static_html_tables_render_without_enabling_raw_html(self):
+        source = self.course.read_text(encoding="utf-8")
+        self.course.write_text(source + """
+
+<table>
+<caption>Static table</caption>
+<tr><th colspan="2">Name</th></tr>
+<tr><td>$x$</td><td><em>independent</em><sup>2</sup></td></tr>
+</table>
+
+<table onclick="alert(1)">
+<tr><td>Unsafe</td></tr>
+</table>
+
+<script>alert(1)</script>
+
+```html
+<table><tr><td>literal</td></tr></table>
+```
+""", encoding="utf-8")
+        course = self.model()["courses"][0]["html"]
+        self.assertIn("<table>", course)
+        self.assertIn("<caption>Static table</caption>", course)
+        self.assertIn('<th colspan="2">Name</th>', course)
+        self.assertIn('<span class="math-inline">$x$</span>', course)
+        self.assertIn("<em>independent</em><sup>2</sup>", course)
+        self.assertIn("&lt;table onclick=", course)
+        self.assertIn("&lt;script&gt;alert(1)&lt;/script&gt;", course)
+        self.assertNotIn("<script>", course)
+        self.assertIn("&lt;table&gt;", course)
 
     def test_data_mode_for_live_readers(self):
         layout = json.loads(self.layout.read_text(encoding="utf-8"))

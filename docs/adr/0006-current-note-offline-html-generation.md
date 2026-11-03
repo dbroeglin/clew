@@ -82,8 +82,13 @@ contradictory owners, unresolved targets, redirects and access errors explicitly
 Embed CSS, interaction code, supported raster figures and a pinned licensed
 MathJax SVG runtime. No CDN, server or frontend build is needed. PDF links are
 optional external provenance rebased from the output location.
-Escape raw HTML; reject SVG/remote rendering resources, note transclusions,
-Dataview and active/dynamic TeX rather than executing or silently discarding them.
+Render a strict static-table subset: `table`, `caption`, `tr`, `th`, `td`,
+`em`, `i`, `strong`, `b`, `sup`, `sub` and `br`, with only integer `colspan`
+and `rowspan` cell attributes from 1 to 100. Cell text still uses the normal
+Markdown and math renderer. Escape all other raw HTML, including tables with
+unsupported tags or unsupported attributes. Reject SVG/remote rendering resources, note
+transclusions, Dataview and active/dynamic TeX rather than executing or silently
+discarding them.
 
 Retain responsive light/dark styling, native controls and keyboard/mobile
 behavior. Repeated view markup remains in native HTML `<template>` blocks

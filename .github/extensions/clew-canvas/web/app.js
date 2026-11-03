@@ -28,6 +28,8 @@
   let coursesByAddress = new Map();
   let courseSectionRenderers = new Map();
   let exercises = new Map();
+  let exerciseRenderers = new Map();
+  let exerciseForQuestion = new Map();
   let correctionControls = [];
   let stack = [];
   let typesetQueue = Promise.resolve();
@@ -347,6 +349,12 @@
     data.courses.forEach(item => { if (!coursesByAddress.has(item.address)) coursesByAddress.set(item.address, item); });
     courseSectionRenderers = new Map();
     exercises = new Map(data.exercises.map(item => [item.address, item]));
+    exerciseRenderers = new Map();
+    exerciseForQuestion = new Map();
+    data.exercises.forEach(exercise => exercise.questions.forEach(id => {
+      const question = questions.get(id);
+      if (question) exerciseForQuestion.set(question.address, exercise.address);
+    }));
     correctionControls = [];
     document.title = data.title;
     byId("title").textContent = data.title;
@@ -363,21 +371,27 @@
       details.dataset.course = id;
       slot(details, "title").textContent = course.title;
       const body = slot(details, "body");
-      const sections = courseSections(course.html);
       const navigation = slot(fragment, "navigation");
       const previousSection = action(navigation, "previous-section");
       const nextSection = action(navigation, "next-section");
       const sectionSelect = slot(navigation, "section-select");
       const sectionPosition = slot(navigation, "section-position");
-      sections.forEach((section, index) => {
-        const option = document.createElement("option");
-        option.value = String(index);
-        option.textContent = section.title;
-        sectionSelect.append(option);
-      });
-      navigation.hidden = sections.length < 2;
+      let sections = null;
       let selectedSection = -1;
+      function initializeCourse() {
+        if (sections) return;
+        sections = courseSections(course.html);
+        sections.forEach((section, index) => {
+          const option = document.createElement("option");
+          option.value = String(index);
+          option.textContent = section.title;
+          sectionSelect.append(option);
+        });
+        navigation.hidden = sections.length < 2;
+        selectSection(0, {student: false});
+      }
       function selectSection(index, {student = true} = {}) {
+        initializeCourse();
         if (!Number.isInteger(index) || index < 0 || index >= sections.length || index === selectedSection) return;
         selectedSection = index;
         details.dataset.sectionIndex = String(index);
@@ -394,7 +408,6 @@
           });
         }
       }
-      selectSection(0, {student: false});
       courseSectionRenderers.set(course.address, index => selectSection(index, {student: false}));
       previousSection.addEventListener("click", () => selectSection(selectedSection - 1));
       nextSection.addEventListener("click", () => selectSection(selectedSection + 1));
@@ -402,6 +415,7 @@
       reading.append(fragment);
       details.addEventListener("toggle", () => {
         if (!details.open) return;
+        initializeCourse();
         if (!details.dataset.quiet) {
           record("course_opened", {course: course.address});
           const section = sections[selectedSection];
@@ -433,12 +447,20 @@
       });
       const body = slot(details, "body");
       slot(details, "context").innerHTML = exercise.context;
-      exercise.segments.forEach(part => {
-        if (part.question) body.append(renderQuestion(questions.get(part.question)));
-        else body.append(content(part.html));
-      });
+      function initializeExercise() {
+        if (details.dataset.rendered === "true") return;
+        const fragment = document.createDocumentFragment();
+        exercise.segments.forEach(part => {
+          if (part.question) fragment.append(renderQuestion(questions.get(part.question)));
+          else fragment.append(content(part.html));
+        });
+        body.append(fragment);
+        details.dataset.rendered = "true";
+      }
+      exerciseRenderers.set(exercise.address, initializeExercise);
       details.addEventListener("toggle", () => {
         if (!details.open) return;
+        initializeExercise();
         if (!details.dataset.quiet && !started.has(exercise.address)) {
           started.add(exercise.address);
           record("exercise_started", {exercise: exercise.address});
@@ -455,7 +477,7 @@
   function capture() {
     return {
       open: [...document.querySelectorAll(".sheet details[open]")].map(node => node.dataset.address),
-      sections: [...document.querySelectorAll("#reading details[data-address]")].map(node => ({
+      sections: [...document.querySelectorAll("#reading details[data-address][data-section-index]")].map(node => ({
         address: node.dataset.address, index: Number(node.dataset.sectionIndex) || 0,
       })),
       corrections: correctionControls.filter(entry => !entry.correction.hidden).map(entry => entry.item.address),
@@ -469,7 +491,12 @@
   }
   function restore(state) {
     const opened = new Set(state.open);
-    document.querySelectorAll(".sheet details").forEach(node => { if (opened.has(node.dataset.address)) openQuietly(node); });
+    document.querySelectorAll(".sheet details").forEach(node => {
+      if (!opened.has(node.dataset.address)) return;
+      if (node.closest("#reading")) courseSectionRenderers.get(node.dataset.address)?.(0);
+      else exerciseRenderers.get(node.dataset.address)?.();
+      openQuietly(node);
+    });
     state.sections?.forEach(({address, index}) => courseSectionRenderers.get(address)?.(index));
     state.corrections.forEach(address => {
       const item = questionsByAddress.get(address);
@@ -587,7 +614,12 @@
       if (course) toast("Le tuteur vous montre : " + course.title);
       return;
     }
-    const node = document.querySelector('.sheet [data-address="' + CSS.escape(message.address) + '"]');
+    let node = document.querySelector('.sheet [data-address="' + CSS.escape(message.address) + '"]');
+    if (!node && message.kind === "question") {
+      const exercise = exerciseForQuestion.get(message.address);
+      exerciseRenderers.get(exercise)?.();
+      node = document.querySelector('.sheet [data-address="' + CSS.escape(message.address) + '"]');
+    }
     if (!node) return;
     for (let parent = node; parent; parent = parent.parentElement) {
       if (parent.tagName === "DETAILS") openQuietly(parent);

@@ -181,9 +181,13 @@ Explanation controls appear in revealed corrections. Unavailable
 controls are omitted, never fabricated. No grading, progress storage or
 free-form answers are implemented.
 
-Raw HTML is escaped. SVG, remote figures, note transclusions, Dataview and
-dynamically loaded/active TeX extensions are rejected with explicit causes.
-Do not silently discard content or invent a fallback. MathJax supports
+Static HTML tables render only with the supported structural and inline tags
+documented in the [format contract](references/formats.md); only bounded
+numeric `colspan`/`rowspan` cell attributes are accepted. Cell text still uses
+Markdown and math rendering. Malformed tables, tables with unsupported
+attributes and all other raw HTML are escaped. SVG, remote figures, note transclusions,
+Dataview and dynamically loaded/active TeX extensions are rejected with
+explicit causes. Do not silently discard content or invent a fallback. MathJax supports
 base/AMS/newcommand/configmacros and `llbracket`/`rrbracket`. The page visibly
 reports math failures; inspect unfamiliar notation because static checks cannot
 prove mathematical correctness.

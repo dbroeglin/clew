@@ -15,11 +15,11 @@ skills, not in ADRs.
 | [ADR-0003](0003-autonomous-portable-skills.md) | Autonomous portable skills | Accepted | Skill-owned runtime intent, host-owned resolution, external tests and documentation integrity. |
 | [ADR-0004](0004-faithful-multi-bundle-ingest.md) | Whole-document preparation | Accepted | One note per PDF, typed edits, compact provenance, Obsidian comments, final review appendices and pedantic validation. |
 | [ADR-0005](0005-conservative-import-and-latex-leakage-review.md) | Conservative transcription and leakage review | Accepted | Image-evidenced transcription and non-mutating review. |
-| [ADR-0006](0006-current-note-offline-html-generation.md) | Current-note offline HTML | Accepted | Current document-unit publication without producer records; offline HTML-first views. |
+| [ADR-0006](0006-current-note-offline-html-generation.md) | Current-note offline HTML | Accepted | Current document-unit publication without producer records; safe static tables and offline HTML-first views. |
 | [ADR-0007](0007-course-linked-question-enrichment.md) | Course-linked question enrichment | Accepted | Scratch-first, exact-approved aids with real navigation, semantic review and additive preservation. |
 | [ADR-0008](0008-exercise-unit-pipeline-contract.md) | Document-internal learning units | Accepted | Heading navigation, stable entries, scoped ownership and compact relationship/PDF callout footers. |
 | [ADR-0009](0009-direct-markdown-page-transcription.md) | Direct Markdown page transcription | Accepted | Direct page text, strict figure JSON and retained raw responses. |
 | [ADR-0010](0010-source-grounded-page-review-and-retries.md) | Source-grounded review and retries | Accepted | High-effort review, resume-preserved correction bounds, retained evidence and usage-based cost estimates. |
 | [ADR-0011](0011-npm-workspace-and-offline-import-mathjax.md) | npm workspace and offline MathJax | Accepted | Hoisted root setup, skill-local declarations and browser-free candidate checks. |
 | [ADR-0012](0012-publish-prepared-chapters-through-git.md) | Publish prepared chapters through Git | Accepted | Thin Export skill, Import-owned published record, byte-exact Git copies and approved student installation. |
-| [ADR-0013](0013-canvas-live-reader-and-activity-capture.md) | Canvas live reader and activity capture | Accepted | Generate-backed Copilot reader with section navigation, vault activity record, tutor bridge and guarded agent. |
+| [ADR-0013](0013-canvas-live-reader-and-activity-capture.md) | Canvas live reader and activity capture | Accepted | Generate-backed Copilot reader with lazy section/exercise rendering, vault activity record, tutor bridge and guarded agent. |

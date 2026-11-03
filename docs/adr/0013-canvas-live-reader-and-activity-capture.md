@@ -39,6 +39,10 @@ the reading view displays one top-level Markdown `h1` section at a time, with
 previous/next controls and a section selector; lower-level headings remain with
 their parent section. A document without `h1` headings remains one view. Recompile
 preserves the selected section when that section index still exists.
+Course sections are parsed and inserted when the reading view is first opened.
+Exercise question controls and their supplied content are created when the
+owning exercise is first opened; reload restoration and tutor navigation
+materialize their targets before restoring or showing them.
 
 The extension serves the page, data and vault PDFs on `127.0.0.1` with a
 per-session token, a strict content security policy and no network
