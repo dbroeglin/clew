@@ -59,7 +59,8 @@ class CanvasBrowserTest(unittest.TestCase):
     def shot(self, page, name):
         self.step += 1
         if self.shots:
-            page.screenshot(path=str(self.shots / f"{self.step:02d}-{name}.png"), full_page=True)
+            page.screenshot(path=str(self.shots / f"{self._testMethodName}-{self.step:02d}-{name}.png"),
+                            full_page=True)
 
     def wait_state(self, predicate, timeout=15, **query):
         deadline = time.monotonic() + timeout
@@ -82,6 +83,133 @@ class CanvasBrowserTest(unittest.TestCase):
     def toast(self, page, text):
         page.wait_for_function("text => { const box = document.getElementById('toast');"
                                " return !box.hidden && box.textContent.includes(text); }", arg=text)
+
+    def test_exercise_navigation(self):
+        from playwright.sync_api import sync_playwright
+        sheet = Path(self.info["chapter"]) / "Exercise-sheet" / "sheet.md"
+        sheet.write_text(sheet.read_text(encoding="utf-8").replace("role: exercise", "role: mixed")
+                         .replace("# Exercises", "## Chapter One\n\n## Linear Systems\n\n"
+                                  "### I.1 Solving Linear Systems\n\n### 1.4 Example")
+                         .replace("## Exercise 1", "#### Exercises")
+                         .replace("Shared section instruction.", "# Chapter Two\n\n# Vector Spaces\n\n"
+                                  "## I.1 Definition and Examples")
+                         .replace("## Exercise 2", "#### Exercises"), encoding="utf-8")
+        layout = Path(self.info["layout"])
+        config = json.loads(layout.read_text(encoding="utf-8"))
+        config["courses"] = ["course", "sheet"]
+        layout.write_text(json.dumps(config), encoding="utf-8")
+        url = self.cmd("open", instance="c1")["url"]
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.launch(channel="msedge",
+                                                 headless=os.environ.get("CLEW_TEST_HEADED") != "1")
+            page = browser.new_page(viewport={"width": 1280, "height": 900})
+            failures = []
+            page.on("pageerror", lambda error: failures.append(str(error)))
+            def trace_math(route):
+                response = route.fetch()
+                trace = """window.clewMathBatches = [];
+MathJax.startup.promise.then(() => {
+  const typeset = MathJax.typesetPromise;
+  MathJax.typesetPromise = function(targets) {
+    window.clewMathBatches.push(targets.map(node => node.id));
+    return typeset.call(this, targets);
+  };
+});
+"""
+                route.fulfill(response=response, body=trace + response.text())
+            page.route("**/web/app.js", trace_math)
+            try:
+                page.goto(url)
+                select = page.locator("#exercise-select")
+                page.wait_for_function("() => document.querySelectorAll('#exercise-select optgroup').length === 2")
+                self.assertEqual(select.locator("optgroup").evaluate_all("(nodes) => nodes.map(n => n.label)"),
+                                 ["Chapter One", "Chapter Two"])
+                self.assertEqual(select.locator("optgroup option").all_text_contents(),
+                                 ["I.1 Solving Linear Systems", "I.1 Definition and Examples"])
+                self.assertEqual(page.locator(".exercise-title").all_text_contents(),
+                                 ["Chapter One · I.1 Solving Linear Systems",
+                                  "Chapter Two · I.1 Definition and Examples"])
+                self.assertTrue(page.locator("#exercise-go").is_disabled())
+                self.assertEqual(page.locator(".sheet .question").count(), 0)
+                page.wait_for_function("() => window.clewMathBatches.length > 0")
+                batches = page.evaluate("() => window.clewMathBatches")
+                self.assertTrue(all(batch == ["exercises"] for batch in batches))
+                self.assertLessEqual(len(batches), 2)  # Initial data and stream readiness may each render.
+                self.shot(page, "exercise-index-desktop")
+
+                # The read-only copy of a mixed course links to its interactive exercises.
+                course = page.locator('#reading details[data-address="sheet"]')
+                course.locator("summary").click()
+                links = course.get_by_role("navigation", name="Exercises from this course")
+                links.get_by_label("Open interactive exercise").select_option("sheet#^ex-2")
+                links.get_by_role("button", name="Go to exercise").click()
+                target = page.locator('#exercises details[data-address="sheet#^ex-2"]')
+                page.wait_for_selector(f"{question(Q3)}")
+                self.wait_state(lambda state: state["exercises"][1].get("started"))
+                self.assertTrue(target.evaluate("(node) => node.open"))
+                self.assertTrue(target.locator("summary").evaluate("(node) => document.activeElement === node"))
+                self.assertEqual(select.input_value(), "sheet#^ex-2")
+                self.shot(page, "course-to-interactive-exercise")
+
+                # Keyboard navigation works in a narrow canvas, without revealing aids.
+                page.set_viewport_size({"width": 390, "height": 844})
+                select.select_option("sheet#^ex-1")
+                page.locator("#exercise-go").focus()
+                page.locator("#exercise-go").press("Enter")
+                page.wait_for_selector(f"{question(Q1)}")
+                page.wait_for_function("() => document.querySelectorAll('#exercises mjx-container').length > 0")
+                self.wait_state(lambda state: state["exercises"][0].get("started"))
+                self.assertTrue(page.locator(f"{question(Q1)} .correction").is_hidden())
+                self.assertEqual(page.locator("#panel-content .hint").count(), 0)
+                page.wait_for_function("() => document.querySelector('#exercises details').getBoundingClientRect().top"
+                                       " >= document.getElementById('exercise-navigation').getBoundingClientRect().bottom")
+                self.assertLessEqual(page.evaluate("() => document.documentElement.scrollWidth"), 390)
+                self.shot(page, "exercise-index-mobile")
+
+                # Following a contextual course link also offers a path back to exercises.
+                page.locator(question(Q1)).get_by_role("button", name="Hints", exact=True).click()
+                page.locator("#panel-content").get_by_role("link", name="the geometric limit result").click()
+                links = page.locator("#panel-content").get_by_role("navigation", name="Exercises from this course")
+                links.get_by_label("Open interactive exercise").select_option("sheet#^ex-1")
+                links.get_by_role("button", name="Go to exercise").click()
+                self.assertFalse(page.locator(".panel").evaluate("(node) => node.classList.contains('open')"))
+                self.assertTrue(page.locator(f"{question(Q1)} .correction").is_hidden())
+                self.shot(page, "contextual-course-to-exercise")
+
+                sheet.write_text(sheet.read_text(encoding="utf-8").replace("Solving Linear Systems", "Row Reduction"),
+                                 encoding="utf-8")
+                page.wait_for_function("() => document.querySelector('.exercise-title').textContent.includes('Row Reduction')",
+                                       timeout=30000)
+                self.assertEqual(select.input_value(), "sheet#^ex-1")
+                self.assertTrue(course.evaluate("(node) => node.open"))
+                self.shot(page, "exercise-index-live-reload")
+
+                # Partial selections have no worksheet headings; do not invent a chapter.
+                config["exercises"] = ["sheet#^ex-1"]
+                layout.write_text(json.dumps(config), encoding="utf-8")
+                page.wait_for_function("() => document.querySelectorAll('#exercises details').length === 1",
+                                       timeout=30000)
+                self.assertEqual(select.locator("optgroup").get_attribute("label"), "Exercises")
+                self.assertEqual(select.locator("optgroup option").inner_text(), "Exercises")
+                self.assertEqual(select.input_value(), "sheet#^ex-1")
+                self.shot(page, "exercise-index-partial-selection")
+
+                config["exercises"] = []
+                layout.write_text(json.dumps(config), encoding="utf-8")
+                page.wait_for_selector("#exercise-navigation", state="hidden", timeout=30000)
+                self.assertEqual(page.locator(".course-exercises").count(), 0)
+                self.shot(page, "course-only-no-exercise-index")
+                activity = self.vault / self.cmd("state", instance="c1")["activity"]
+                events = [json.loads(line) for line in (activity / "activity.jsonl").read_text(
+                    encoding="utf-8").splitlines()]
+                starts = [event["exercise"] for event in events if event.get("type") == "exercise_started"]
+                self.assertCountEqual(starts, ["sheet#^ex-1", "sheet#^ex-2"])
+            except BaseException:
+                self.shot(page, "failure")
+                raise
+            finally:
+                browser.close()
+            self.assertEqual(failures, [])
 
     def test_canvas_reader_in_browser(self):
         from playwright.sync_api import sync_playwright

@@ -432,7 +432,7 @@ Python renders current Markdown and embeds figures, fixed HTML-first templates,
 CSS, interaction code and pinned offline MathJax. No runtime CDN/server or
 source-note changes. Hints/explanations/course excerpts use contextual panels;
 supplied corrections stay inline. Missing controls are omitted, not fabricated.
-Browser Back/Forward and the panel's `Retour` button restore previous panel
+Browser Back/Forward and the panel's `Back` button restore previous panel
 views and revealed hints within the current page session.
 PDF references remain external and can break if HTML moves.
 Output parent must exist; existing HTML requires explicit exact-file replacement.
@@ -483,6 +483,21 @@ Lower-level headings remain with their parent section; documents without `h1`
 headings have one view. Section navigation is recorded in the activity log.
 Course sections are parsed on first open, and exercise question controls are
 created when their exercise is opened; the complete publication remains intact.
+The sticky **Jump to exercise** selector lists every exercise group by its
+preceding chapter/section headings. Choose a group and press **Go to exercise**
+to open and focus it, without revealing hints or corrections. Exercise headings
+show that context too. Named chapter headings take precedence over heading
+levels, and numbered example/theorem headings are skipped; when no preceding
+headings are published (for example, a partial selection), source and exercise
+titles are used. The navigator is Canvas-only: layouts, publication data, source
+notes and offline HTML are unchanged. Jumps use the existing `exercise_started`
+event, once per exercise; live recompiles retain the selected exercise.
+Course reading views and contextual course panels also offer **Open interactive
+exercise** when the publication contains exercises from that source document or
+questions explicitly linked to that course passage, including links in their
+published aids. This lists existing
+relationships, not inferred relevance to the current section, and closes the
+contextual panel when jumping back to the worksheet.
 It recompiles when the
 selected notes or the layout change; on a compile error it keeps the previous
 content and shows "Content is out of date". Links and PDFs open outside the
@@ -596,7 +611,7 @@ Remove-Item Env:\CLEW_TEST_BROWSER
 pure modules, the reader with real data-mode compiles and file watching, and the
 HTTP server, restart and tutor bridge against a simulated session. The
 `tests/clew_canvas` browser check drives the canvas page in Edge through
-`browser_harness.mjs`: rendering, theme, math, hints, course section navigation, corrections,
+`browser_harness.mjs`: rendering, theme, math, hints, course section and exercise navigation, corrections,
 PDFs, ask/show, digest, live reload, compile errors, session pause and the
 activity files. `CLEW_TEST_HEADED=1` shows the browser and
 `CLEW_TEST_SCREENSHOTS=<folder>` saves a screenshot per step and on failure.

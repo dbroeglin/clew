@@ -44,12 +44,20 @@
   let courseSectionRenderers = new Map();
   let exercises = new Map();
   let exerciseRenderers = new Map();
+  let exerciseLabels = new Map();
+  let exerciseCourses = new Map();
   let exerciseForQuestion = new Map();
   let correctionControls = [];
   let stack = [];
   let typesetQueue = Promise.resolve();
   const hints = new Map();
   const started = new Set();
+  const exerciseNavigation = byId("exercise-navigation");
+  const exerciseSelect = byId("exercise-select");
+  const exerciseGo = byId("exercise-go");
+  new ResizeObserver(() => {
+    document.documentElement.style.setProperty("--clew-navigation-height", exerciseNavigation.offsetHeight + "px");
+  }).observe(exerciseNavigation);
 
   function error(message) {
     const box = byId("error");
@@ -169,7 +177,10 @@
     const item = view.question && questions.get(view.question);
     if (view.kind === "course") {
       const course = courses.get(view.id);
-      return course && {title: course.title, fragment: content(course.html)};
+      if (!course) return null;
+      const fragment = content(course.html);
+      slot(fragment, "content").prepend(courseExercises(course));
+      return {title: course.title, fragment};
     }
     if (!item) return null;
     const title = LABELS[view.kind] + " · " + item.label;
@@ -353,6 +364,118 @@
     }
   }
 
+  function markStarted(address) {
+    if (started.has(address)) return;
+    started.add(address);
+    record("exercise_started", {exercise: address});
+  }
+  function selectExercise(address) {
+    exerciseSelect.value = address;
+    exerciseGo.disabled = !exerciseSelect.value;
+  }
+  exerciseSelect.addEventListener("change", () => { exerciseGo.disabled = !exerciseSelect.value; });
+  exerciseGo.addEventListener("click", () => jumpToExercise(exerciseSelect.value));
+  function jumpToExercise(address) {
+    const details = document.querySelector('#exercises details[data-address="' + CSS.escape(address) + '"]');
+    if (!details) return;
+    resetPanel();
+    selectExercise(address);
+    exerciseRenderers.get(address)();
+    details.open = true;
+    markStarted(address);
+    const summary = required(details, "summary");
+    summary.focus({preventScroll: true});
+    const scroll = () => {
+      if (document.activeElement !== summary) return;
+      details.scrollIntoView({block: "start"});
+    };
+    scroll();
+    // Earlier worksheet formulas can move a deep target after the initial jump.
+    typeset(slot(details, "body")).then(scroll);
+    highlight(details);
+  }
+  function exerciseOptions(select, addresses) {
+    const choose = document.createElement("option");
+    choose.value = "";
+    choose.textContent = uiText(addresses.length === 1 ? "exercise.choose_one" : "exercise.choose_many",
+      {count: addresses.length});
+    select.replaceChildren(choose);
+    let group = null;
+    let key = "";
+    for (const address of addresses) {
+      const label = exerciseLabels.get(address);
+      if (key !== label.key) {
+        group = document.createElement("optgroup");
+        group.label = label.group;
+        select.append(group);
+        key = label.key;
+      }
+      const option = document.createElement("option");
+      option.value = address;
+      option.textContent = label.label;
+      group.append(option);
+    }
+  }
+  function courseExercises(course) {
+    const source = course.address.split("#")[0];
+    const addresses = data.exercises.filter(exercise =>
+      exercise.address.split("#")[0] === source ||
+      [...exerciseCourses.get(exercise.address)].some(id => id === course.id ||
+        (!course.address.includes("#") && courses.get(id)?.address.split("#")[0] === source))
+    ).map(exercise => exercise.address);
+    if (!addresses.length) return document.createDocumentFragment();
+    const fragment = clone("course-exercises");
+    const select = slot(fragment, "exercise-select");
+    const go = action(fragment, "exercise-go");
+    exerciseOptions(select, addresses);
+    select.addEventListener("change", () => { go.disabled = !select.value; });
+    go.addEventListener("click", () => jumpToExercise(select.value));
+    return fragment;
+  }
+
+  /** Read the existing worksheet headings, without changing publication data or source notes. */
+  function exerciseHeadingContext() {
+    let headings = [];
+    let chapter = "";
+    let documentId = "";
+    function reset() {
+      headings = [];
+      chapter = "";
+      documentId = "";
+    }
+    return {
+      read(root) {
+        // Generate emits a bare document anchor before each whole worksheet.
+        if ([...root.querySelectorAll("span.anchor[id]")].some(node => /^note-\d+$/.test(node.id))) reset();
+        root.querySelectorAll("h1, h2, h3, h4, h5, h6").forEach(node => {
+          const title = node.textContent.replace(/\s+/g, " ").trim();
+          if (!title) return;
+          if (/^(chapter|chapitre)\s+\S/i.test(title)) {
+            chapter = title;
+            headings = [];
+            return;
+          }
+          // Converted books sometimes promote numbered statements to headings.
+          if (/^\d+(?:\.\d+)+\.?\s+(example|lemma|theorem|definition|corollary|proposition|remark|proof)\b/i.test(title)) return;
+          const level = Number(node.tagName[1]);
+          while (headings.length && headings[headings.length - 1].level >= level) headings.pop();
+          headings.push({level, title});
+        });
+      },
+      label(exercise) {
+        const source = exercise.address.split("#")[0];
+        if (documentId && documentId !== source) reset();
+        documentId = source;
+        const group = chapter || headings[0]?.title || data.sources?.find(item => item.id === source)?.title || source;
+        const section = headings[headings.length - 1]?.title;
+        const parts = section && section !== group ? [section] : [];
+        if (!/^exercises?$/i.test(exercise.title) || (!section && !chapter)) parts.push(exercise.title);
+        const label = [...new Set(parts)].join(" · ") || exercise.title;
+        return {group, key: source + "#" + group, label, title: group === label ? label : group + " · " + label};
+      },
+    };
+  }
+
   function render(next, nextVersion) {
     const previous = data ? capture() : null;
     data = next;
@@ -365,11 +488,26 @@
     courseSectionRenderers = new Map();
     exercises = new Map(data.exercises.map(item => [item.address, item]));
     exerciseRenderers = new Map();
+    exerciseLabels = new Map();
+    exerciseCourses = new Map();
     exerciseForQuestion = new Map();
-    data.exercises.forEach(exercise => exercise.questions.forEach(id => {
-      const question = questions.get(id);
-      if (question) exerciseForQuestion.set(question.address, exercise.address);
-    }));
+    data.exercises.forEach(exercise => {
+      const linked = new Set();
+      exercise.questions.forEach(id => {
+        const question = questions.get(id);
+        if (!question) return;
+        exerciseForQuestion.set(question.address, exercise.address);
+        question.courses.forEach(course => linked.add(course));
+        for (const html of [question.html, question.method, ...question.hints, ...question.explanations,
+          ...question.corrections]) {
+          for (const match of html.matchAll(/href="#([^"]+)"/g)) {
+            const course = data.course_links[match[1]];
+            if (course) linked.add(course);
+          }
+        }
+      });
+      exerciseCourses.set(exercise.address, linked);
+    });
     correctionControls = [];
     document.title = data.title;
     byId("title").textContent = data.title;
@@ -378,6 +516,9 @@
     MathJax.typesetClear?.([reading, sheet]);
     reading.replaceChildren();
     sheet.replaceChildren();
+    exerciseNavigation.hidden = !data.exercises.length;
+    exerciseGo.disabled = true;
+    const headingContext = exerciseHeadingContext();
     data.reading.forEach(id => {
       const course = courses.get(id);
       const fragment = clone("course");
@@ -415,6 +556,7 @@
         nextSection.disabled = index === sections.length - 1;
         sectionPosition.textContent = uiText("section.position", {current: index + 1, total: sections.length});
         body.innerHTML = sections[index].html;
+        body.prepend(courseExercises(course));
         if (details.open) typeset(body);
         if (student) {
           const section = sections[index];
@@ -446,18 +588,22 @@
       if (!segment.exercise) {
         const fragment = content(segment.html);
         const target = slot(fragment, "content");
+        headingContext.read(target);
         sheet.append(fragment);
-        typeset(target);
         return;
       }
       const exercise = exercises.get(segment.exercise);
       const fragment = clone("exercise");
       const details = required(fragment, "details");
       details.dataset.address = exercise.address;
-      slot(details, "title").textContent = exercise.title;
+      const label = headingContext.label(exercise);
+      exerciseLabels.set(exercise.address, label);
+      slot(details, "title").textContent = label.title;
       action(details, "start").addEventListener("click", event => {
         event.preventDefault();
         event.stopPropagation();
+        markStarted(exercise.address);
+        selectExercise(exercise.address);
         details.open = true;
       });
       const body = slot(details, "body");
@@ -476,15 +622,17 @@
       details.addEventListener("toggle", () => {
         if (!details.open) return;
         initializeExercise();
-        if (!details.dataset.quiet && !started.has(exercise.address)) {
-          started.add(exercise.address);
-          record("exercise_started", {exercise: exercise.address});
+        if (!details.dataset.quiet) {
+          markStarted(exercise.address);
+          selectExercise(exercise.address);
         }
         delete details.dataset.quiet;
         typeset(body);
       });
       sheet.append(fragment);
     });
+    exerciseOptions(exerciseSelect, [...exerciseLabels.keys()]);
+    typeset(sheet);
     if (previous) restore(previous);
     else resetPanel();
   }
@@ -502,6 +650,7 @@
       })),
       panelScroll: aside.scrollTop,
       scrollY: window.scrollY,
+      selectedExercise: exerciseSelect.value,
     };
   }
   function restore(state) {
@@ -528,6 +677,7 @@
     while (stack.length && !build(stack[stack.length - 1])) stack.pop();
     if (stack.length) display(build(stack[stack.length - 1]), state.panelScroll, false);
     else resetPanel();
+    selectExercise(state.selectedExercise || "");
     window.scrollTo(0, state.scrollY);
   }
 
@@ -642,7 +792,7 @@
     node.scrollIntoView({block: "start", behavior: "smooth"});
     highlight(node);
     const title = message.kind === "question" ? questionsByAddress.get(message.address)?.label
-      : exercises.get(message.address)?.title;
+      : slot(node, "title").textContent;
     if (title) toast(uiText("toast.tutor_shows", {title}));
   }
 

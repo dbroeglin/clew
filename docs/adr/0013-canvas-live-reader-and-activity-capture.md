@@ -50,6 +50,16 @@ Exercise question controls and their supplied content are created when the
 owning exercise is first opened; reload restoration and tutor navigation
 materialize their targets before restoring or showing them.
 
+The Canvas derives an exercise navigator and contextual exercise titles from
+the existing worksheet headings. It groups by chapter (or the top heading/source
+title), skips numbered statement headings, and opens an exercise through the
+existing student-start interaction without revealing aids. The selected address
+survives live recompiles. This is presentation only: publication data, layouts,
+source notes and offline HTML do not change.
+Course views offer the same jump interaction for exercises from their source
+document or with explicit question-to-course links (including published aids);
+no pedagogical relationship is inferred from heading text.
+
 The extension serves the page, data and vault PDFs on `127.0.0.1` with a
 per-session token, a strict content security policy and no network
 resources. It persists its port and open instances in the session workspace so

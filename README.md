@@ -133,6 +133,8 @@ C:\publications\algebre.html, including existing aids.
 
 In the GitHub Copilot App, the `clew-tutor` agent can instead open the same
 publication in an interactive canvas and tutor you in French while you work.
+Use **Jump to exercise** to find exercise groups by chapter and section.
+Course views also link back to their published interactive exercises.
 It asks guiding questions and points to course passages, but never gives
 answers, hints or corrections: you reveal those yourself in the canvas.
 Your actions are recorded in your vault under `Activity/`, with a readable

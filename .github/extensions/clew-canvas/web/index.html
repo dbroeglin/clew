@@ -19,6 +19,11 @@
 </header>
 <div id="server-error" role="alert" hidden>{{UI:app.server_error}}</div>
 <div id="error" role="alert" hidden></div>
+<nav id="exercise-navigation" class="exercise-navigation" aria-label="{{UI:app.exercise_navigation}}" hidden>
+  <label for="exercise-select">{{UI:app.jump_to_exercise}}</label>
+  <select id="exercise-select"></select>
+  <button id="exercise-go" type="button" disabled>{{UI:app.go_to_exercise}}</button>
+</nav>
 <main class="workspace">
   <section class="sheet" aria-label="{{UI:app.sheet_label}}"><div id="reading"></div><div id="exercises"></div></section>
   <aside class="panel" aria-label="{{UI:app.panel_label}}">
@@ -70,6 +75,14 @@
 </template>
 <template id="template-course-link">
   <button type="button">{{UI:app.course_link}}<span data-slot="title"></span></button>
+</template>
+<template id="template-course-exercises">
+  <nav class="course-exercises" aria-label="{{UI:app.course_exercises}}">
+    <label>{{UI:app.open_interactive_exercise}}
+      <select data-slot="exercise-select"></select>
+    </label>
+    <button type="button" data-action="exercise-go" disabled>{{UI:app.go_to_exercise}}</button>
+  </nav>
 </template>
 <template id="template-content">
   <div data-slot="content"></div>

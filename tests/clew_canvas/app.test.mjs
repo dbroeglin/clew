@@ -123,6 +123,8 @@ describe("canvas app", () => {
         assert.equal(page.status, 200);
         assert.match(page.text, /<html lang="en">/);
         assert.match(page.text, /Start exercise/);
+        assert.match(page.text, /Jump to exercise/);
+        assert.match(page.text, /id="exercise-select"/);
         assert.doesNotMatch(page.text, /\{\{UI:/);
         assert.doesNotMatch(page.text, /Chargement|Retour|Demander au tuteur/);
         assert.match(page.headers["content-security-policy"], /script-src 'self'/);
