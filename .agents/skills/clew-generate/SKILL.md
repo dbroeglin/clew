@@ -150,6 +150,22 @@ Reports include output, exercise/question/course-view counts and warnings.
 `--check` validates/builds in memory without writing. Inspect persisted HTML
 and representative interactions before reporting completion.
 
+## Data mode for live readers
+
+A live reader, such as the Clew canvas, needs the compiled publication rather
+than HTML. Data mode writes it as one JSON file and nothing else:
+
+```powershell
+uv run --package clew-generate --locked --no-sync python -B ".agents\skills\clew-generate\scripts\generate_html.py" "C:\vault\Activity\Layouts\sequences.json" --data "$env:TEMP\sequences.json" --base "C:\vault"
+```
+
+The target must end in `.json`, have an existing parent and not be an input;
+an existing target is replaced. The layout's `output` is optional and ignored.
+Source note and PDF paths in the data are relative to `--base`, by default the
+layout's folder. `--base` requires `--data`; `--data` excludes `--check`.
+Selection, ownership and rendering rules, exit codes and warnings are the same
+as for HTML. Notes are never changed.
+
 ## Output and limitations
 
 One file embeds CSS, interaction code, raster figures and offline math rendering.
@@ -157,17 +173,26 @@ It opens directly without network access. PDF links remain optional external
 provenance; moving HTML can break those paths. Web links are optional navigation,
 not rendering dependencies. Missing PDFs produce explicit warnings.
 
+The offline interface labels are in English; course and exercise content keeps
+its source language. The Canvas shares the message catalog in
+`assets/locales/en.json`. Other locale catalogs and locale selection are not
+currently implemented.
+
 Supplied content stays distinct from added aids. Corrections reveal inline;
 methods, progressive hints, explanations and course excerpts use the side
-panel. Browser Back/Forward and the panel's `Retour` button restore previous
+panel. Browser Back/Forward and the panel's `Back` button restore previous
 panel views, including already revealed hints, for the current page session.
 Explanation controls appear in revealed corrections. Unavailable
 controls are omitted, never fabricated. No grading, progress storage or
 free-form answers are implemented.
 
-Raw HTML is escaped. SVG, remote figures, note transclusions, Dataview and
-dynamically loaded/active TeX extensions are rejected with explicit causes.
-Do not silently discard content or invent a fallback. MathJax supports
+Static HTML tables render only with the supported structural and inline tags
+documented in the [format contract](references/formats.md); only bounded
+numeric `colspan`/`rowspan` cell attributes are accepted. Cell text still uses
+Markdown and math rendering. Malformed tables, tables with unsupported
+attributes and all other raw HTML are escaped. SVG, remote figures, note transclusions,
+Dataview and dynamically loaded/active TeX extensions are rejected with
+explicit causes. Do not silently discard content or invent a fallback. MathJax supports
 base/AMS/newcommand/configmacros and `llbracket`/`rrbracket`. The page visibly
 reports math failures; inspect unfamiliar notation because static checks cannot
 prove mathematical correctness.
@@ -176,7 +201,8 @@ prove mathematical correctness.
 
 Keep view markup in native HTML templates in `assets/template.html`, styling
 in `assets/style.css`, and interaction behavior in `assets/interaction.js`.
-JavaScript clones templates and consumes the ordered worksheet stream.
+Keep interface copy in `assets/locales/`; JavaScript clones templates and
+consumes the ordered worksheet stream.
 Preserve template IDs, `data-slot`, `data-action`, `data-help` hooks and native
 details/button semantics. Missing hooks/templates fail explicitly.
 No frontend framework or build is required.

@@ -78,7 +78,8 @@ hidden; code/math lookalikes remain literal content. LF, CRLF and CR are support
 ```
 
 Required keys are `schema_version`, nonempty `title`, `output` and nonempty
-`notes`. Unknown keys are rejected. Paths are absolute or relative to the layout;
+`notes`; in data mode (`--data`) `output` is optional and ignored. Unknown keys
+are rejected. Paths are absolute or relative to the layout;
 the output must be `.html` under an existing parent. JSON relative paths use `/`.
 The layout selects existing content; never copy or author teaching prose in it.
 
@@ -203,11 +204,16 @@ Missing/ambiguous/unpublished note targets are errors, not broken links.
 Visible review warnings remain content and are also reported.
 
 Local PNG/JPEG/GIF/WebP images, including image wikilinks, are embedded after
-signature checks. Raw HTML is escaped; SVG, remote figures, note transclusions
-and Dataview are rejected. Active URL schemes are not emitted. HTTP(S)/mailto
-links remain optional navigation. Local PDF links preserve `#page=N` and are
-rebased to the output location; missing PDFs warn, and relocation can break
-external PDF links without affecting offline reading.
+signature checks. Static HTML tables are rendered only when they use
+`table`, `caption`, `tr`, `th`, `td`, `em`, `i`, `strong`, `b`, `sup`, `sub`
+or `br`; cell `colspan` and `rowspan` values must be integers from 1 to 100.
+Cell text still goes through Markdown and math rendering. Other raw HTML,
+including malformed tables and tables with unsupported attributes, is escaped;
+SVG, remote figures, note transclusions and Dataview are rejected. Active URL
+schemes are not emitted. HTTP(S)/mailto links remain optional navigation. Local
+PDF links preserve `#page=N` and are rebased to the output location; missing
+PDFs warn, and relocation can break external PDF links without affecting offline
+reading.
 
 Bundled MathJax uses base/AMS/newcommand/configmacros and local SVG fonts.
 Dynamic/active TeX is rejected; browser math failures remain visible.

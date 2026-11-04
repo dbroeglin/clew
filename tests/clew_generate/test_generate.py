@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -18,8 +19,8 @@ FIXTURE = Path(__file__).parent / "fixtures" / "chapter"
 sys.path.insert(0, str(SKILL / "scripts"))
 sys.path.insert(0, str(ROOT / "tests"))
 
-from generate_html import generate
-from notes import GenerateError, Library, list_chapters, read_note
+from generate_html import compile_data, generate
+from notes import GenerateError, Library, Note, hide_comments, list_chapters, read_note
 from publication import compile_layout, load_layout
 from render_html import Renderer
 from runtime_fixtures import build_wheelhouse
@@ -138,6 +139,20 @@ class GenerateTests(unittest.TestCase):
         self.assertIn("Exercise 1", sheet["headings"])
         with self.assertRaisesRegex(GenerateError, "Missing block"):
             read_note(self.sheet).select("^sec-sheet")
+
+    def test_part_index_matches_full_selection_and_direct_note_construction(self):
+        note = read_note(self.sheet)
+        line_count = len(note.body.splitlines())
+        self.assertEqual(note.span_parts(0, line_count), note.parts)
+        self.assertIs(note.select(), note.select())
+        direct = Note(note.path, note.text, note.metadata, note.body, parts=note.parts)
+        self.assertEqual(direct.span_parts(0, line_count), note.parts)
+        self.assertEqual(direct.part_starts, [part.start for part in note.parts])
+
+    def test_comment_hiding_skips_markdown_scan_without_comment_markers(self):
+        text = "plain text without comment delimiters"
+        with patch("notes.protected_lines", side_effect=AssertionError):
+            self.assertEqual(hide_comments(text), text)
 
     def test_document_navigation_anchor_precedes_exercise_views(self):
         model = self.model()
@@ -397,6 +412,78 @@ class GenerateTests(unittest.TestCase):
         self.assertIn("<table>", str(model))
         self.assertIn("Course-course/course.pdf#page=1", str(model))
 
+    def test_static_html_tables_render_without_enabling_raw_html(self):
+        source = self.course.read_text(encoding="utf-8")
+        self.course.write_text(source + """
+
+<table>
+<caption>Static table</caption>
+<tr><th colspan="2">Name</th></tr>
+<tr><td>$x$</td><td><em>independent</em><sup>2</sup></td></tr>
+</table>
+
+<table onclick="alert(1)">
+<tr><td>Unsafe</td></tr>
+</table>
+
+<script>alert(1)</script>
+
+```html
+<table><tr><td>literal</td></tr></table>
+```
+""", encoding="utf-8")
+        course = self.model()["courses"][0]["html"]
+        self.assertIn("<table>", course)
+        self.assertIn("<caption>Static table</caption>", course)
+        self.assertIn('<th colspan="2">Name</th>', course)
+        self.assertIn('<span class="math-inline">$x$</span>', course)
+        self.assertIn("<em>independent</em><sup>2</sup>", course)
+        self.assertIn("&lt;table onclick=", course)
+        self.assertIn("&lt;script&gt;alert(1)&lt;/script&gt;", course)
+        self.assertNotIn("<script>", course)
+        self.assertIn("&lt;table&gt;", course)
+
+    def test_data_mode_for_live_readers(self):
+        layout = json.loads(self.layout.read_text(encoding="utf-8"))
+        del layout["output"]
+        self.layout.write_text(json.dumps(layout), encoding="utf-8")
+        before = {path: path.read_bytes() for path in self.chapter.rglob("*") if path.is_file()}
+        target = self.root / "cache" / "data.json"
+        target.parent.mkdir()
+        report = compile_data(self.layout, target, base=self.chapter)
+        self.assertEqual((report["status"], report["questions"]), ("data", 3))
+        data = json.loads(target.read_text(encoding="utf-8"))
+        self.assertEqual([q["address"] for q in data["questions"]],
+                         ["sheet#^q-1", "sheet#^q-2", "sheet#^q-3"])
+        self.assertEqual(data["ui"]["locale"], "en")
+        self.assertEqual(data["ui"]["messages"]["app.ask_tutor"], "Ask the tutor")
+        self.assertTrue(all(c["address"].startswith("course") for c in data["courses"]))
+        self.assertIn('href="Course-course/course.pdf#page=1"', str(data["courses"]))
+        sources = {s["id"]: s for s in data["sources"]}
+        self.assertEqual(sources["sheet"]["path"], "Exercise-sheet/sheet.md")
+        self.assertEqual(sources["sheet"]["sha256"],
+                         hashlib.sha256(self.sheet.read_text(encoding="utf-8-sig").encode()).hexdigest())
+        first = target.read_bytes()
+        compile_data(self.layout, target, base=self.chapter)
+        self.assertEqual(first, target.read_bytes())
+        compile_data(self.layout, target)
+        self.assertIn('href="chapter/Course-course/course.pdf#page=1"',
+                      str(json.loads(target.read_text(encoding="utf-8"))["courses"]))
+        self.assertEqual(before, {path: path.read_bytes() for path in before})
+        self.assertFalse(list(self.root.rglob("*.tmp")))
+        self.assertFalse((self.root / "publication.html").exists())
+        with self.assertRaisesRegex(GenerateError, r"\.json"):
+            compile_data(self.layout, self.root / "data.txt")
+        with self.assertRaisesRegex(GenerateError, "replace an input"):
+            compile_data(self.layout, self.layout)
+        with self.assertRaisesRegex(GenerateError, "Missing output"):
+            generate(self.layout, check=True)
+        result = subprocess.run([sys.executable, "-B", str(SKILL / "scripts" / "generate_html.py"),
+                                 str(self.layout), "--base", str(self.root)],
+                                capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("--base requires --data", result.stderr)
+
     def test_unsupported_assets_html_plugins_and_math(self):
         original = self.course.read_text(encoding="utf-8")
         (self.course.parent / "figure.svg").write_text("<svg/>", encoding="utf-8")
@@ -440,6 +527,11 @@ class GenerateTests(unittest.TestCase):
         generate(self.layout)
         page = (self.root / "publication.html").read_text(encoding="utf-8")
         self.assertIn("<title>{{DATA}}</title>", page)
+        self.assertIn('<html lang="en">', page)
+        self.assertIn("Start exercise", page)
+        self.assertIn('"locale":"en"', page)
+        self.assertNotIn("{{UI:", page)
+        self.assertNotIn("Demander au tuteur", page)
         template = (SKILL / "assets" / "template.html").read_text(encoding="utf-8")
         script = (SKILL / "assets" / "interaction.js").read_text(encoding="utf-8")
         for name in ("course", "exercise", "question", "content", "method", "hints",
@@ -504,34 +596,46 @@ class GenerateTests(unittest.TestCase):
         with patch("render_html.ASSETS", assets):
             generate(self.layout)
         with sync_playwright() as playwright:
-            browser = playwright.chromium.launch(channel="msedge", headless=True)
+            browser = playwright.chromium.launch(channel="msedge",
+                                                 headless=os.environ.get("CLEW_TEST_HEADED") != "1")
             page = browser.new_page()
             failures, requests = [], []
+            screenshots = Path(os.environ["CLEW_TEST_SCREENSHOTS"]) / "generated-html" \
+                if os.environ.get("CLEW_TEST_SCREENSHOTS") else None
+            if screenshots:
+                screenshots.mkdir(parents=True, exist_ok=True)
+
+            def screenshot(name):
+                if screenshots:
+                    page.screenshot(path=str(screenshots / f"{name}.png"), full_page=True)
+
             page.on("pageerror", lambda error: failures.append(str(error)))
             page.route("http://**/*", lambda route: (requests.append(route.request.url), route.abort()))
             page.route("https://**/*", lambda route: (requests.append(route.request.url), route.abort()))
             page.goto((self.root / "publication.html").as_uri())
             page.wait_for_function("!!window.MathJax?.startup?.document")
+            self.assertEqual(page.locator("html").get_attribute("lang"), "en")
             self.assertEqual(page.locator(".exercise").count(), 2)
             self.assertEqual(page.locator(".question").count(), 3)
             self.assertEqual(page.locator(".edited-layout").count(), 3)
             self.assertEqual(page.get_by_text("Worksheet introduction.", exact=False).count(), 1)
             page.wait_for_selector('#exercises > [data-slot="content"] mjx-container svg')
-            back = page.get_by_role("button", name="Retour", exact=True)
+            screenshot("initial")
+            back = page.get_by_role("button", name="Back", exact=True)
             self.assertTrue(back.is_hidden())
-            page.get_by_role("button", name="Commencer l'exercice").first.click()
+            page.get_by_role("button", name="Start exercise").first.click()
             question = page.locator(".question").first
-            question.get_by_role("button", name="Méthode", exact=True).click()
+            question.get_by_role("button", name="Method", exact=True).click()
             self.assertTrue(page.locator("#panel-title").evaluate("node => node === document.activeElement"))
             page.go_back()
-            page.wait_for_function("document.getElementById('panel-title').textContent === 'Aide contextuelle'")
+            page.wait_for_function("document.getElementById('panel-title').textContent === 'Contextual help'")
             self.assertTrue(back.is_hidden())
-            self.assertIn("Choisissez", page.locator("#panel-content").inner_text())
+            self.assertIn("Choose", page.locator("#panel-content").inner_text())
             page.go_forward()
-            page.wait_for_function("document.getElementById('panel-title').textContent.startsWith('Méthode')")
-            question.get_by_role("button", name="Indices", exact=True).click()
+            page.wait_for_function("document.getElementById('panel-title').textContent.startsWith('Method')")
+            question.get_by_role("button", name="Hints", exact=True).click()
             self.assertEqual(page.locator("#panel-content .hint:not([hidden])").count(), 1)
-            reveal = page.get_by_role("button", name="Révéler l'indice suivant")
+            reveal = page.get_by_role("button", name="Reveal next hint")
             for width in (1280, 390):
                 page.set_viewport_size({"width": width, "height": 844})
                 hint_box = page.locator("#panel-content .hint:not([hidden])").bounding_box()
@@ -542,42 +646,48 @@ class GenerateTests(unittest.TestCase):
             page.locator("#panel-content").get_by_role("link", name="the geometric limit result").click()
             self.assertIn("Geometric limit result", page.locator("#panel-content").inner_text())
             page.go_back()
-            page.wait_for_function("document.getElementById('panel-title').textContent.startsWith('Indices')")
+            page.wait_for_function("document.getElementById('panel-title').textContent.startsWith('Hints')")
             self.assertEqual(page.locator("#panel-content .hint:not([hidden])").count(), 1)
             self.assertTrue(page.locator("#panel-content").get_by_role(
                 "link", name="the geometric limit result").evaluate("node => node === document.activeElement"))
-            page.get_by_role("button", name="Révéler l'indice suivant").click()
+            page.get_by_role("button", name="Reveal next hint").click()
             self.assertEqual(page.locator("#panel-content .hint:not([hidden])").count(), 2)
             page.go_forward()
             page.wait_for_function("document.getElementById('panel-title').textContent.includes('Geometric')")
             back.click()
-            page.wait_for_function("document.getElementById('panel-title').textContent.startsWith('Indices')")
+            page.wait_for_function("document.getElementById('panel-title').textContent.startsWith('Hints')")
             self.assertEqual(page.locator("#panel-content .hint:not([hidden])").count(), 2)
             self.assertTrue(reveal.is_hidden())
             page.locator("#panel-content").get_by_role("link", name="the geometric limit result").click()
             self.assertIn("Geometric limit result", page.locator("#panel-content").inner_text())
             self.assertNotIn("Bounds", page.locator("#panel-content").inner_text())
-            question.get_by_role("button", name="Afficher la correction").click()
-            question.get_by_role("button", name="Explications").click()
+            question.get_by_role("button", name="Show correction").click()
+            question.get_by_role("button", name="Explanations").click()
             self.assertIn("supplied answer", page.locator("#panel-content").inner_text())
             page.locator("#panel-content").get_by_role("link", name="the theorem", exact=True).click()
             back.click()
-            page.wait_for_function("document.getElementById('panel-title').textContent.startsWith('Explications')")
+            page.wait_for_function("document.getElementById('panel-title').textContent.startsWith('Explanations')")
             self.assertIn("supplied answer", page.locator("#panel-content").inner_text())
-            page.locator(".question").nth(1).get_by_role("button", name="Afficher la correction").click()
+            page.locator(".question").nth(1).get_by_role("button", name="Show correction").click()
             self.assertEqual(page.locator(".correction:not([hidden])").count(), 1)
             self.assertEqual(page.locator(".question").nth(2).locator('[data-action="correction"]').count(), 0)
             page.set_viewport_size({"width": 390, "height": 844})
-            question.get_by_role("button", name="Indices", exact=True).click()
+            question.get_by_role("button", name="Hints", exact=True).click()
             page.wait_for_selector("#panel-content mjx-container svg")
             page.locator("#panel-content").get_by_role("link", name="the geometric limit result").click()
             back.click()
-            page.wait_for_function("document.getElementById('panel-title').textContent.startsWith('Indices')")
+            page.wait_for_function("document.getElementById('panel-title').textContent.startsWith('Hints')")
             self.assertEqual(page.locator("#panel-content .hint:not([hidden])").count(), 1)
             reveal.click()
             self.assertEqual(page.locator("#panel-content .hint:not([hidden])").count(), 2)
-            self.assertEqual(page.evaluate("document.documentElement.scrollWidth"), 390)
+            screenshot("mobile")
+            self.assertLessEqual(page.evaluate("document.documentElement.scrollWidth"),
+                                 page.evaluate("window.innerWidth"))
             self.assertTrue(page.locator("#error").is_hidden())
+            if failures or requests:
+                screenshot("failure")
+            else:
+                screenshot("success")
             self.assertFalse(failures, failures)
             self.assertFalse(requests, requests)
             browser.close()

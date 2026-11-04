@@ -24,4 +24,13 @@ title: Sequences
 
 The absolute value of each term is at most its initial value.
 
+<table>
+<tr><th>Type</th><th>Property</th></tr>
+<tr><td><em>independent</em></td><td>must be independent</td></tr>
+</table>
+
 ^bound
+
+# Subsequences
+
+Every subsequence of a convergent sequence has the same limit.

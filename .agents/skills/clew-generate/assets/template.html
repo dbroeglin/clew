@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="fr">
+<html lang="{{UI:locale}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -33,17 +33,17 @@ window.MathJax = {
 <script>{{MATHJAX}}</script>
 </head>
 <body>
-<header><p class="eyebrow">Clew · feuille d'exercices et cours</p><h1>{{TITLE}}</h1></header>
+<header><p class="eyebrow">{{UI:app.eyebrow}}</p><h1>{{TITLE}}</h1></header>
 <div id="error" role="alert" hidden></div>
 <main class="workspace">
-  <section class="sheet" aria-label="Cours et exercices"><div id="reading"></div><div id="exercises"></div></section>
-  <aside class="panel" aria-label="Aide contextuelle">
-    <button id="panel-back" type="button" hidden>Retour</button>
-    <h2 id="panel-title" tabindex="-1">Aide contextuelle</h2>
-    <div id="panel-content" aria-live="polite">Choisissez une méthode, des indices ou un cours.</div>
+  <section class="sheet" aria-label="{{UI:app.sheet_label}}"><div id="reading"></div><div id="exercises"></div></section>
+  <aside class="panel" aria-label="{{UI:app.panel_label}}">
+    <button id="panel-back" type="button" hidden>{{UI:app.panel_back}}</button>
+    <h2 id="panel-title" tabindex="-1">{{UI:app.panel_title}}</h2>
+    <div id="panel-content" aria-live="polite">{{UI:app.panel_placeholder}}</div>
   </aside>
 </main>
-<noscript>Activez JavaScript pour lire cette publication interactive.</noscript>
+<noscript>{{UI:app.noscript}}</noscript>
 <template id="template-course">
   <details>
     <summary data-slot="title"></summary>
@@ -54,7 +54,7 @@ window.MathJax = {
   <details class="exercise">
     <summary>
       <span class="exercise-title" data-slot="title"></span>
-      <button class="start" type="button" data-action="start">Commencer l'exercice</button>
+      <button class="start" type="button" data-action="start">{{UI:app.start_exercise}}</button>
     </summary>
     <div class="exercise-body" data-slot="body">
       <div data-slot="context"></div>
@@ -66,28 +66,28 @@ window.MathJax = {
     <span class="question-label" data-slot="label"></span>
     <div data-slot="statement"></div>
     <div class="actions" data-slot="actions">
-      <button type="button" data-help="method">Méthode</button>
-      <button type="button" data-help="hints">Indices</button>
+      <button type="button" data-help="method">{{UI:app.method}}</button>
+      <button type="button" data-help="hints">{{UI:app.hints}}</button>
     </div>
   </section>
 </template>
 <template id="template-course-link">
-  <button type="button">Cours · <span data-slot="title"></span></button>
+  <button type="button">{{UI:app.course_link}}<span data-slot="title"></span></button>
 </template>
 <template id="template-content">
   <div data-slot="content"></div>
 </template>
 <template id="template-method">
   <div>
-    <p class="aid-label">Aide ajoutée · distincte de la correction fournie</p>
+    <p class="aid-label">{{UI:aid.method}}</p>
     <div data-slot="content"></div>
   </div>
 </template>
 <template id="template-hints">
   <div>
-    <p class="aid-label">Aides ajoutées · révélation progressive</p>
+    <p class="aid-label">{{UI:aid.hints}}</p>
     <div data-slot="hints"></div>
-    <button type="button" data-action="reveal">Révéler l'indice suivant</button>
+    <button type="button" data-action="reveal">{{UI:aid.reveal}}</button>
   </div>
 </template>
 <template id="template-hint">
@@ -95,18 +95,18 @@ window.MathJax = {
 </template>
 <template id="template-explanations">
   <div>
-    <p class="aid-label">Explications ajoutées · distinctes de la correction fournie</p>
+    <p class="aid-label">{{UI:aid.explanations}}</p>
     <div data-slot="explanations"></div>
   </div>
 </template>
 <template id="template-correction">
   <button type="button" data-action="correction" aria-expanded="false"
-    data-label-open="Afficher la correction" data-label-close="Masquer la correction">Afficher la correction</button>
+    data-label-open="{{UI:correction.open}}" data-label-close="{{UI:correction.close}}">{{UI:correction.open}}</button>
   <div class="correction" data-slot="correction" hidden>
-    <p class="correction-title">Correction fournie</p>
+    <p class="correction-title">{{UI:correction.title}}</p>
     <div data-slot="answers"></div>
     <div class="actions" data-slot="courses">
-      <button type="button" data-help="explanations">Explications</button>
+      <button type="button" data-help="explanations">{{UI:app.explanations}}</button>
     </div>
   </div>
 </template>

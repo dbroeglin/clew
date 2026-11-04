@@ -1,6 +1,17 @@
 (() => {
   "use strict";
   const data = JSON.parse(document.getElementById("publication").textContent);
+  const ui = data.ui?.messages;
+  function uiText(key, values = {}) {
+    const template = ui?.[key];
+    if (typeof template !== "string") throw new Error("Missing Clew UI message: " + key);
+    return template.replace(/\{([A-Za-z][A-Za-z0-9_]*)\}/g, (_, name) => {
+      if (!Object.prototype.hasOwnProperty.call(values, name)) {
+        throw new Error("Missing value \"" + name + "\" for Clew UI message: " + key);
+      }
+      return String(values[name]);
+    });
+  }
   const questions = new Map(data.questions.map(item => [item.id, item]));
   const courses = new Map(data.courses.map(item => [item.id, item]));
   const panel = document.getElementById("panel-content");
@@ -52,9 +63,9 @@
       return MathJax.typesetPromise([target]);
     }).then(() => {
       if (target.querySelector("mjx-merror, [data-mjx-error]")) {
-        error("Une formule n'a pas pu être rendue. Vérifiez le contenu mathématique des notes.");
+        error(uiText("error.math_not_rendered"));
       }
-    }).catch(reason => error("Erreur de rendu mathématique : " + reason.message));
+    }).catch(reason => error(uiText("error.math_render", {message: reason.message})));
     return queue;
   }
   function required(root, selector) {
@@ -276,5 +287,5 @@
       }
     }
   });
-  MathJax.startup.promise.catch(reason => error("Impossible d'initialiser les mathématiques : " + reason.message));
+  MathJax.startup.promise.catch(reason => error(uiText("error.math_init", {message: reason.message})));
 })();

@@ -1,9 +1,11 @@
 """Inspect current whole-document notes without producer records or snapshots."""
 from __future__ import annotations
 
+import functools
 import json
 import os
 import re
+from bisect import bisect_left
 from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
@@ -45,13 +47,26 @@ def normalized_heading_reference(value: str) -> str:
     return re.sub(r"(?<!\\)(\*{1,3}|_{1,3})(.+?)\1", r"\2", value)
 
 
-def protected_lines(body: str) -> set[int]:
-    return {line for token in parser().parse(body)
-            if token.type in {"fence", "code_block", "math_block"} and token.map
-            for line in range(*token.map)}
+@functools.lru_cache(maxsize=256)
+def protected_lines(body: str) -> frozenset[int]:
+    return frozenset(line for token in parser().parse(body)
+                     if token.type in {"fence", "code_block", "math_block"} and token.map
+                     for line in range(*token.map))
 
 
+@functools.lru_cache(maxsize=64)
+def heading_tokens(body: str) -> tuple[tuple[int, str, int], ...]:
+    """Return (level, content, first line) for each heading, with comments hidden."""
+    tokens = parser().parse(hide_comments(body))
+    return tuple((int(token.tag[1:]), tokens[index + 1].content, token.map[0])
+                 for index, token in enumerate(tokens) if token.type == "heading_open")
+
+
+# Notes are immutable once read; repeated selections and links re-scan the same text.
+@functools.lru_cache(maxsize=1024)
 def hide_comments(body: str) -> str:
+    if "%%" not in body:
+        return body
     protected = protected_lines(body)
     offsets = [0]
     for line in body.splitlines(keepends=True):
@@ -140,6 +155,10 @@ class Note:
     parts: list[Part] = field(default_factory=list)
     blocks: dict[str, Part] = field(default_factory=dict)
     units: list[Unit] = field(default_factory=list)
+    spans: dict[str, tuple[int, int]] = field(default_factory=dict, repr=False, compare=False)
+    part_starts: list[int] = field(default_factory=list, repr=False, compare=False)
+    full_selection: str | None = field(default=None, repr=False, compare=False)
+    owners: dict[tuple[str, str], Unit] = field(default_factory=dict, repr=False, compare=False)
 
     @property
     def id(self) -> str:
@@ -154,10 +173,14 @@ class Note:
         return self.metadata.get("role", "")
 
     def owner(self, part: Part, kind: str) -> Unit:
+        key = (kind, part.block)
+        if key in self.owners:
+            return self.owners[key]
         matches = [unit for unit in self.units if unit.kind == kind
                    and unit.start < part.start and part.end <= unit.end - 1]
         require(len(matches) == 1, f"Expected one {kind} owner: {self.id}#^{part.block}")
-        return matches[0]
+        self.owners[key] = matches[0]
+        return self.owners[key]
 
     def unit(self, fragment: str, kind: str) -> Unit:
         matches = [unit for unit in self.units
@@ -166,7 +189,14 @@ class Note:
         return matches[0]
 
     def span_parts(self, start: int, end: int) -> list[Part]:
-        selected = [part for part in self.parts if part.start < end and start < part.end]
+        if self.parts and not self.part_starts:
+            self.part_starts = [part.start for part in self.parts]
+        first = bisect_left(self.part_starts, start)
+        while first and self.parts[first - 1].end > start:
+            first -= 1
+        last = bisect_left(self.part_starts, end)
+        selected = [part for part in self.parts[first:last]
+                    if part.start < end and start < part.end]
         require(all(start <= part.start and part.end <= end for part in selected),
                 f"Selection bisects content: {self.id}, body lines {start + 1}-{end}")
         return selected
@@ -175,10 +205,20 @@ class Note:
         return self.span_parts(*self.selection_span(fragment))
 
     def select(self, fragment: str = "") -> str:
+        if not fragment:
+            if self.full_selection is None:
+                self.full_selection = "\n\n".join(
+                    part.display() for part in self.select_parts() if part.text.strip())
+            return self.full_selection
         return "\n\n".join(part.display() for part in self.select_parts(fragment)
                           if part.text.strip())
 
     def selection_span(self, fragment: str = "") -> tuple[int, int]:
+        if fragment not in self.spans:
+            self.spans[fragment] = self.uncached_selection_span(fragment)
+        return self.spans[fragment]
+
+    def uncached_selection_span(self, fragment: str = "") -> tuple[int, int]:
         if not fragment:
             return 0, len(self.body.splitlines())
         if fragment.startswith("^"):
@@ -194,22 +234,21 @@ class Note:
                     f"Invalid line range or frontmatter selection: {self.id}#{fragment}")
             self.span_parts(start, end)
             return start, end
-        tokens = parser().parse(hide_comments(self.body))
-        matches = [(index, token) for index, token in enumerate(tokens)
-                   if token.type == "heading_open" and tokens[index + 1].content == fragment]
+        headings = heading_tokens(self.body)
+        matches = [index for index, (_, content, _) in enumerate(headings) if content == fragment]
         if not matches:
-            matches = [(index, token) for index, token in enumerate(tokens)
-                       if token.type == "heading_open" and
-                       normalized_heading_reference(tokens[index + 1].content)
+            matches = [index for index, (_, content, _) in enumerate(headings)
+                       if normalized_heading_reference(content)
                        == normalized_heading_reference(fragment)]
         require(len(matches) == 1, f"Missing or ambiguous heading: {self.id}#{fragment}")
-        index, heading = matches[0]
+        index = matches[0]
+        level, _, start = headings[index]
         end = len(self.body.splitlines())
-        for token in tokens[index + 1:]:
-            if token.type == "heading_open" and int(token.tag[1:]) <= int(heading.tag[1:]):
-                end = token.map[0]
+        for other_level, _, line in headings[index + 1:]:
+            if other_level <= level:
+                end = line
                 break
-        return heading.map[0], end
+        return start, end
 
 
 def read_note(path: Path) -> Note:
@@ -234,6 +273,7 @@ def read_note(path: Path) -> Note:
                     f"Frontmatter {key} must be a nonempty string: {path}")
     body = text[match.end():]
     note = Note(path, text, metadata, body, split_parts(body))
+    note.part_starts = [part.start for part in note.parts]
     for part in note.parts:
         if part.block:
             require(part.block not in note.blocks, f"Duplicate block: {path}#^{part.block}")
@@ -402,6 +442,13 @@ class Library:
                     self.notes.append(note)
         require(len({note.id for note in self.notes}) == len(self.notes),
                 "Duplicate learning-note IDs.")
+        self.by_path: dict[Path, Note] = {}
+        self.by_alias: dict[str, list[Note]] = {}
+        for note in self.notes:
+            self.by_path[note.path] = note
+            for alias in {note.id, note.path.stem, note.path.name,
+                          str(note.path), note.path.as_posix()}:
+                self.by_alias.setdefault(alias, []).append(note)
 
     def resolve(self, ref: str, origin: Note | None = None) -> tuple[Note, str]:
         require(isinstance(ref, str) and bool(ref), "Expected nonempty note reference.")
@@ -417,13 +464,11 @@ class Library:
         else:
             name, fragment = unquote(parsed.path), unquote(parsed.fragment)
         relative = Path(os.path.abspath(origin.path.parent / name)) if origin and name else None
-        local_matches = [note for note in self.notes if note.path == relative]
-        if local_matches:
-            return local_matches[0], fragment
-        matches = [note for note in self.notes if
-                   (not name and origin is note)
-                   or name in {note.id, note.path.stem, note.path.name, str(note.path),
-                               note.path.as_posix()}]
+        if relative is not None and relative in self.by_path:
+            return self.by_path[relative], fragment
+        if not name and origin and self.by_path.get(origin.path) is origin:
+            return origin, fragment
+        matches = self.by_alias.get(name, [])
         require(len(matches) == 1, f"Missing or ambiguous selected note: {ref}")
         return matches[0], fragment
 

@@ -7,7 +7,8 @@ from pathlib import Path
 from notes import Library, Note, Part, Unit, local_path, note_links, require
 
 
-def load_layout(path: Path) -> tuple[dict, Library]:
+def load_layout(path: Path, *, data: bool = False) -> tuple[dict, Library]:
+    """Load a layout; data mode ignores ``output`` because nothing is written there."""
     path = local_path(path)
     layout = json.loads(path.read_text(encoding="utf-8-sig"))
     require(isinstance(layout, dict), "Layout must be an object.")
@@ -15,12 +16,15 @@ def load_layout(path: Path) -> tuple[dict, Library]:
                               "courses", "exercises", "questions"}, "Unknown layout key.")
     require(type(layout.get("schema_version")) is int and layout["schema_version"] == 1,
             "Expected layout schema_version 1.")
-    for key in ("title", "output"):
+    for key in ("title",) if data else ("title", "output"):
         require(isinstance(layout.get(key), str) and bool(layout[key].strip()), f"Missing {key}.")
     paths = layout.get("notes")
     require(isinstance(paths, list) and all(isinstance(p, str) and p for p in paths),
             "notes must be an array of paths.")
     library = Library([path.parent / name for name in paths])
+    if data:
+        layout.pop("output", None)
+        return layout, library
     output = local_path(path.parent / layout["output"])
     require(output.suffix.lower() == ".html", "Output must be an .html file.")
     require(output not in {note.path for note in library.notes} and output != path,
@@ -109,6 +113,22 @@ def compile_layout(layout: dict, library: Library, render) -> dict:
 
     questions = {(note.id, "^" + part.block): (note, part, note.owner(part, "exercise"))
                  for note in library.notes for part in note.parts if part.kind == "question"}
+    aids_by_question = None
+
+    def indexed_aids() -> dict[tuple[str, str], list[Note]]:
+        nonlocal aids_by_question
+        if aids_by_question is None:
+            aids_by_question = {}
+            for aid in library.notes:
+                if aid.metadata["type"] != "help":
+                    continue
+                aid_note, aid_fragment = resolve(aid.metadata.get("question"), aid)
+                question_key = key(aid_note, aid_fragment)
+                require(question_key in questions,
+                        f"Aid requires an anchored question: {aid.id}")
+                aids_by_question.setdefault(question_key, []).append(aid)
+        return aids_by_question
+
     answer_targets = {}
     matched_answers = {}
     correction_owners = {}
@@ -157,6 +177,7 @@ def compile_layout(layout: dict, library: Library, render) -> dict:
                 title = note.blocks[fragment[1:]].label or title
             excerpts[excerpt_key] = {"id": f"course-{len(excerpts) + 1}",
                                      "title": title,
+                                     "address": note.id + ("#" + fragment if fragment else ""),
                                      "html": render(note.select(fragment), note, fragment)}
         return excerpts[excerpt_key]["id"]
 
@@ -230,14 +251,7 @@ def compile_layout(layout: dict, library: Library, render) -> dict:
                                "corrections")
             corrections, selected_answers = correction_panels(answer_refs, note, unit, question_key)
             auto = {"method": [], "hints": [], "explanations": []}
-            for aid in library.notes:
-                if aid.metadata["type"] != "help":
-                    continue
-                aid_note, aid_fragment = resolve(aid.metadata.get("question"), aid)
-                require(key(aid_note, aid_fragment) in questions,
-                        f"Aid requires an anchored question: {aid.id}")
-                if key(aid_note, aid_fragment) != question_key:
-                    continue
+            for aid in indexed_aids().get(question_key, []):
                 answer_key = None
                 if "correction" in aid.metadata:
                     answer_note, answer_fragment = resolve(aid.metadata["correction"], aid)
